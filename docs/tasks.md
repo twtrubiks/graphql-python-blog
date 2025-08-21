@@ -64,7 +64,6 @@
 - [ ] 創建 app/models/base.py - SQLAlchemy Base 模型
 - [ ] 設置 Alembic 初始化
 - [ ] 創建 .env 檔案範本
-- [ ] 配置 Docker Compose (PostgreSQL 16)
 
 ### 1.5 測試環境準備
 - [ ] 創建測試目錄結構
