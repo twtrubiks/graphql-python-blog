@@ -432,7 +432,6 @@ class TestAuthMutations:
                         createdAt
                     }
                     token
-                    refreshToken
                 }
             }
         """
@@ -466,7 +465,6 @@ class TestAuthMutations:
         
         # 驗證 token
         assert len(register_data["token"]) > 0
-        assert len(register_data["refreshToken"]) > 0
         
         # Token 應該是有效的 JWT
         import jwt
@@ -548,7 +546,6 @@ class TestAuthMutations:
                         username
                     }
                     token
-                    refreshToken
                 }
             }
         """
@@ -818,16 +815,16 @@ from websockets import connect
 
 class TestSubscriptions:
     """
-    Feature: 即時通知功能
-    作為用戶，我想要接收即時的評論和發布通知
+    Feature: 即時更新功能
+    作為用戶，我想要接收即時的評論和文章發布更新
     """
     
     @pytest.mark.asyncio
     async def test_comment_added_subscription(self, auth_client, db_session):
         """
-        測試案例：訂閱新評論通知
+        測試案例：訂閱新評論更新
         GraphQL 操作：commentAdded subscription
-        預期：當新評論加入時收到即時通知
+        預期：當新評論加入時收到即時更新
         """
         # Arrange: 創建文章
         post = await PostFactory.create(db_session)

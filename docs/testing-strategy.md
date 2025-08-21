@@ -66,7 +66,7 @@ class TestPostQueries:
     Feature: 文章查詢功能
     作為一個讀者，我想要瀏覽和搜尋文章
     """
-    
+
     @pytest.mark.asyncio
     async def test_get_published_posts_with_pagination(self, client):
         """
@@ -75,7 +75,7 @@ class TestPostQueries:
         """
         # Arrange: 準備測試資料
         await PostFactory.create_batch(15, status="published")
-        
+
         # GraphQL Query（這就是前端會用的）
         query = """
             query GetPosts($page: Int!, $limit: Int!) {
@@ -103,7 +103,7 @@ class TestPostQueries:
                 }
             }
         """
-        
+
         # Act: 執行 GraphQL 請求
         response = await client.post("/graphql", json={
             "query": query,
@@ -112,14 +112,14 @@ class TestPostQueries:
                 "limit": 10
             }
         })
-        
+
         # Assert: 驗證回應
         assert response.status_code == 200
         data = response.json()["data"]["posts"]
         assert len(data["edges"]) == 10
         assert data["pageInfo"]["hasNextPage"] is True
         assert data["pageInfo"]["totalCount"] == 15
-        
+
         # 驗證資料結構
         first_post = data["edges"][0]["node"]
         assert "id" in first_post
@@ -163,7 +163,7 @@ class TestPostQueries:
 ```python
 class TestPostService:
     """文章服務業務邏輯測試"""
-    
+
     @pytest.mark.asyncio
     async def test_only_author_can_edit_post(self):
         """測試：只有作者可以編輯文章"""
@@ -171,7 +171,7 @@ class TestPostService:
         author = await UserFactory.create()
         other_user = await UserFactory.create()
         post = await PostFactory.create(author=author)
-        
+
         # When & Then: 非作者編輯應該拋出錯誤
         with pytest.raises(PermissionError):
             await PostService.update_post(
@@ -197,7 +197,7 @@ class TestPostService:
 ```python
 class TestPublishingJourney:
     """完整的文章發布流程測試"""
-    
+
     @pytest.mark.asyncio
     async def test_complete_publishing_workflow(self, client):
         """
@@ -214,7 +214,7 @@ class TestPublishingJourney:
             }
         })
         token = register_response.json()["data"]["register"]["token"]
-        
+
         # Step 2: 使用 token 創建草稿
         client.headers["Authorization"] = f"Bearer {token}"
         draft_response = await client.post("/graphql", json={
@@ -228,13 +228,13 @@ class TestPublishingJourney:
             }
         })
         post_id = draft_response.json()["data"]["createPost"]["id"]
-        
+
         # Step 3: 發布文章
         publish_response = await client.post("/graphql", json={
             "query": PUBLISH_POST_MUTATION,
             "variables": {"id": post_id}
         })
-        
+
         # Verify: 文章已發布且可公開訪問
         assert publish_response.json()["data"]["publishPost"]["status"] == "PUBLISHED"
 ```
@@ -294,11 +294,11 @@ from factory import fuzzy
 class UserFactory(factory.Factory):
     class Meta:
         model = User
-    
+
     email = factory.Faker("email")
     username = factory.Faker("user_name")
     password = "TestPass123"
-    
+
     @classmethod
     async def create(cls, **kwargs):
         """異步創建用戶"""
@@ -312,7 +312,7 @@ class UserFactory(factory.Factory):
 class PostFactory(factory.Factory):
     class Meta:
         model = Post
-    
+
     title = factory.Faker("sentence", nb_words=5)
     content = factory.Faker("text", max_nb_chars=1000)
     excerpt = factory.Faker("text", max_nb_chars=200)
@@ -432,11 +432,7 @@ title = "test123"
 - 定期重構測試程式碼
 - 更新過時的測試案例
 - 移除重複的測試
-
-### 效能監控
-- 標記慢速測試
 - 優化測試執行時間
-- 平行執行測試
 
 ---
 

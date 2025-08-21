@@ -40,11 +40,11 @@ graphql-python-blog
 
 | 文件 | 說明 | 用途 |
 |------|------|------|
-| [產品需求文件](./prd.md) | 定義專案功能與需求 | 了解要做什麼 |
-| [系統架構文件](./architecture.md) | C4 模型架構圖與技術決策 | 了解怎麼做 |
-| [任務清單](./tasks.md) | 詳細的開發任務分解 | 追蹤執行進度 |
-| [測試策略](./testing-strategy.md) | GraphQL-First TDD 方法論 | 了解如何測試 |
-| [測試範例](./tests-examples.md) | 完整的測試程式碼範例 | 參考實作方式 |
+| [產品需求文件](./docs/prd.md) | 定義專案功能與需求 | 了解要做什麼 |
+| [系統架構文件](./docs/architecture.md) | C4 模型架構圖與技術決策 | 了解怎麼做 |
+| [任務清單](./docs/tasks.md) | 詳細的開發任務分解 | 追蹤執行進度 |
+| [測試策略](./docs/testing-strategy.md) | GraphQL-First TDD 方法論 | 了解如何測試 |
+| [測試範例](./docs/tests-examples.md) | 完整的測試程式碼範例 | 參考實作方式 |
 
 ## 🚀 快速開始
 
@@ -52,60 +52,15 @@ graphql-python-blog
 
 - Python 3.13+
 - Node.js 22+
-- PostgreSQL 16
 - Docker Compose (建立 PostgreSQL 16)
-
-### 安裝步驟
-
-1. **克隆專案**
-```bash
-git clone <repository-url>
-cd GraphQL
-```
-
-2. **後端設置**
-```bash
-# 創建虛擬環境
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 安裝依賴
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-
-# 設置環境變數
-cp .env.example .env
-# 編輯 .env 填入你的設定
-```
-
-3. **資料庫設置**
-```bash
-# 使用 Docker Compose（推薦）
-docker-compose up -d postgres
-
-# 或手動創建資料庫
-createdb blog_db
-
-# 執行資料庫遷移
-alembic upgrade head
-```
-
-4. **前端設置**
-```bash
-cd frontend
-npm install
-cp .env.example .env
-```
 
 ### 執行專案
 
 **後端啟動**
 ```bash
 # 開發模式
-uvicorn app.main:app --reload --port 8000
+fastapi dev app/main.py
 
-# 或使用 Make
-make run-backend
 ```
 
 **前端啟動**
@@ -187,22 +142,6 @@ GraphQL/
 3. **重構**：優化程式碼保持測試綠燈
 4. **文件**：更新相關文件
 
-### Git 工作流程
-
-```bash
-# 創建功能分支
-git checkout -b feature/post-crud
-
-# 開發並提交
-git add .
-git commit -m "feat: implement post CRUD operations"
-
-# 推送分支
-git push origin feature/post-crud
-
-# 創建 Pull Request
-```
-
 ### 提交訊息規範
 
 使用 Conventional Commits：
@@ -215,7 +154,7 @@ git push origin feature/post-crud
 
 ## 📊 專案進度
 
-查看 [tasks.md](./tasks.md) 了解詳細進度：
+查看 [tasks.md](./docs/tasks.md) 了解詳細進度：
 
 - [ ] Sprint 1: 環境與基礎設置
 - [ ] Sprint 2: 認證 API 開發

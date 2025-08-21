@@ -46,16 +46,15 @@ GraphQL Blog Platform Tutorial
 
 #### 5. 社交功能
 - 追蹤作者
-- 評論通知
 - 熱門文章排行
 
 #### 6. 內容增強
-- 圖片上傳 (文章封面)
+- 圖片上傳 (文章封面 - 本地儲存)
 - 程式碼高亮
 - 閱讀時間估算
 - 目錄自動生成
 
-#### 7. AI 功能 (pgvector)
+#### 7. AI 功能 (pgvector - 選用)
 - 語義搜尋
 - 相似文章推薦
 - 自動標籤建議
@@ -63,102 +62,42 @@ GraphQL Blog Platform Tutorial
 
 ## 技術架構
 
-### 後端架構
-
-#### Python 3.13 特性運用
-- 更好的錯誤訊息
-- 改進的 typing
-- 更快的 CPython
-
-#### 資料模型
-
-```python
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Optional, List
-from uuid import UUID
-from enum import Enum
-
-class PostStatus(Enum):
-    DRAFT = "draft"
-    PUBLISHED = "published"
-
-@dataclass
-class User:
-    id: UUID
-    email: str
-    username: str
-    password_hash: str
-    bio: Optional[str] = None
-    avatar_url: Optional[str] = None
-    created_at: datetime = None
-
-@dataclass
-class Post:
-    id: UUID
-    title: str
-    slug: str
-    content: str  # Markdown format
-    excerpt: str
-    author_id: UUID
-    status: PostStatus
-    tags: List['Tag']
-    created_at: datetime
-    updated_at: datetime
-    embedding: Optional[List[float]] = None  # vector(768) for Phase 2
-
-@dataclass
-class Comment:
-    id: UUID
-    content: str
-    author_id: UUID
-    post_id: UUID
-    created_at: datetime
-
-@dataclass
-class Like:
-    user_id: UUID
-    post_id: UUID
-    created_at: datetime
-
-@dataclass
-class Tag:
-    id: UUID
-    name: str
-    slug: str
-    created_at: datetime
-
-@dataclass
-class Follow:
-    follower_id: UUID
-    following_id: UUID
-    created_at: datetime
-```
+### 核心技術棧
+- **後端**: FastAPI + Strawberry (GraphQL) + SQLAlchemy 2.0
+- **資料庫**: PostgreSQL 16
+- **前端**: SvelteKit + Houdini (GraphQL Client)
+- **進階**: pgvector (選用 - 語義搜尋)
 
 ### GraphQL Schema
 
+#### 核心設計原則
+1. **單一入口點**：所有操作通過 `/graphql`
+2. **強型別定義**：每個欄位都有明確型別
+3. **關係導航**：可從任意節點導航到相關資料
+4. **計算欄位**：動態計算而非存儲的資料
+
 ```graphql
 type Query {
-  # 文章查詢
+  # 文章查詢 - 展示分頁、篩選能力
   posts(
     page: Int = 1
     limit: Int = 10
     tag: String
     authorId: ID
-  ): PostConnection!
+  ): PostConnection!  # Connection Pattern 用於分頁
 
   post(id: ID, slug: String): Post
 
-  # 用戶查詢
-  me: User
+  # 用戶查詢 - 展示認證整合
+  me: User  # 需要認證，從 context 獲取當前用戶
   user(id: ID, username: String): User
   users(page: Int = 1, limit: Int = 10): UserConnection!
 
-  # 搜尋
+  # 搜尋 - 展示聯合型別
   search(
     query: String!
     type: SearchType = ALL
-    semantic: Boolean = false
+    semantic: Boolean = false  # 選用：向量搜尋
   ): SearchResult!
 
   # 標籤
@@ -194,10 +133,9 @@ type Mutation {
 }
 
 type Subscription {
-  # 即時通知
+  # 即時更新
   commentAdded(postId: ID!): Comment!
   postPublished(authorId: ID): Post!
-  notificationReceived: Notification!
 }
 
 type Post {
@@ -206,16 +144,16 @@ type Post {
   slug: String!
   content: String!
   excerpt: String!
-  author: User!
+  author: User!  # Resolver: 解析作者資料
   status: PostStatus!
-  tags: [Tag!]!
-  likes: Int!
-  isLiked: Boolean!
-  comments: [Comment!]!
+  tags: [Tag!]!  # Resolver: 批次載入標籤
+  likes: Int!  # 計算欄位：統計按讚數
+  isLiked: Boolean!  # 計算欄位：當前用戶是否按讚
+  comments: [Comment!]!  # Resolver: 載入評論
   createdAt: DateTime!
   updatedAt: DateTime!
-  readTime: Int!
-  similarPosts(limit: Int = 5): [Post!]!  # Phase 2
+  readTime: Int!  # 計算欄位：根據字數計算
+  similarPosts(limit: Int = 5): [Post!]!  # 選用：向量相似度
 }
 
 type User {
@@ -224,11 +162,23 @@ type User {
   username: String!
   bio: String
   avatarUrl: String
-  posts(page: Int = 1, limit: Int = 10): PostConnection!
-  followers: [User!]!
-  following: [User!]!
-  isFollowing: Boolean!
+  posts(page: Int = 1, limit: Int = 10): PostConnection!  # 分頁查詢
+  followers: [User!]!  # Resolver: 載入追蹤者
+  following: [User!]!  # Resolver: 載入追蹤中
+  isFollowing: Boolean!  # 計算欄位：當前用戶是否追蹤
   createdAt: DateTime!
+}
+
+# Connection Pattern 用於分頁
+type PostConnection {
+  edges: [PostEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type PostEdge {
+  node: Post!
+  cursor: String!
 }
 
 enum PostStatus {
@@ -244,72 +194,13 @@ enum SearchType {
 }
 ```
 
-### 前端架構 (Svelte 5)
+### GraphQL 客戶端整合
 
-#### 使用 Svelte 5 新特性
-- `$state` rune 進行狀態管理
-- `$derived` rune 進行計算屬性
-- `$effect` rune 處理副作用
-- `$props` rune 處理組件屬性
-
-#### 路由結構
-```
-src/routes/
-├── +layout.svelte          # 全站布局
-├── +page.svelte           # 首頁（文章列表）
-├── +error.svelte          # 錯誤頁面
-├── (auth)/
-│   ├── login/
-│   │   └── +page.svelte   # 登入頁面
-│   └── register/
-│       └── +page.svelte   # 註冊頁面
-├── posts/
-│   ├── +page.svelte       # 文章列表
-│   ├── [slug]/
-│   │   ├── +page.svelte   # 文章詳情
-│   │   └── +page.ts       # 資料載入
-│   ├── new/
-│   │   └── +page.svelte   # 新增文章
-│   └── edit/[id]/
-│       └── +page.svelte   # 編輯文章
-├── profile/
-│   ├── +page.svelte       # 個人資料
-│   └── [username]/
-│       └── +page.svelte   # 用戶公開頁面
-├── search/
-│   └── +page.svelte       # 搜尋頁面
-└── api/
-    └── upload/
-        └── +server.ts     # 檔案上傳端點
-```
-
-#### 組件結構
-```
-src/lib/components/
-├── common/
-│   ├── Header.svelte
-│   ├── Footer.svelte
-│   ├── Loading.svelte
-│   └── ErrorMessage.svelte
-├── posts/
-│   ├── PostCard.svelte
-│   ├── PostList.svelte
-│   ├── PostEditor.svelte
-│   └── PostContent.svelte
-├── comments/
-│   ├── CommentList.svelte
-│   ├── CommentForm.svelte
-│   └── CommentItem.svelte
-├── user/
-│   ├── UserCard.svelte
-│   ├── UserAvatar.svelte
-│   └── FollowButton.svelte
-└── ui/
-    ├── Button.svelte
-    ├── Input.svelte
-    ├── Modal.svelte
-    └── Toast.svelte
-```
+前端使用 **Houdini** 作為 GraphQL 客戶端，提供：
+- 自動型別生成
+- 編譯時查詢優化
+- 內建快取管理
+- SvelteKit 深度整合
 
 ## 非功能性需求
 
@@ -344,44 +235,26 @@ src/lib/components/
 
 ## 開發階段規劃
 
-### Sprint 1: 基礎設置 (Week 1)
-- [ ] 專案架構初始化
-- [ ] 資料庫設計與建立
-- [ ] GraphQL Schema 定義
-- [ ] 基本 CRUD API 實作
-- [ ] 開發環境設定（Docker Compose）
+### 階段一：GraphQL 基礎建置
+- GraphQL Schema 設計與定義
+- Query 與 Mutation 實作
+- Resolver 架構建立
+- DataLoader 整合（解決 N+1 問題）
+- 基本 CRUD 操作
 
-### Sprint 2: 核心功能 (Week 2)
-- [ ] 用戶認證系統（註冊/登入/JWT）
-- [ ] 文章管理功能（CRUD）
-- [ ] 評論系統實作
-- [ ] 標籤系統
-- [ ] 基礎權限控制
+### 階段二：GraphQL 進階功能
+- Subscription 實作（即時更新）
+- 自訂 Scalar Types
+- Field-level 權限控制
+- 查詢複雜度限制
+- 錯誤處理標準化
 
-### Sprint 3: 前端整合 (Week 3)
-- [ ] SvelteKit 專案設置
-- [ ] Houdini 配置與整合
-- [ ] 頁面路由實作
-- [ ] 表單處理與驗證
-- [ ] 狀態管理（Svelte stores）
-
-### Sprint 4: 增強功能 (Week 4)
-- [ ] 檔案上傳功能
-- [ ] Markdown 編輯器與渲染
-- [ ] 搜尋功能實作
-- [ ] 分頁與無限滾動
-- [ ] 社交功能（追蹤系統）
-
-### Sprint 5: 進階功能 (Week 5)
-- [ ] pgvector 整合設置
-- [ ] 語義搜尋實作
-- [ ] 文章推薦系統
-- [ ] 效能優化（DataLoader）
-
-### Sprint 6: 完善 (Week 6)
-- [ ] 測試撰寫（覆蓋率 > 80%）
-- [ ] 文件撰寫
-- [ ] 效能調優
+### 階段三：效能優化與整合
+- 批次查詢優化
+- 快取策略實作
+- 前端 Houdini 整合
+- GraphQL Playground 設置
+- 效能監控與追蹤
 
 ## 交付項目
 
@@ -420,30 +293,27 @@ src/lib/components/
 
 | 風險 | 影響 | 可能性 | 緩解策略 |
 |------|------|--------|----------|
-| Svelte 5 文件不足 | 高 | 中 | 提供詳細範例程式碼，建立社群支援 |
-| Python 3.13 相容性問題 | 中 | 低 | 準備 Python 3.12 降級方案 |
-| pgvector 學習曲線陡峭 | 中 | 高 | 設為選修內容，提供簡化的封裝 |
-| Houdini 設定複雜 | 低 | 中 | 提供自動化設定腳本 |
+| GraphQL 查詢複雜度攻擊 | 高 | 中 | 實作查詢深度限制、複雜度計算 |
+| N+1 查詢問題 | 高 | 高 | 使用 DataLoader 批次載入 |
+| Schema 設計不當 | 高 | 中 | 遵循 GraphQL 最佳實踐、漸進式演進 |
+| 過度獲取敏感資料 | 高 | 低 | Field-level 權限控制、資料遮罩 |
 
-## 版本規劃
+## MVP 版本規劃
 
-### v1.0 - MVP (Month 1)
-- 基礎 CRUD 功能
-- 用戶認證
-- 文章與評論
-- 基本搜尋
-
-### v1.5 - 社交功能 (Month 2)
-- 追蹤系統
-- 通知功能
-- 進階搜尋
-- 效能優化
-
-### v2.0 - AI 功能 (Month 3)
-- pgvector 整合
-- 語義搜尋
-- 智慧推薦
-- 自動標籤
+### v1.0 核心功能
+- **GraphQL API 完整實作**
+  - Query：文章、用戶、標籤查詢
+  - Mutation：CRUD 操作、認證、互動功能
+  - Subscription：即時評論、新文章通知
+- **GraphQL 特色展示**
+  - DataLoader 批次載入
+  - 計算欄位（isLiked, readTime）
+  - 關聯資料解析
+  - 查詢優化
+- **開發工具整合**
+  - GraphQL Playground
+  - Schema 自動文件
+  - 型別自動生成
 
 ## 技術債務管理
 
