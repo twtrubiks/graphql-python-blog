@@ -1,14 +1,29 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from strawberry.fastapi import GraphQLRouter
 
 from app.core.config import settings
+from app.core.database import init_db, close_db
 from app.graphql.schema import schema
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.DEBUG:
+        print("Initializing database...")
+        await init_db()
+        print("Database initialized!")
+    yield
+    await close_db()
+    print("Database connection closed")
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="GraphQL Blog Platform API"
+    description="GraphQL Blog Platform API",
+    lifespan=lifespan
 )
 
 app.add_middleware(

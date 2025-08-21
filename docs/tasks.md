@@ -34,8 +34,8 @@
   fastapi[standard]
   strawberry-graphql[fastapi]
   sqlalchemy
-  #asyncpg
-  #pydantic-settings==2.3.0
+  asyncpg
+  pydantic-settings==2.3.0
   #python-jose[cryptography]==3.3.0
   #passlib[bcrypt]==1.7.4
   #python-multipart==0.0.9
