@@ -13,7 +13,7 @@
 ## Phase 1: 基礎環境設置 (Week 1)
 
 ### 1.1 專案結構建立
-- [ ] 創建 backend/ 目錄結構
+- [x] 創建 backend/ 目錄結構
   ```
   backend/
   ├── app/
@@ -29,19 +29,19 @@
   ```
 
 ### 1.2 依賴套件設置
-- [ ] 創建 requirements.txt
+- [x] 創建 requirements.txt
   ```
   fastapi[standard]
   strawberry-graphql[fastapi]
   sqlalchemy
   asyncpg
-  pydantic-settings==2.3.0
-  #python-jose[cryptography]==3.3.0
-  #passlib[bcrypt]==1.7.4
+  pydantic-settings
+  python-jose[cryptography]
+  passlib[bcrypt]
   #python-multipart==0.0.9
-  #alembic==1.13.2
+  alembic
   ```
-- [ ] 創建 requirements-test.txt
+- [x] 創建 requirements-test.txt
   ```
   pytest
   pytest-asyncio
@@ -53,20 +53,20 @@
   ```
 
 ### 1.3 FastAPI + Strawberry 整合
-- [ ] 創建 app/main.py - FastAPI 應用程式入口
-- [ ] 創建 app/core/config.py - 環境變數設定
-- [ ] 創建 app/graphql/schema.py - GraphQL schema 定義
-- [ ] 設置 GraphQL playground endpoint
-- [ ] 配置 CORS 設定
+- [x] 創建 app/main.py - FastAPI 應用程式入口
+- [x] 創建 app/core/config.py - 環境變數設定
+- [x] 創建 app/graphql/schema.py - GraphQL schema 定義
+- [x] 設置 GraphQL playground endpoint
+- [x] 配置 CORS 設定
 
 ### 1.4 資料庫連線設置
-- [ ] 創建 app/core/database.py - SQLAlchemy 異步連線
-- [ ] 創建 app/models/base.py - SQLAlchemy Base 模型
-- [ ] 設置 Alembic 初始化
-- [ ] 創建 .env 檔案範本
+- [x] 創建 app/core/database.py - SQLAlchemy 異步連線
+- [x] 創建 app/models/base.py - SQLAlchemy Base 模型
+- [x] 設置 Alembic 初始化
+- [x] 創建 .env 檔案範本
 
 ### 1.5 測試環境準備
-- [ ] 創建測試目錄結構
+- [x] 創建測試目錄結構
   ```
   tests/
   ├── conftest.py         # pytest 配置與 fixtures
@@ -78,10 +78,10 @@
   ├── services/
   └── integration/
   ```
-- [ ] 創建測試資料庫 fixture
-- [ ] 創建 GraphQL 測試客戶端
-- [ ] 設置測試事務回滾機制
-- [ ] 創建基礎測試常數檔
+- [x] 創建測試資料庫 fixture
+- [x] 創建 GraphQL 測試客戶端
+- [x] 設置測試事務回滾機制
+- [x] 創建基礎測試常數檔
 
 ---
 

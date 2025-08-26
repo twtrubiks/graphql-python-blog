@@ -3,3 +3,6 @@ strawberry-graphql[fastapi]
 sqlalchemy
 pydantic_settings
 asyncpg
+passlib[bcrypt]
+python-jose[cryptography]
+alembic
