@@ -1,7 +1,8 @@
 import strawberry
-from typing import Optional
+from typing import Optional, List
 from app.graphql.mutations.auth import register, login, AuthPayload
 from app.graphql.queries.auth import me, protected_data, ProtectedData
+from app.graphql.queries.user import get_user, get_users
 from app.graphql.types.user import UserType
 
 
@@ -17,6 +18,8 @@ class Query:
     
     me: Optional[UserType] = strawberry.field(resolver=me)
     protectedData: ProtectedData = strawberry.field(resolver=protected_data, name="protectedData")
+    user: Optional[UserType] = strawberry.field(resolver=get_user)
+    users: List[UserType] = strawberry.field(resolver=get_users)
 
 
 @strawberry.type

@@ -1,5 +1,7 @@
 # GraphQL 部落格平台 - 測試策略
 
+> **新手必讀**：如果你不熟悉 TDD，請先閱讀 [TDD 完整指南](./tdd-guide.md)
+
 ## 核心理念：GraphQL-First TDD
 
 本專案採用 **GraphQL-First TDD** 測試策略，將 GraphQL API 測試作為主要重點，因為：

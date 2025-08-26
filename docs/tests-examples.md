@@ -2,6 +2,10 @@
 
 本文件提供完整的測試範例程式碼，展示如何使用 GraphQL-First TDD 方法開發。每個範例都是可執行的 GraphQL 操作教學。
 
+> **相關文檔**：
+> - [TDD 完整指南](./tdd-guide.md) - 了解 TDD 的基本概念與實踐方法
+> - [測試策略](./testing-strategy.md) - 本專案的測試架構設計
+
 ## 目錄
 
 - [測試設置](#測試設置)
@@ -89,7 +93,7 @@ from app.models import User, Post, Comment, Tag
 
 class UserFactory:
     """Factory for creating test users."""
-    
+
     @staticmethod
     async def create(session, **kwargs):
         defaults = {
@@ -99,14 +103,14 @@ class UserFactory:
             "bio": factory.Faker("text", max_nb_chars=200).generate(),
         }
         defaults.update(kwargs)
-        
+
         # Hash password
         if "password" in defaults:
             password = defaults.pop("password")
             defaults["password_hash"] = bcrypt.hashpw(
                 password.encode(), bcrypt.gensalt()
             ).decode()
-        
+
         user = User(**defaults)
         session.add(user)
         await session.commit()
@@ -115,12 +119,12 @@ class UserFactory:
 
 class PostFactory:
     """Factory for creating test posts."""
-    
+
     @staticmethod
     async def create(session, author=None, **kwargs):
         if not author:
             author = await UserFactory.create(session)
-        
+
         defaults = {
             "title": factory.Faker("sentence", nb_words=5).generate(),
             "content": factory.Faker("text", max_nb_chars=1000).generate(),
@@ -131,7 +135,7 @@ class PostFactory:
             "created_at": datetime.utcnow(),
         }
         defaults.update(kwargs)
-        
+
         post = Post(**defaults)
         session.add(post)
         await session.commit()
@@ -155,7 +159,7 @@ class TestPostQueries:
     Feature: 文章查詢功能
     作為讀者，我想要瀏覽文章列表並查看詳情
     """
-    
+
     @pytest.mark.asyncio
     async def test_query_published_posts_with_pagination(self, client, db_session):
         """
@@ -170,7 +174,7 @@ class TestPostQueries:
                 title=f"Post {i+1}",
                 status="published"
             )
-        
+
         # GraphQL Query
         query = """
             query GetPosts($page: Int!, $limit: Int!) {
@@ -204,7 +208,7 @@ class TestPostQueries:
                 }
             }
         """
-        
+
         # Act: 執行查詢（第一頁，每頁 10 筆）
         response = await client.post(
             "/graphql",
@@ -216,14 +220,14 @@ class TestPostQueries:
                 }
             }
         )
-        
+
         # Assert: 驗證回應
         assert response.status_code == 200
         data = response.json()
-        
+
         # 檢查是否有錯誤
         assert "errors" not in data
-        
+
         # 驗證分頁資訊
         posts_data = data["data"]["posts"]
         assert len(posts_data["edges"]) == 10
@@ -231,7 +235,7 @@ class TestPostQueries:
         assert posts_data["pageInfo"]["hasNextPage"] is True
         assert posts_data["pageInfo"]["hasPreviousPage"] is False
         assert posts_data["pageInfo"]["pages"] == 2
-        
+
         # 驗證文章資料結構
         first_post = posts_data["edges"][0]["node"]
         assert "id" in first_post
@@ -254,7 +258,7 @@ class TestPostQueries:
             title="GraphQL 完整指南",
             slug="graphql-complete-guide"
         )
-        
+
         # GraphQL Query
         query = """
             query GetPost($slug: String!) {
@@ -294,7 +298,7 @@ class TestPostQueries:
                 }
             }
         """
-        
+
         # Act: 執行查詢
         response = await client.post(
             "/graphql",
@@ -305,11 +309,11 @@ class TestPostQueries:
                 }
             }
         )
-        
+
         # Assert: 驗證回應
         assert response.status_code == 200
         data = response.json()
-        
+
         post_data = data["data"]["post"]
         assert post_data["title"] == "GraphQL 完整指南"
         assert post_data["slug"] == "graphql-complete-guide"
@@ -327,7 +331,7 @@ class TestPostQueries:
         # Arrange: 創建不同類型的文章
         author1 = await UserFactory.create(db_session)
         author2 = await UserFactory.create(db_session)
-        
+
         await PostFactory.create(
             db_session,
             author=author1,
@@ -346,7 +350,7 @@ class TestPostQueries:
             title="Python 進階",
             status="draft"
         )
-        
+
         # GraphQL Query with filters
         query = """
             query FilterPosts($authorId: ID, $status: PostStatus, $search: String) {
@@ -366,9 +370,9 @@ class TestPostQueries:
                 }
             }
         """
-        
+
         # Act & Assert: 測試不同的過濾組合
-        
+
         # 1. 只看特定作者的文章
         response = await client.post(
             "/graphql",
@@ -382,7 +386,7 @@ class TestPostQueries:
         )
         data = response.json()
         assert data["data"]["posts"]["pageInfo"]["totalCount"] == 1
-        
+
         # 2. 搜尋關鍵字
         response = await client.post(
             "/graphql",
@@ -413,7 +417,7 @@ class TestAuthMutations:
     Feature: 用戶認證功能
     作為新用戶，我想要註冊並登入系統
     """
-    
+
     @pytest.mark.asyncio
     async def test_register_new_user_successfully(self, client):
         """
@@ -435,7 +439,7 @@ class TestAuthMutations:
                 }
             }
         """
-        
+
         # Act: 執行註冊
         response = await client.post(
             "/graphql",
@@ -451,21 +455,21 @@ class TestAuthMutations:
                 }
             }
         )
-        
+
         # Assert: 驗證回應
         assert response.status_code == 200
         data = response.json()
-        
+
         assert "errors" not in data
         register_data = data["data"]["register"]
-        
+
         # 驗證用戶資料
         assert register_data["user"]["email"] == "newuser@example.com"
         assert register_data["user"]["username"] == "newuser"
-        
+
         # 驗證 token
         assert len(register_data["token"]) > 0
-        
+
         # Token 應該是有效的 JWT
         import jwt
         decoded = jwt.decode(
@@ -486,7 +490,7 @@ class TestAuthMutations:
             db_session,
             email="existing@example.com"
         )
-        
+
         # GraphQL Mutation
         mutation = """
             mutation Register($input: RegisterInput!) {
@@ -498,7 +502,7 @@ class TestAuthMutations:
                 }
             }
         """
-        
+
         # Act: 嘗試用相同 email 註冊
         response = await client.post(
             "/graphql",
@@ -513,11 +517,11 @@ class TestAuthMutations:
                 }
             }
         )
-        
+
         # Assert: 驗證錯誤
         assert response.status_code == 200
         data = response.json()
-        
+
         assert "errors" in data
         assert len(data["errors"]) > 0
         assert "already exists" in data["errors"][0]["message"].lower()
@@ -535,7 +539,7 @@ class TestAuthMutations:
             email="user@example.com",
             password="TestPass123!"
         )
-        
+
         # GraphQL Mutation
         mutation = """
             mutation Login($email: String!, $password: String!) {
@@ -549,7 +553,7 @@ class TestAuthMutations:
                 }
             }
         """
-        
+
         # Act: 執行登入
         response = await client.post(
             "/graphql",
@@ -561,11 +565,11 @@ class TestAuthMutations:
                 }
             }
         )
-        
+
         # Assert: 驗證成功登入
         assert response.status_code == 200
         data = response.json()
-        
+
         assert "errors" not in data
         login_data = data["data"]["login"]
         assert login_data["user"]["email"] == "user@example.com"
@@ -583,7 +587,7 @@ class TestPostMutations:
     Feature: 文章管理功能
     作為作者，我想要創建、編輯和發布文章
     """
-    
+
     @pytest.mark.asyncio
     async def test_create_post_as_authenticated_user(self, auth_client, db_session):
         """
@@ -612,7 +616,7 @@ class TestPostMutations:
                 }
             }
         """
-        
+
         # Act: 創建文章
         response = await auth_client.post(
             "/graphql",
@@ -629,14 +633,14 @@ class TestPostMutations:
                 }
             }
         )
-        
+
         # Assert: 驗證文章創建
         assert response.status_code == 200
         data = response.json()
-        
+
         assert "errors" not in data
         post_data = data["data"]["createPost"]
-        
+
         assert post_data["title"] == "深入理解 GraphQL"
         assert post_data["slug"] == "shen-ru-li-jie-graphql"  # 自動生成 slug
         assert post_data["status"] == "DRAFT"
@@ -657,7 +661,7 @@ class TestPostMutations:
             title="原始標題",
             status="draft"
         )
-        
+
         # GraphQL Mutation
         mutation = """
             mutation UpdatePost($id: ID!, $input: PostInput!) {
@@ -670,7 +674,7 @@ class TestPostMutations:
                 }
             }
         """
-        
+
         # Act: 更新文章
         response = await auth_client.post(
             "/graphql",
@@ -686,11 +690,11 @@ class TestPostMutations:
                 }
             }
         )
-        
+
         # Assert: 驗證更新
         assert response.status_code == 200
         data = response.json()
-        
+
         post_data = data["data"]["updatePost"]
         assert post_data["title"] == "更新後的標題"
         assert post_data["status"] == "PUBLISHED"
@@ -709,7 +713,7 @@ class TestPostMutations:
             author=other_user,
             title="別人的文章"
         )
-        
+
         # GraphQL Mutation
         mutation = """
             mutation UpdatePost($id: ID!, $input: PostInput!) {
@@ -719,7 +723,7 @@ class TestPostMutations:
                 }
             }
         """
-        
+
         # Act: 嘗試更新
         response = await auth_client.post(
             "/graphql",
@@ -733,11 +737,11 @@ class TestPostMutations:
                 }
             }
         )
-        
+
         # Assert: 驗證錯誤
         assert response.status_code == 200
         data = response.json()
-        
+
         assert "errors" in data
         assert "permission" in data["errors"][0]["message"].lower()
 
@@ -753,7 +757,7 @@ class TestPostMutations:
             db_session,
             author=auth_client.user
         )
-        
+
         # GraphQL Mutation
         mutation = """
             mutation DeletePost($id: ID!) {
@@ -763,7 +767,7 @@ class TestPostMutations:
                 }
             }
         """
-        
+
         # Act: 刪除文章
         response = await auth_client.post(
             "/graphql",
@@ -774,13 +778,13 @@ class TestPostMutations:
                 }
             }
         )
-        
+
         # Assert: 驗證刪除
         assert response.status_code == 200
         data = response.json()
-        
+
         assert data["data"]["deletePost"]["success"] is True
-        
+
         # 驗證文章已被刪除
         query = """
             query GetPost($id: ID!) {
@@ -789,7 +793,7 @@ class TestPostMutations:
                 }
             }
         """
-        
+
         response = await auth_client.post(
             "/graphql",
             json={
@@ -797,7 +801,7 @@ class TestPostMutations:
                 "variables": {"id": str(post.id)}
             }
         )
-        
+
         data = response.json()
         assert data["data"]["post"] is None
 ```
@@ -818,7 +822,7 @@ class TestSubscriptions:
     Feature: 即時更新功能
     作為用戶，我想要接收即時的評論和文章發布更新
     """
-    
+
     @pytest.mark.asyncio
     async def test_comment_added_subscription(self, auth_client, db_session):
         """
@@ -828,7 +832,7 @@ class TestSubscriptions:
         """
         # Arrange: 創建文章
         post = await PostFactory.create(db_session)
-        
+
         # GraphQL Subscription
         subscription = """
             subscription OnCommentAdded($postId: ID!) {
@@ -842,24 +846,24 @@ class TestSubscriptions:
                 }
             }
         """
-        
+
         # Connect to WebSocket
         async with connect(
             "ws://localhost:8000/graphql",
             subprotocols=["graphql-ws"],
             extra_headers={"Authorization": f"Bearer {auth_client.token}"}
         ) as websocket:
-            
+
             # Send connection init
             await websocket.send(json.dumps({
                 "type": "connection_init",
                 "payload": {}
             }))
-            
+
             # Wait for connection ack
             response = await websocket.recv()
             assert json.loads(response)["type"] == "connection_ack"
-            
+
             # Subscribe
             await websocket.send(json.dumps({
                 "id": "1",
@@ -869,7 +873,7 @@ class TestSubscriptions:
                     "variables": {"postId": str(post.id)}
                 }
             }))
-            
+
             # Trigger event: Add a comment
             mutation = """
                 mutation AddComment($postId: ID!, $content: String!) {
@@ -879,7 +883,7 @@ class TestSubscriptions:
                     }
                 }
             """
-            
+
             await auth_client.post(
                 "/graphql",
                 json={
@@ -890,11 +894,11 @@ class TestSubscriptions:
                     }
                 }
             )
-            
+
             # Receive subscription update
             response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
             data = json.loads(response)
-            
+
             assert data["type"] == "data"
             assert data["payload"]["data"]["commentAdded"]["content"] == "這是一個測試評論"
 ```
@@ -912,7 +916,7 @@ class TestErrorHandling:
     Feature: 錯誤處理
     系統應該優雅地處理各種錯誤情況
     """
-    
+
     @pytest.mark.asyncio
     async def test_validation_error_response(self, client):
         """
@@ -927,7 +931,7 @@ class TestErrorHandling:
                 }
             }
         """
-        
+
         # 提供無效的輸入
         response = await client.post(
             "/graphql",
@@ -942,10 +946,10 @@ class TestErrorHandling:
                 }
             }
         )
-        
+
         data = response.json()
         assert "errors" in data
-        
+
         # 應該包含多個驗證錯誤
         errors = data["errors"]
         assert any("email" in str(e).lower() for e in errors)
@@ -965,7 +969,7 @@ class TestErrorHandling:
                 }
             }
         """
-        
+
         # 沒有提供認證 token
         response = await client.post(
             "/graphql",
@@ -979,7 +983,7 @@ class TestErrorHandling:
                 }
             }
         )
-        
+
         data = response.json()
         assert "errors" in data
         assert "authentication" in data["errors"][0]["message"].lower()
@@ -999,7 +1003,7 @@ class TestErrorHandling:
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -1009,7 +1013,7 @@ class TestErrorHandling:
                 }
             }
         )
-        
+
         data = response.json()
         assert "errors" not in data
         assert data["data"]["post"] is None  # GraphQL 慣例：找不到返回 null
@@ -1029,14 +1033,14 @@ class TestErrorHandling:
                 }
             }
         """
-        
+
         # 快速發送多個請求
         for i in range(101):  # 超過限制 (100/min)
             response = await client.post(
                 "/graphql",
                 json={"query": query}
             )
-        
+
         data = response.json()
         assert "errors" in data
         assert "rate limit" in data["errors"][0]["message"].lower()
@@ -1057,7 +1061,7 @@ class TestPostService:
     """
     測試文章服務的業務邏輯
     """
-    
+
     @pytest.mark.asyncio
     async def test_only_author_can_edit_post(self, db_session):
         """
@@ -1067,9 +1071,9 @@ class TestPostService:
         author = await UserFactory.create(db_session)
         other_user = await UserFactory.create(db_session)
         post = await PostFactory.create(db_session, author=author)
-        
+
         service = PostService(db_session)
-        
+
         # Act & Assert: 作者可以編輯
         updated_post = await service.update_post(
             post_id=post.id,
@@ -1077,7 +1081,7 @@ class TestPostService:
             data={"title": "更新的標題"}
         )
         assert updated_post.title == "更新的標題"
-        
+
         # Act & Assert: 其他用戶不能編輯
         with pytest.raises(PermissionDenied) as exc_info:
             await service.update_post(
@@ -1100,18 +1104,18 @@ class TestPostService:
             status="draft",
             content="短內容"  # 內容太短
         )
-        
+
         service = PostService(db_session)
-        
+
         # Act & Assert: 內容太短無法發布
         with pytest.raises(ValidationError) as exc_info:
             await service.publish_post(post_id=post.id, user_id=author.id)
         assert "content too short" in str(exc_info.value).lower()
-        
+
         # 更新內容後可以發布
         post.content = "這是一篇完整的文章內容" * 50
         await db_session.commit()
-        
+
         published_post = await service.publish_post(
             post_id=post.id,
             user_id=author.id
@@ -1127,7 +1131,7 @@ class TestPostService:
         # Arrange
         author = await UserFactory.create(db_session)
         service = PostService(db_session)
-        
+
         # 創建第一篇文章
         post1 = await service.create_post(
             user_id=author.id,
@@ -1137,7 +1141,7 @@ class TestPostService:
             }
         )
         assert post1.slug == "graphql-jiao-xue"
-        
+
         # 創建相同標題的文章，slug 應該不同
         post2 = await service.create_post(
             user_id=author.id,
@@ -1161,7 +1165,7 @@ class TestUserJourney:
     """
     端到端的用戶旅程測試
     """
-    
+
     @pytest.mark.asyncio
     async def test_complete_blogging_journey(self, client):
         """
@@ -1177,7 +1181,7 @@ class TestUserJourney:
                 }
             }
         """
-        
+
         register_response = await client.post(
             "/graphql",
             json={
@@ -1191,14 +1195,14 @@ class TestUserJourney:
                 }
             }
         )
-        
+
         register_data = register_response.json()["data"]["register"]
         user_id = register_data["user"]["id"]
         token = register_data["token"]
-        
+
         # 設置認證
         client.headers["Authorization"] = f"Bearer {token}"
-        
+
         # Step 2: 創建草稿
         create_draft_mutation = """
             mutation CreateDraft($input: PostInput!) {
@@ -1209,7 +1213,7 @@ class TestUserJourney:
                 }
             }
         """
-        
+
         draft_response = await client.post(
             "/graphql",
             json={
@@ -1223,11 +1227,11 @@ class TestUserJourney:
                 }
             }
         )
-        
+
         draft_data = draft_response.json()["data"]["createPost"]
         post_id = draft_data["id"]
         assert draft_data["status"] == "DRAFT"
-        
+
         # Step 3: 編輯草稿
         update_mutation = """
             mutation UpdatePost($id: ID!, $input: PostInput!) {
@@ -1238,7 +1242,7 @@ class TestUserJourney:
                 }
             }
         """
-        
+
         await client.post(
             "/graphql",
             json={
@@ -1252,7 +1256,7 @@ class TestUserJourney:
                 }
             }
         )
-        
+
         # Step 4: 發布文章
         publish_mutation = """
             mutation PublishPost($id: ID!) {
@@ -1263,7 +1267,7 @@ class TestUserJourney:
                 }
             }
         """
-        
+
         publish_response = await client.post(
             "/graphql",
             json={
@@ -1271,11 +1275,11 @@ class TestUserJourney:
                 "variables": {"id": post_id}
             }
         )
-        
+
         publish_data = publish_response.json()["data"]["publishPost"]
         assert publish_data["status"] == "PUBLISHED"
         assert publish_data["publishedAt"] is not None
-        
+
         # Step 5: 其他用戶評論
         # 創建另一個用戶
         reader_response = await client.post(
@@ -1291,10 +1295,10 @@ class TestUserJourney:
                 }
             }
         )
-        
+
         reader_token = reader_response.json()["data"]["register"]["token"]
         client.headers["Authorization"] = f"Bearer {reader_token}"
-        
+
         # 添加評論
         comment_mutation = """
             mutation AddComment($postId: ID!, $content: String!) {
@@ -1305,7 +1309,7 @@ class TestUserJourney:
                 }
             }
         """
-        
+
         comment_response = await client.post(
             "/graphql",
             json={
@@ -1316,10 +1320,10 @@ class TestUserJourney:
                 }
             }
         )
-        
+
         comment_data = comment_response.json()["data"]["createComment"]
         assert comment_data["author"]["username"] == "reader"
-        
+
         # Step 6: 驗證完整的文章資料
         final_query = """
             query GetPost($id: ID!) {
@@ -1335,7 +1339,7 @@ class TestUserJourney:
                 }
             }
         """
-        
+
         final_response = await client.post(
             "/graphql",
             json={
@@ -1343,7 +1347,7 @@ class TestUserJourney:
                 "variables": {"id": post_id}
             }
         )
-        
+
         final_data = final_response.json()["data"]["post"]
         assert final_data["author"]["username"] == "blogger"
         assert len(final_data["comments"]) == 1
@@ -1357,7 +1361,7 @@ class TestUserJourney:
         """
         # Arrange: 創建測試資料
         author = await UserFactory.create(db_session)
-        
+
         # 創建不同主題的文章
         posts = []
         topics = [
@@ -1366,7 +1370,7 @@ class TestUserJourney:
             ("Python 異步編程", "深入了解 asyncio", ["Python", "Async"]),
             ("FastAPI 完整指南", "使用 FastAPI 建立 API", ["Python", "FastAPI", "API"])
         ]
-        
+
         for title, content, tags in topics:
             post = await PostFactory.create(
                 db_session,
@@ -1376,7 +1380,7 @@ class TestUserJourney:
                 status="published"
             )
             posts.append(post)
-        
+
         # Step 1: 全文搜尋
         search_query = """
             query Search($query: String!) {
@@ -1389,7 +1393,7 @@ class TestUserJourney:
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -1397,10 +1401,10 @@ class TestUserJourney:
                 "variables": {"query": "GraphQL"}
             }
         )
-        
+
         search_results = response.json()["data"]["search"]
         assert len(search_results) == 2  # 應該找到兩篇 GraphQL 相關文章
-        
+
         # Step 2: 標籤過濾
         tag_filter_query = """
             query PostsByTag($tag: String!) {
@@ -1414,7 +1418,7 @@ class TestUserJourney:
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -1422,10 +1426,10 @@ class TestUserJourney:
                 "variables": {"tag": "API"}
             }
         )
-        
+
         tagged_posts = response.json()["data"]["posts"]["edges"]
         assert len(tagged_posts) == 3  # 三篇文章有 API 標籤
-        
+
         # Step 3: 查看相關文章（需要 pgvector）
         # 這部分在實際實作 pgvector 後測試
 ```

@@ -1,6 +1,8 @@
 # GraphQL 部落格平台 - 任務清單
 
 > 本專案採用 **GraphQL-First TDD** 開發方法，優先完成後端所有功能與測試，再進行前端開發。
+>
+> **關於 TDD**：請參考 [TDD 完整指南](./tdd-guide.md) 了解測試驅動開發的概念與實踐方法。
 
 ## 📋 開發策略
 
@@ -129,10 +131,10 @@
 - [x] 📝 測試：認證保護的 query
 
 ### 2.5 用戶查詢
-- [ ] 📝 測試：user query (查詢單一用戶)
-- [ ] 實作：user query resolver
-- [ ] 📝 測試：users query (用戶列表)
-- [ ] 實作：users query resolver with pagination
+- [x] 📝 測試：user query (查詢單一用戶)
+- [x] 實作：user query resolver
+- [x] 📝 測試：users query (用戶列表)
+- [x] 實作：users query resolver with pagination
 
 ---
 
@@ -417,9 +419,9 @@
 ## 開發原則
 
 1. **後端優先**: 所有後端功能必須完成並測試通過才開始前端
-2. **TDD 嚴格執行**: 每個功能都必須先寫測試
+2. **TDD 嚴格執行**: 每個功能都必須先寫測試（詳見 [TDD 指南](./tdd-guide.md#tdd-的核心循環)）
 3. **測試即文件**: 測試案例就是 API 使用範例
-4. **漸進式開發**: 紅燈 → 綠燈 → 重構
+4. **漸進式開發**: 紅燈 → 綠燈 → 重構（詳見 [TDD 循環說明](./tdd-guide.md#tdd-的核心循環)）
 5. **程式碼品質**: 每個 Sprint 結束前執行 linting 和 type checking
 
 ---
