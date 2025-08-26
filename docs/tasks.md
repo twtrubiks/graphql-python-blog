@@ -88,12 +88,12 @@
 ## Phase 2: 認證系統實作 (Week 2)
 
 ### 2.1 User 模型與資料庫
-- [ ] 實作：app/models/user.py - User SQLAlchemy 模型
-- [ ] 創建 User migration
-- [ ] 實作：app/services/auth.py - 密碼加密服務 (bcrypt)
+- [x] 實作：app/models/user.py - User SQLAlchemy 模型
+- [x] 創建 User migration
+- [x] 實作：app/services/auth.py - 密碼加密服務 (bcrypt)
 
 ### 2.2 註冊功能 (TDD)
-- [ ] 📝 測試：註冊 mutation 成功案例
+- [x] 📝 測試：註冊 mutation 成功案例
   ```graphql
   mutation Register($email: String!, $password: String!, $username: String!) {
     register(email: $email, password: $password, username: $username) {
@@ -102,13 +102,13 @@
     }
   }
   ```
-- [ ] 實作：register mutation resolver
-- [ ] 📝 測試：重複 email 錯誤處理
-- [ ] 📝 測試：重複 username 錯誤處理
-- [ ] 實作：輸入驗證與錯誤處理
+- [x] 實作：register mutation resolver
+- [x] 📝 測試：重複 email 錯誤處理
+- [x] 📝 測試：重複 username 錯誤處理
+- [x] 實作：輸入驗證與錯誤處理
 
 ### 2.3 登入功能 (TDD)
-- [ ] 📝 測試：登入 mutation 成功案例
+- [x] 📝 測試：登入 mutation 成功案例
   ```graphql
   mutation Login($email: String!, $password: String!) {
     login(email: $email, password: $password) {
@@ -117,16 +117,16 @@
     }
   }
   ```
-- [ ] 實作：login mutation resolver
-- [ ] 📝 測試：錯誤密碼處理
-- [ ] 📝 測試：不存在用戶處理
-- [ ] 實作：JWT token 生成服務
+- [x] 實作：login mutation resolver
+- [x] 📝 測試：錯誤密碼處理
+- [x] 📝 測試：不存在用戶處理
+- [x] 實作：JWT token 生成服務
 
 ### 2.4 簡單認證機制
-- [ ] 實作：JWT 驗證 middleware
-- [ ] 📝 測試：me query (取得當前用戶)
-- [ ] 實作：me query resolver
-- [ ] 📝 測試：認證保護的 query
+- [x] 實作：JWT 驗證 middleware
+- [x] 📝 測試：me query (取得當前用戶)
+- [x] 實作：me query resolver
+- [x] 📝 測試：認證保護的 query
 
 ### 2.5 用戶查詢
 - [ ] 📝 測試：user query (查詢單一用戶)

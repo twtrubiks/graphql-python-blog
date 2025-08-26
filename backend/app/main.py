@@ -1,10 +1,11 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from strawberry.fastapi import GraphQLRouter
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import init_db, close_db
+from app.core.database import init_db, close_db, get_async_session
 from app.graphql.schema import schema
 
 
@@ -34,10 +35,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+async def get_context(
+    request: Request,
+    db_session: AsyncSession = Depends(get_async_session)
+):
+    return {
+        "db_session": db_session,
+        "request": request
+    }
+
 graphql_app = GraphQLRouter(
     schema,
     path="/graphql",
     graphql_ide="graphiql" if settings.DEBUG else None,
+    context_getter=get_context,
 )
 
 app.include_router(graphql_app, prefix="")

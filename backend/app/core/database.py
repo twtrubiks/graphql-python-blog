@@ -29,6 +29,14 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         finally:
             await session.close()
 
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """Alias for get_db to match the import in main.py"""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

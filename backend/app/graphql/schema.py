@@ -1,22 +1,8 @@
 import strawberry
 from typing import Optional
-
-
-@strawberry.type
-class User:
-    id: int
-    username: str
-    email: str
-    bio: Optional[str] = None
-
-
-@strawberry.type
-class Post:
-    id: int
-    title: str
-    content: str
-    excerpt: Optional[str] = None
-    author: User
+from app.graphql.mutations.auth import register, login, AuthPayload
+from app.graphql.queries.auth import me, protected_data, ProtectedData
+from app.graphql.types.user import UserType
 
 
 @strawberry.type
@@ -28,10 +14,16 @@ class Query:
     @strawberry.field
     def version(self) -> str:
         return "1.0.0"
+    
+    me: Optional[UserType] = strawberry.field(resolver=me)
+    protectedData: ProtectedData = strawberry.field(resolver=protected_data, name="protectedData")
 
 
 @strawberry.type
 class Mutation:
+    register: AuthPayload = strawberry.field(resolver=register)
+    login: AuthPayload = strawberry.field(resolver=login)
+    
     @strawberry.mutation
     def echo(self, message: str) -> str:
         return f"Echo: {message}"

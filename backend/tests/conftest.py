@@ -10,7 +10,7 @@ from sqlalchemy.pool import NullPool
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.database import Base, get_db
+from app.core.database import Base, get_db, get_async_session
 from app.main import app
 from app.core.config import settings
 
@@ -62,7 +62,11 @@ async def client(test_session) -> AsyncGenerator[AsyncClient, None]:
     async def override_get_db():
         yield test_session
     
+    async def override_get_async_session():
+        yield test_session
+    
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_async_session] = override_get_async_session
     
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
