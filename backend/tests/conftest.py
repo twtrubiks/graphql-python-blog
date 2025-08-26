@@ -79,7 +79,7 @@ async def authenticated_client(client, test_user) -> AsyncClient:
     """Create authenticated test client."""
     from app.core.security import create_access_token
     
-    access_token = create_access_token(data={"sub": test_user.email})
+    access_token = create_access_token(data={"sub": str(test_user.id)})
     client.headers.update({"Authorization": f"Bearer {access_token}"})
     return client
 

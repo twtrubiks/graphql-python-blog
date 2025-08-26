@@ -1,20 +1,41 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Enum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.models.base import Base
+import enum
+
+
+class PostStatus(str, enum.Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+
 
 class Post(Base):
     __tablename__ = "posts"
     
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, nullable=False)
+    title = Column(String(255), nullable=False)
+    slug = Column(String(255), unique=True, nullable=False, index=True)
     content = Column(Text, nullable=False)
-    published = Column(Boolean, default=False)
-    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    excerpt = Column(Text, nullable=True)
+    status = Column(
+        Enum(PostStatus), 
+        default=PostStatus.DRAFT,
+        nullable=False
+    )
+    author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Soft delete
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
     author = relationship("User", back_populates="posts")
     
     def __repr__(self):
-        return f"<Post(id={self.id}, title='{self.title[:30]}...', author_id={self.author_id}, published={self.published})>"
+        return f"<Post(id={self.id}, title='{self.title[:30] if len(self.title) > 30 else self.title}', status={self.status})>"

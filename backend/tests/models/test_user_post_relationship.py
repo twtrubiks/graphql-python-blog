@@ -1,9 +1,9 @@
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
-from app.models.post import Post
+from app.models.post import Post, PostStatus
 
 
 class TestUserPostRelationship:
@@ -14,9 +14,9 @@ class TestUserPostRelationship:
         """測試用戶創建多篇文章"""
         # 創建多篇文章
         posts_data = [
-            {"title": "第一篇文章", "content": "第一篇內容", "published": True},
-            {"title": "第二篇文章", "content": "第二篇內容", "published": False},
-            {"title": "第三篇文章", "content": "第三篇內容", "published": True},
+            {"title": "第一篇文章", "slug": "first-post", "content": "第一篇內容", "status": PostStatus.PUBLISHED},
+            {"title": "第二篇文章", "slug": "second-post", "content": "第二篇內容", "status": PostStatus.DRAFT},
+            {"title": "第三篇文章", "slug": "third-post", "content": "第三篇內容", "status": PostStatus.PUBLISHED},
         ]
         
         created_posts = []
@@ -65,8 +65,8 @@ class TestUserPostRelationship:
         await test_session.refresh(user2)
         
         # 為每個用戶創建文章
-        post1 = Post(title="用戶1的文章", content="內容1", author_id=user1.id)
-        post2 = Post(title="用戶2的文章", content="內容2", author_id=user2.id)
+        post1 = Post(title="用戶1的文章", slug="user1-post", content="內容1", author_id=user1.id)
+        post2 = Post(title="用戶2的文章", slug="user2-post", content="內容2", author_id=user2.id)
         test_session.add_all([post1, post2])
         await test_session.commit()
         
@@ -104,6 +104,7 @@ class TestUserPostRelationship:
         for i in range(3):
             post = Post(
                 title=f"文章 {i+1}",
+                slug=f"post-{i+1}",
                 content=f"內容 {i+1}",
                 author_id=user.id
             )
@@ -128,10 +129,10 @@ class TestUserPostRelationship:
         """測試根據發布狀態篩選文章"""
         # 創建已發布和未發布的文章
         posts_data = [
-            {"title": "已發布文章1", "content": "內容1", "published": True},
-            {"title": "已發布文章2", "content": "內容2", "published": True},
-            {"title": "草稿文章1", "content": "內容3", "published": False},
-            {"title": "草稿文章2", "content": "內容4", "published": False},
+            {"title": "已發布文章1", "slug": "published-1", "content": "內容1", "status": PostStatus.PUBLISHED},
+            {"title": "已發布文章2", "slug": "published-2", "content": "內容2", "status": PostStatus.PUBLISHED},
+            {"title": "草稿文章1", "slug": "draft-1", "content": "內容3", "status": PostStatus.DRAFT},
+            {"title": "草稿文章2", "slug": "draft-2", "content": "內容4", "status": PostStatus.DRAFT},
         ]
         
         for post_data in posts_data:
@@ -144,7 +145,7 @@ class TestUserPostRelationship:
         result = await test_session.execute(
             select(Post)
             .filter(Post.author_id == test_user.id)
-            .filter(Post.published == True)
+            .filter(Post.status == PostStatus.PUBLISHED)
         )
         published_posts = result.scalars().all()
         
@@ -152,7 +153,7 @@ class TestUserPostRelationship:
         result = await test_session.execute(
             select(Post)
             .filter(Post.author_id == test_user.id) 
-            .filter(Post.published == False)
+            .filter(Post.status == PostStatus.DRAFT)
         )
         draft_posts = result.scalars().all()
         
@@ -160,11 +161,11 @@ class TestUserPostRelationship:
         assert len(draft_posts) == 2
         
         for post in published_posts:
-            assert post.published is True
+            assert post.status == PostStatus.PUBLISHED
             assert "已發布" in post.title
             
         for post in draft_posts:
-            assert post.published is False
+            assert post.status == PostStatus.DRAFT
             assert "草稿" in post.title
     
     @pytest.mark.asyncio
@@ -180,19 +181,17 @@ class TestUserPostRelationship:
         
         # 為用戶1創建5篇文章
         for i in range(5):
-            post = Post(title=f"用戶1文章{i+1}", content=f"內容{i+1}", author_id=user1.id)
+            post = Post(title=f"用戶1文章{i+1}", slug=f"user1-post-{i+1}", content=f"內容{i+1}", author_id=user1.id)
             test_session.add(post)
         
         # 為用戶2創建3篇文章
         for i in range(3):
-            post = Post(title=f"用戶2文章{i+1}", content=f"內容{i+1}", author_id=user2.id)
+            post = Post(title=f"用戶2文章{i+1}", slug=f"user2-post-{i+1}", content=f"內容{i+1}", author_id=user2.id)
             test_session.add(post)
         
         await test_session.commit()
         
         # 統計文章數量
-        from sqlalchemy import func
-        
         # 統計用戶1的文章數量
         result = await test_session.execute(
             select(func.count(Post.id)).filter(Post.author_id == user1.id)
@@ -214,6 +213,7 @@ class TestUserPostRelationship:
         # 嘗試創建指向不存在用戶的文章
         post = Post(
             title="無效文章",
+            slug="invalid-post",
             content="內容",
             author_id=99999  # 不存在的用戶ID
         )

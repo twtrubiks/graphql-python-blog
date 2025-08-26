@@ -6,3 +6,4 @@ asyncpg
 passlib[bcrypt]
 python-jose[cryptography]
 alembic
+python-slugify

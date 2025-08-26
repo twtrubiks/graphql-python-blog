@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select
 from app.models.user import User
-from app.models.post import Post
+from app.models.post import Post, PostStatus
 
 @pytest.mark.asyncio
 async def test_database_connection(test_session):
@@ -35,9 +35,10 @@ async def test_create_post(test_session, test_user):
     """Test creating a post in the database."""
     post = Post(
         title="Test Post",
+        slug="test-post",
         content="This is test content",
         author_id=test_user.id,
-        published=True
+        status=PostStatus.PUBLISHED
     )
     
     test_session.add(post)
@@ -47,18 +48,20 @@ async def test_create_post(test_session, test_user):
     assert post.id is not None
     assert post.title == "Test Post"
     assert post.author_id == test_user.id
-    assert post.published is True
+    assert post.status == PostStatus.PUBLISHED
 
 @pytest.mark.asyncio
 async def test_user_post_relationship(test_session, test_user):
     """Test relationship between user and posts."""
     post1 = Post(
         title="First Post",
+        slug="first-post",
         content="Content 1",
         author_id=test_user.id
     )
     post2 = Post(
         title="Second Post",
+        slug="second-post",
         content="Content 2",
         author_id=test_user.id
     )

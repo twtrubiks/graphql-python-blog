@@ -42,6 +42,7 @@
   passlib[bcrypt]
   #python-multipart==0.0.9
   alembic
+  python-slugify
   ```
 - [x] 創建 requirements-test.txt
   ```
@@ -148,7 +149,7 @@
 - [x] 實作：外鍵關聯設置
 
 ### 3.2 文章創建 (TDD)
-- [ ] 📝 測試：創建文章 mutation (需認證)
+- [x] 📝 測試：創建文章 mutation (需認證)
   ```graphql
   mutation CreatePost($input: PostInput!) {
     createPost(input: $input) {
@@ -161,11 +162,11 @@
     }
   }
   ```
-- [ ] 實作：createPost mutation resolver
-- [ ] 📝 測試：未認證用戶無法創建
-- [ ] 📝 測試：slug 自動生成
-- [ ] 📝 測試：草稿狀態管理
-- [ ] 實作：文章創建服務
+- [x] 實作：createPost mutation resolver
+- [x] 📝 測試：未認證用戶無法創建
+- [x] 📝 測試：slug 自動生成
+- [x] 📝 測試：草稿狀態管理
+- [x] 實作：文章創建服務
 
 ### 3.3 文章查詢 (TDD)
 - [ ] 📝 測試：單一文章查詢

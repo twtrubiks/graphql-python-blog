@@ -57,6 +57,7 @@ class TestForeignKeyConstraints:
         # 創建引用有效用戶ID的文章
         post = Post(
             title="有效文章",
+            slug="valid-post",
             content="文章內容",
             author_id=user.id  # 有效的外鍵
         )
@@ -75,6 +76,7 @@ class TestForeignKeyConstraints:
         # 嘗試創建引用不存在用戶ID的文章
         post = Post(
             title="無效文章",
+            slug="invalid-post",
             content="文章內容", 
             author_id=99999  # 不存在的用戶ID
         )
@@ -94,6 +96,7 @@ class TestForeignKeyConstraints:
         # 嘗試創建 author_id 為 NULL 的文章
         post = Post(
             title="無作者文章",
+            slug="no-author-post",
             content="文章內容"
             # author_id 沒有設置，將是 NULL
         )
@@ -125,6 +128,7 @@ class TestForeignKeyConstraints:
         for i in range(3):
             post = Post(
                 title=f"文章 {i+1}",
+                slug=f"post-{i+1}",
                 content=f"內容 {i+1}",
                 author_id=user.id
             )
@@ -161,6 +165,7 @@ class TestForeignKeyConstraints:
         # 創建屬於用戶1的文章
         post = Post(
             title="測試文章",
+            slug="test-post",
             content="測試內容",
             author_id=user1.id
         )
