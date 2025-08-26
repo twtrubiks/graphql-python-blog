@@ -141,11 +141,11 @@
 ## Phase 3: 文章管理核心功能 (Week 4-5)
 
 ### 3.1 Post 模型與關聯
-- [ ] 📝 測試：Post 模型驗證
-- [ ] 實作：app/models/post.py - Post SQLAlchemy 模型
-- [ ] 創建 Post migration
-- [ ] 📝 測試：User-Post 關聯
-- [ ] 實作：外鍵關聯設置
+- [x] 📝 測試：Post 模型驗證
+- [x] 實作：app/models/post.py - Post SQLAlchemy 模型
+- [x] 創建 Post migration
+- [x] 📝 測試：User-Post 關聯
+- [x] 實作：外鍵關聯設置
 
 ### 3.2 文章創建 (TDD)
 - [ ] 📝 測試：創建文章 mutation (需認證)

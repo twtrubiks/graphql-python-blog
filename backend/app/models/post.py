@@ -14,4 +14,7 @@ class Post(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    author = relationship("User", backref="posts")
+    author = relationship("User", back_populates="posts")
+    
+    def __repr__(self):
+        return f"<Post(id={self.id}, title='{self.title[:30]}...', author_id={self.author_id}, published={self.published})>"
