@@ -1,20 +1,16 @@
-"""測試文章查詢功能
-
-按照 TDD 方法，先寫測試再實作功能
-"""
-
 import pytest
 from tests.factories import UserFactory, PostFactory
 from app.models.post import PostStatus
+from app.core.security import create_access_token
 
 
 class TestPostQuery:
     """測試單一文章查詢"""
-    
+
     @pytest.mark.asyncio
     async def test_get_post_by_id_success(
-        self, 
-        client, 
+        self,
+        client,
         test_session
     ):
         """測試：成功查詢單一文章"""
@@ -28,7 +24,7 @@ class TestPostQuery:
             status=PostStatus.PUBLISHED
         )
         await test_session.commit()
-        
+
         # Act - 執行查詢
         query = """
             query GetPost($id: ID!) {
@@ -49,7 +45,7 @@ class TestPostQuery:
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -57,12 +53,12 @@ class TestPostQuery:
                 "variables": {"id": str(post.id)}
             }
         )
-        
+
         # Assert
         assert response.status_code == 200
         data = response.json()
         assert "errors" not in data
-        
+
         post_data = data["data"]["post"]
         assert str(post_data["id"]) == str(post.id)
         assert post_data["title"] == "GraphQL 教學"
@@ -73,7 +69,7 @@ class TestPostQuery:
         assert post_data["status"] == "PUBLISHED"
         assert str(post_data["author"]["id"]) == str(user.id)
         assert post_data["author"]["username"] == user.username
-    
+
     @pytest.mark.asyncio
     async def test_get_post_not_found(self, client):
         """測試：查詢不存在的文章"""
@@ -85,7 +81,7 @@ class TestPostQuery:
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -93,11 +89,11 @@ class TestPostQuery:
                 "variables": {"id": "999999"}
             }
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["data"]["post"] is None
-    
+
     @pytest.mark.asyncio
     async def test_get_draft_post_by_author(
         self,
@@ -114,12 +110,11 @@ class TestPostQuery:
             status=PostStatus.DRAFT
         )
         await test_session.commit()
-        
+
         # 使用作者的認證 headers
-        from app.core.security import create_access_token
         access_token = create_access_token(data={"sub": str(user.id)})
         headers = {"Authorization": f"Bearer {access_token}"}
-        
+
         # Act
         query = """
             query GetPost($id: ID!) {
@@ -130,7 +125,7 @@ class TestPostQuery:
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -139,17 +134,17 @@ class TestPostQuery:
             },
             headers=headers
         )
-        
+
         # Assert
         assert response.status_code == 200
         data = response.json()
         assert "errors" not in data
-        
+
         post_data = data["data"]["post"]
         assert str(post_data["id"]) == str(post.id)
         assert post_data["title"] == "我的草稿"
         assert post_data["status"] == "DRAFT"
-    
+
     @pytest.mark.asyncio
     async def test_cannot_get_others_draft(
         self,
@@ -160,7 +155,7 @@ class TestPostQuery:
         # Arrange
         author = await UserFactory.create(test_session)
         other_user = await UserFactory.create(test_session)
-        
+
         post = await PostFactory.create(
             test_session,
             author_id=author.id,
@@ -168,12 +163,11 @@ class TestPostQuery:
             status=PostStatus.DRAFT
         )
         await test_session.commit()
-        
+
         # 使用其他用戶的認證
-        from app.core.security import create_access_token
         access_token = create_access_token(data={"sub": str(other_user.id)})
         headers = {"Authorization": f"Bearer {access_token}"}
-        
+
         # Act
         query = """
             query GetPost($id: ID!) {
@@ -184,7 +178,7 @@ class TestPostQuery:
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -193,7 +187,7 @@ class TestPostQuery:
             },
             headers=headers
         )
-        
+
         # Assert
         assert response.status_code == 200
         data = response.json()
@@ -202,7 +196,7 @@ class TestPostQuery:
 
 class TestPostsQuery:
     """測試文章列表查詢"""
-    
+
     @pytest.mark.asyncio
     async def test_get_posts_with_pagination(
         self,
@@ -212,7 +206,7 @@ class TestPostsQuery:
         """測試：文章列表查詢與分頁"""
         # Arrange - 建立多篇文章
         user = await UserFactory.create(test_session)
-        
+
         # 建立 15 篇已發布文章
         for i in range(15):
             await PostFactory.create(
@@ -222,7 +216,7 @@ class TestPostsQuery:
                 status=PostStatus.PUBLISHED
             )
         await test_session.commit()
-        
+
         # Act - 查詢第一頁
         query = """
             query GetPosts($page: Int!, $limit: Int!) {
@@ -247,7 +241,7 @@ class TestPostsQuery:
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -255,12 +249,12 @@ class TestPostsQuery:
                 "variables": {"page": 1, "limit": 10}
             }
         )
-        
+
         # Assert
         assert response.status_code == 200
         data = response.json()
         assert "errors" not in data
-        
+
         posts_data = data["data"]["posts"]
         assert len(posts_data["edges"]) == 10
         assert posts_data["pageInfo"]["hasNextPage"] is True
@@ -268,7 +262,7 @@ class TestPostsQuery:
         assert posts_data["pageInfo"]["totalCount"] == 15
         assert posts_data["pageInfo"]["currentPage"] == 1
         assert posts_data["pageInfo"]["totalPages"] == 2
-    
+
     @pytest.mark.asyncio
     async def test_posts_only_show_published(
         self,
@@ -278,7 +272,7 @@ class TestPostsQuery:
         """測試：只顯示已發布的文章"""
         # Arrange
         user = await UserFactory.create(test_session)
-        
+
         # 建立不同狀態的文章
         published_posts = []
         for i in range(3):
@@ -289,7 +283,7 @@ class TestPostsQuery:
                 status=PostStatus.PUBLISHED
             )
             published_posts.append(post)
-        
+
         # 建立草稿和已封存文章（不應顯示）
         await PostFactory.create(
             test_session,
@@ -303,9 +297,9 @@ class TestPostsQuery:
             title="已封存文章",
             status=PostStatus.ARCHIVED
         )
-        
+
         await test_session.commit()
-        
+
         # Act
         query = """
             query GetPosts($page: Int!, $limit: Int!) {
@@ -323,7 +317,7 @@ class TestPostsQuery:
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -331,20 +325,20 @@ class TestPostsQuery:
                 "variables": {"page": 1, "limit": 10}
             }
         )
-        
+
         # Assert
         assert response.status_code == 200
         data = response.json()
         assert "errors" not in data
-        
+
         posts_data = data["data"]["posts"]
         assert posts_data["pageInfo"]["totalCount"] == 3
-        
+
         # 檢查只返回已發布的文章
         for edge in posts_data["edges"]:
             assert edge["node"]["status"] == "PUBLISHED"
             assert "已發布" in edge["node"]["title"]
-    
+
     @pytest.mark.asyncio
     async def test_posts_ordered_by_created_at(
         self,
@@ -354,7 +348,7 @@ class TestPostsQuery:
         """測試：文章按創建時間排序（最新的在前）"""
         # Arrange
         user = await UserFactory.create(test_session)
-        
+
         # 建立不同時間的文章
         await PostFactory.create(
             test_session,
@@ -362,16 +356,16 @@ class TestPostsQuery:
             title="較舊的文章",
             status=PostStatus.PUBLISHED
         )
-        
+
         await PostFactory.create(
             test_session,
             author_id=user.id,
             title="較新的文章",
             status=PostStatus.PUBLISHED
         )
-        
+
         await test_session.commit()
-        
+
         # Act
         query = """
             query GetPosts($page: Int!, $limit: Int!) {
@@ -385,7 +379,7 @@ class TestPostsQuery:
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -393,16 +387,16 @@ class TestPostsQuery:
                 "variables": {"page": 1, "limit": 10}
             }
         )
-        
+
         # Assert
         assert response.status_code == 200
         data = response.json()
-        
+
         posts = data["data"]["posts"]["edges"]
         assert len(posts) == 2
         assert posts[0]["node"]["title"] == "較新的文章"
         assert posts[1]["node"]["title"] == "較舊的文章"
-    
+
     @pytest.mark.asyncio
     async def test_posts_empty_list(
         self,
@@ -425,7 +419,7 @@ class TestPostsQuery:
                 }
             }
         """
-        
+
         response = await client.post(
             "/graphql",
             json={
@@ -433,12 +427,12 @@ class TestPostsQuery:
                 "variables": {"page": 1, "limit": 10}
             }
         )
-        
+
         # Assert
         assert response.status_code == 200
         data = response.json()
         assert "errors" not in data
-        
+
         posts_data = data["data"]["posts"]
         assert len(posts_data["edges"]) == 0
         assert posts_data["pageInfo"]["totalCount"] == 0

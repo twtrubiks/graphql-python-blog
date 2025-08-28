@@ -115,3 +115,12 @@ class PostInput:
     excerpt: Optional[str] = None
     slug: Optional[str] = None
     status: Optional[PostStatus] = PostStatus.DRAFT
+
+
+@strawberry.input
+class UpdatePostInput:
+    title: Optional[str] = None
+    content: Optional[str] = None
+    excerpt: Optional[str] = None
+    slug: Optional[str] = None
+    status: Optional[PostStatus] = None

@@ -72,15 +72,21 @@ class PostService:
     
     @staticmethod
     async def get_post_by_id(session: AsyncSession, post_id: int) -> Optional[Post]:
-        """Get a post by ID"""
-        stmt = select(Post).where(Post.id == post_id)
+        """Get a post by ID (excludes soft-deleted posts)"""
+        stmt = select(Post).where(
+            Post.id == post_id,
+            Post.deleted_at.is_(None)  # Exclude soft-deleted posts
+        )
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
     
     @staticmethod
     async def get_post_by_slug(session: AsyncSession, slug: str) -> Optional[Post]:
-        """Get a post by slug"""
-        stmt = select(Post).where(Post.slug == slug)
+        """Get a post by slug (excludes soft-deleted posts)"""
+        stmt = select(Post).where(
+            Post.slug == slug,
+            Post.deleted_at.is_(None)  # Exclude soft-deleted posts
+        )
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
     
@@ -97,8 +103,8 @@ class PostService:
         Returns:
             Tuple of (posts, total_count)
         """
-        # Build base query
-        query = select(Post)
+        # Build base query - exclude soft-deleted posts
+        query = select(Post).where(Post.deleted_at.is_(None))
         
         # Apply status filter
         if status_filter is not None:
@@ -111,8 +117,8 @@ class PostService:
         # Order by created_at descending (newest first)
         query = query.order_by(desc(Post.created_at))
         
-        # Get total count
-        count_query = select(func.count()).select_from(Post)
+        # Get total count - exclude soft-deleted posts
+        count_query = select(func.count()).select_from(Post).where(Post.deleted_at.is_(None))
         if status_filter is not None:
             count_query = count_query.where(Post.status == status_filter)
         
@@ -139,8 +145,12 @@ class PostService:
         
         - Published posts are visible to everyone
         - Draft/archived posts are only visible to their authors
+        - Soft-deleted posts are not visible
         """
-        stmt = select(Post).options(joinedload(Post.author)).where(Post.id == post_id)
+        stmt = select(Post).options(joinedload(Post.author)).where(
+            Post.id == post_id,
+            Post.deleted_at.is_(None)  # Exclude soft-deleted posts
+        )
         result = await session.execute(stmt)
         post = result.scalar_one_or_none()
         

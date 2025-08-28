@@ -204,7 +204,7 @@
 - [x] 實作：文章狀態過濾
 
 ### 3.4 文章更新與刪除 (TDD)
-- [ ] 📝 測試：更新文章 mutation (只有作者可編輯)
+- [x] 📝 測試：更新文章 mutation (只有作者可編輯)
   ```graphql
   mutation UpdatePost($id: ID!, $input: PostInput!) {
     updatePost(id: $id, input: $input) {
@@ -215,12 +215,12 @@
     }
   }
   ```
-- [ ] 實作：updatePost mutation resolver
-- [ ] 📝 測試：非作者無法編輯
-- [ ] 📝 測試：刪除文章 mutation
-- [ ] 實作：deletePost mutation resolver
-- [ ] 📝 測試：軟刪除機制
-- [ ] 實作：軟刪除邏輯
+- [x] 實作：updatePost mutation resolver
+- [x] 📝 測試：非作者無法編輯
+- [x] 📝 測試：刪除文章 mutation
+- [x] 實作：deletePost mutation resolver
+- [x] 📝 測試：軟刪除機制
+- [x] 實作：軟刪除邏輯
 
 ### 3.5 文章發布管理 (簡化版)
 - [ ] 📝 測試：發布文章 mutation
