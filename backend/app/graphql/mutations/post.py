@@ -42,16 +42,5 @@ async def create_post(
     # Load author relationship
     await session.refresh(post)
     
-    # Convert to GraphQL type
-    return PostType(
-        id=post.id,
-        title=post.title,
-        slug=post.slug,
-        content=post.content,
-        excerpt=post.excerpt,
-        status=PostStatus(post.status.value),
-        author=current_user,
-        created_at=post.created_at,
-        updated_at=post.updated_at,
-        published_at=post.published_at
-    )
+    # Convert to GraphQL type using from_orm method
+    return PostType.from_orm(post)

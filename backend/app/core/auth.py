@@ -61,3 +61,11 @@ async def require_auth(info: Info) -> User:
     if not user:
         raise ValueError("Authentication required")
     return user
+
+
+async def get_current_user_optional(info: Info) -> Optional[User]:
+    """
+    獲取當前用戶（如果已認證）
+    如果未認證，返回 None 而不拋出錯誤
+    """
+    return await get_current_user(info)

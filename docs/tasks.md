@@ -169,7 +169,7 @@
 - [x] 實作：文章創建服務
 
 ### 3.3 文章查詢 (TDD)
-- [ ] 📝 測試：單一文章查詢
+- [x] 📝 測試：單一文章查詢
   ```graphql
   query GetPost($id: ID!) {
     post(id: $id) {
@@ -183,8 +183,8 @@
     }
   }
   ```
-- [ ] 實作：post query resolver
-- [ ] 📝 測試：文章列表查詢與分頁
+- [x] 實作：post query resolver
+- [x] 📝 測試：文章列表查詢與分頁
   ```graphql
   query GetPosts($page: Int!, $limit: Int!) {
     posts(page: $page, limit: $limit) {
@@ -199,9 +199,9 @@
     }
   }
   ```
-- [ ] 實作：posts query resolver with pagination
-- [ ] 📝 測試：只顯示已發布文章
-- [ ] 實作：文章狀態過濾
+- [x] 實作：posts query resolver with pagination
+- [x] 📝 測試：只顯示已發布文章
+- [x] 實作：文章狀態過濾
 
 ### 3.4 文章更新與刪除 (TDD)
 - [ ] 📝 測試：更新文章 mutation (只有作者可編輯)

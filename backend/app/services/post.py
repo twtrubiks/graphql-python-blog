@@ -1,7 +1,8 @@
-from typing import Optional
+from typing import Optional, List, Tuple
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, desc, func
+from sqlalchemy.orm import joinedload
 from app.models.post import Post, PostStatus
 from slugify import slugify
 
@@ -82,3 +83,76 @@ class PostService:
         stmt = select(Post).where(Post.slug == slug)
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
+    
+    @staticmethod
+    async def get_posts(
+        session: AsyncSession,
+        page: int = 1,
+        limit: int = 10,
+        status_filter: Optional[PostStatus] = PostStatus.PUBLISHED,
+        include_author: bool = True
+    ) -> Tuple[List[Post], int]:
+        """Get paginated list of posts
+        
+        Returns:
+            Tuple of (posts, total_count)
+        """
+        # Build base query
+        query = select(Post)
+        
+        # Apply status filter
+        if status_filter is not None:
+            query = query.where(Post.status == status_filter)
+        
+        # Include author relation to avoid N+1 queries
+        if include_author:
+            query = query.options(joinedload(Post.author))
+        
+        # Order by created_at descending (newest first)
+        query = query.order_by(desc(Post.created_at))
+        
+        # Get total count
+        count_query = select(func.count()).select_from(Post)
+        if status_filter is not None:
+            count_query = count_query.where(Post.status == status_filter)
+        
+        total_count_result = await session.execute(count_query)
+        total_count = total_count_result.scalar() or 0
+        
+        # Apply pagination
+        offset = (page - 1) * limit
+        query = query.offset(offset).limit(limit)
+        
+        # Execute query
+        result = await session.execute(query)
+        posts = result.scalars().unique().all()
+        
+        return posts, total_count
+    
+    @staticmethod
+    async def get_post_with_permission_check(
+        session: AsyncSession,
+        post_id: int,
+        current_user_id: Optional[int] = None
+    ) -> Optional[Post]:
+        """Get a post with permission check
+        
+        - Published posts are visible to everyone
+        - Draft/archived posts are only visible to their authors
+        """
+        stmt = select(Post).options(joinedload(Post.author)).where(Post.id == post_id)
+        result = await session.execute(stmt)
+        post = result.scalar_one_or_none()
+        
+        if not post:
+            return None
+        
+        # Check permissions
+        if post.status == PostStatus.PUBLISHED:
+            return post
+        
+        # Draft or archived posts - only visible to author
+        if current_user_id and post.author_id == current_user_id:
+            return post
+        
+        return None
