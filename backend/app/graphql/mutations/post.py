@@ -171,3 +171,91 @@ async def delete_post(
         success=True,
         message="Post deleted successfully"
     )
+
+
+async def publish_post(
+    info: Info,
+    id: strawberry.ID
+) -> PostType:
+    """Publish a post (author only)"""
+    
+    # Check authentication
+    current_user = await require_auth(info)
+    
+    # Get database session
+    session = info.context["db_session"]
+    
+    # Get the post (exclude soft-deleted)
+    result = await session.execute(
+        select(Post).where(
+            Post.id == int(id),
+            Post.deleted_at.is_(None)
+        )
+    )
+    post = result.scalar_one_or_none()
+    
+    if not post:
+        raise ValueError("Post not found")
+    
+    # Check if current user is the author
+    if post.author_id != current_user.id:
+        raise ValueError("You don't have permission to publish this post")
+    
+    # Check if already published
+    if post.status == PostStatus.PUBLISHED.value:
+        raise ValueError("Post is already published")
+    
+    # Update status and published_at
+    post.status = PostStatus.PUBLISHED.value
+    post.published_at = datetime.now(timezone.utc)
+    post.updated_at = datetime.now(timezone.utc)
+    
+    # Save changes
+    await session.commit()
+    await session.refresh(post)
+    
+    return PostType.from_orm(post)
+
+
+async def unpublish_post(
+    info: Info,
+    id: strawberry.ID
+) -> PostType:
+    """Unpublish a post (author only)"""
+    
+    # Check authentication
+    current_user = await require_auth(info)
+    
+    # Get database session
+    session = info.context["db_session"]
+    
+    # Get the post (exclude soft-deleted)
+    result = await session.execute(
+        select(Post).where(
+            Post.id == int(id),
+            Post.deleted_at.is_(None)
+        )
+    )
+    post = result.scalar_one_or_none()
+    
+    if not post:
+        raise ValueError("Post not found")
+    
+    # Check if current user is the author
+    if post.author_id != current_user.id:
+        raise ValueError("You don't have permission to unpublish this post")
+    
+    # Check if not published
+    if post.status != PostStatus.PUBLISHED.value:
+        raise ValueError("Post is not published")
+    
+    # Update status and clear published_at
+    post.status = PostStatus.DRAFT.value
+    post.published_at = None
+    post.updated_at = datetime.now(timezone.utc)
+    
+    # Save changes
+    await session.commit()
+    await session.refresh(post)
+    
+    return PostType.from_orm(post)

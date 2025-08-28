@@ -1,7 +1,14 @@
 import strawberry
 from typing import Optional, List
 from app.graphql.mutations.auth import register, login, AuthPayload
-from app.graphql.mutations.post import create_post, update_post, delete_post, DeletePostResult
+from app.graphql.mutations.post import (
+    create_post, 
+    update_post, 
+    delete_post, 
+    publish_post,
+    unpublish_post,
+    DeletePostResult
+)
 from app.graphql.queries.auth import me, protected_data, ProtectedData
 from app.graphql.queries.user import get_user, get_users
 from app.graphql.queries.post import PostQuery
@@ -34,6 +41,8 @@ class Mutation:
     create_post: PostType = strawberry.field(resolver=create_post)
     update_post: PostType = strawberry.field(resolver=update_post)
     delete_post: DeletePostResult = strawberry.field(resolver=delete_post)
+    publish_post: PostType = strawberry.field(resolver=publish_post)
+    unpublish_post: PostType = strawberry.field(resolver=unpublish_post)
 
     @strawberry.mutation
     def echo(self, message: str) -> str:

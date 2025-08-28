@@ -223,10 +223,10 @@
 - [x] 實作：軟刪除邏輯
 
 ### 3.5 文章發布管理 (簡化版)
-- [ ] 📝 測試：發布文章 mutation
-- [ ] 實作：publishPost mutation
-- [ ] 📝 測試：取消發布 mutation
-- [ ] 實作：unpublishPost mutation
+- [x] 📝 測試：發布文章 mutation
+- [x] 實作：publishPost mutation
+- [x] 📝 測試：取消發布 mutation
+- [x] 實作：unpublishPost mutation
 
 ---
 
