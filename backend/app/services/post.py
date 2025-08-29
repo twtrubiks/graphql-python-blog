@@ -1,9 +1,10 @@
 from typing import Optional, List, Tuple
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, func
-from sqlalchemy.orm import joinedload
+from sqlalchemy import select, desc, func, and_
+from sqlalchemy.orm import joinedload, selectinload
 from app.models.post import Post, PostStatus
+from app.models.tag import Tag, post_tags
 from slugify import slugify
 
 
@@ -66,17 +67,34 @@ class PostService:
         
         session.add(post)
         await session.commit()
-        await session.refresh(post)
         
-        return post
+        # Reload with relationships to avoid lazy loading issues
+        result = await session.execute(
+            select(Post)
+            .options(
+                selectinload(Post.tags),
+                joinedload(Post.author)
+            )
+            .where(Post.id == post.id)
+        )
+        return result.scalar_one()
     
     @staticmethod
-    async def get_post_by_id(session: AsyncSession, post_id: int) -> Optional[Post]:
+    async def get_post_by_id(
+        session: AsyncSession, 
+        post_id: int,
+        include_tags: bool = False
+    ) -> Optional[Post]:
         """Get a post by ID (excludes soft-deleted posts)"""
         stmt = select(Post).where(
             Post.id == post_id,
             Post.deleted_at.is_(None)  # Exclude soft-deleted posts
         )
+        
+        # Optionally include tags
+        if include_tags:
+            stmt = stmt.options(selectinload(Post.tags))
+        
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
     
@@ -110,9 +128,12 @@ class PostService:
         if status_filter is not None:
             query = query.where(Post.status == status_filter)
         
-        # Include author relation to avoid N+1 queries
+        # Include author and tags relations to avoid N+1 queries
         if include_author:
             query = query.options(joinedload(Post.author))
+        
+        # Always include tags
+        query = query.options(selectinload(Post.tags))
         
         # Order by created_at descending (newest first)
         query = query.order_by(desc(Post.created_at))
@@ -147,7 +168,10 @@ class PostService:
         - Draft/archived posts are only visible to their authors
         - Soft-deleted posts are not visible
         """
-        stmt = select(Post).options(joinedload(Post.author)).where(
+        stmt = select(Post).options(
+            joinedload(Post.author),
+            selectinload(Post.tags)
+        ).where(
             Post.id == post_id,
             Post.deleted_at.is_(None)  # Exclude soft-deleted posts
         )
@@ -166,3 +190,216 @@ class PostService:
             return post
         
         return None
+    
+    @staticmethod
+    async def _get_tag_by_slug(session: AsyncSession, slug: str) -> Optional[Tag]:
+        """Helper method to get tag by slug"""
+        result = await session.execute(
+            select(Tag).where(Tag.slug == slug)
+        )
+        return result.scalar_one_or_none()
+    
+    @staticmethod
+    def _build_posts_by_tag_query(tag_id: int):
+        """Helper method to build query for posts by tag"""
+        return (
+            select(Post)
+            .join(post_tags, Post.id == post_tags.c.post_id)
+            .where(
+                and_(
+                    post_tags.c.tag_id == tag_id,
+                    Post.deleted_at.is_(None),
+                    Post.status == PostStatus.PUBLISHED
+                )
+            )
+            .options(
+                joinedload(Post.author),
+                selectinload(Post.tags)
+            )
+            .order_by(desc(Post.created_at))
+        )
+    
+    @staticmethod
+    async def _count_posts_by_tag(session: AsyncSession, tag_id: int) -> int:
+        """Helper method to count posts by tag"""
+        query = (
+            select(func.count())
+            .select_from(Post)
+            .join(post_tags, Post.id == post_tags.c.post_id)
+            .where(
+                and_(
+                    post_tags.c.tag_id == tag_id,
+                    Post.deleted_at.is_(None),
+                    Post.status == PostStatus.PUBLISHED
+                )
+            )
+        )
+        result = await session.execute(query)
+        return result.scalar() or 0
+    
+    @staticmethod
+    async def get_posts_by_tag(
+        session: AsyncSession,
+        tag_slug: str,
+        page: int = 1,
+        limit: int = 10
+    ) -> Tuple[List[Post], int]:
+        """Get posts filtered by tag slug"""
+        # Get the tag
+        tag = await PostService._get_tag_by_slug(session, tag_slug)
+        if not tag:
+            return [], 0
+        
+        # Build and execute query
+        query = PostService._build_posts_by_tag_query(tag.id)
+        
+        # Get total count
+        total_count = await PostService._count_posts_by_tag(session, tag.id)
+        
+        # Apply pagination
+        offset = (page - 1) * limit
+        query = query.offset(offset).limit(limit)
+        
+        # Execute and return results
+        result = await session.execute(query)
+        posts = result.scalars().unique().all()
+        
+        return posts, total_count
+    
+    @staticmethod
+    async def _get_tag_ids_by_slugs(session: AsyncSession, slugs: List[str]) -> List[int]:
+        """Helper method to get tag IDs by slugs"""
+        result = await session.execute(
+            select(Tag.id).where(Tag.slug.in_(slugs))
+        )
+        return [row[0] for row in result]
+    
+    @staticmethod
+    def _build_posts_with_all_tags_query(tag_ids: List[int]):
+        """Build query for posts that have ALL specified tags"""
+        # First get post IDs that have all tags
+        post_ids_subquery = (
+            select(Post.id)
+            .join(post_tags, Post.id == post_tags.c.post_id)
+            .where(
+                and_(
+                    post_tags.c.tag_id.in_(tag_ids),
+                    Post.deleted_at.is_(None),
+                    Post.status == PostStatus.PUBLISHED
+                )
+            )
+            .group_by(Post.id)
+            .having(func.count(post_tags.c.tag_id) == len(tag_ids))
+            .subquery()
+        )
+        
+        # Then get full posts
+        return (
+            select(Post)
+            .where(Post.id.in_(select(post_ids_subquery.c.id)))
+            .options(
+                joinedload(Post.author),
+                selectinload(Post.tags)
+            )
+            .order_by(desc(Post.created_at))
+        )
+    
+    @staticmethod
+    def _build_posts_with_any_tags_query(tag_ids: List[int]):
+        """Build query for posts that have ANY of the specified tags"""
+        return (
+            select(Post)
+            .join(post_tags, Post.id == post_tags.c.post_id)
+            .where(
+                and_(
+                    post_tags.c.tag_id.in_(tag_ids),
+                    Post.deleted_at.is_(None),
+                    Post.status == PostStatus.PUBLISHED
+                )
+            )
+            .distinct()
+            .options(
+                joinedload(Post.author),
+                selectinload(Post.tags)
+            )
+            .order_by(desc(Post.created_at))
+        )
+    
+    @staticmethod
+    async def _count_posts_with_all_tags(session: AsyncSession, tag_ids: List[int]) -> int:
+        """Count posts that have ALL specified tags"""
+        count_subquery = (
+            select(Post.id)
+            .join(post_tags, Post.id == post_tags.c.post_id)
+            .where(
+                and_(
+                    post_tags.c.tag_id.in_(tag_ids),
+                    Post.deleted_at.is_(None),
+                    Post.status == PostStatus.PUBLISHED
+                )
+            )
+            .group_by(Post.id)
+            .having(func.count(post_tags.c.tag_id) == len(tag_ids))
+            .subquery()
+        )
+        
+        result = await session.execute(
+            select(func.count()).select_from(count_subquery)
+        )
+        return result.scalar() or 0
+    
+    @staticmethod
+    async def _count_posts_with_any_tags(session: AsyncSession, tag_ids: List[int]) -> int:
+        """Count posts that have ANY of the specified tags"""
+        query = (
+            select(func.count(Post.id.distinct()))
+            .select_from(Post)
+            .join(post_tags, Post.id == post_tags.c.post_id)
+            .where(
+                and_(
+                    post_tags.c.tag_id.in_(tag_ids),
+                    Post.deleted_at.is_(None),
+                    Post.status == PostStatus.PUBLISHED
+                )
+            )
+        )
+        
+        result = await session.execute(query)
+        return result.scalar() or 0
+    
+    @staticmethod
+    async def get_posts_by_tags(
+        session: AsyncSession,
+        tag_slugs: List[str],
+        require_all: bool = False,
+        page: int = 1,
+        limit: int = 10
+    ) -> Tuple[List[Post], int]:
+        """Get posts filtered by multiple tags
+        
+        Args:
+            tag_slugs: List of tag slugs to filter by
+            require_all: If True, posts must have ALL tags. If False, posts with ANY tag match
+        """
+        # Get tag IDs
+        tag_ids = await PostService._get_tag_ids_by_slugs(session, tag_slugs)
+        if not tag_ids:
+            return [], 0
+        
+        # Build query based on require_all flag
+        if require_all:
+            query = PostService._build_posts_with_all_tags_query(tag_ids)
+            total_count = await PostService._count_posts_with_all_tags(session, tag_ids)
+        else:
+            query = PostService._build_posts_with_any_tags_query(tag_ids)
+            total_count = await PostService._count_posts_with_any_tags(session, tag_ids)
+        
+        # Apply pagination
+        offset = (page - 1) * limit
+        query = query.offset(offset).limit(limit)
+        
+        # Execute and return results
+        result = await session.execute(query)
+        posts = result.scalars().unique().all()
+        
+        return posts, total_count

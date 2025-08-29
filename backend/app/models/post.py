@@ -1,8 +1,12 @@
+from typing import TYPE_CHECKING, List
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Enum
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped
 from app.models.base import Base
 import enum
+
+if TYPE_CHECKING:
+    from app.models.tag import Tag
 
 
 class PostStatus(str, enum.Enum):
@@ -36,6 +40,11 @@ class Post(Base):
     
     # Relationships
     author = relationship("User", back_populates="posts")
+    tags: Mapped[List["Tag"]] = relationship(
+        "Tag",
+        secondary="post_tags",
+        back_populates="posts"
+    )
     
     def __repr__(self):
         return f"<Post(id={self.id}, title='{self.title[:30] if len(self.title) > 30 else self.title}', status={self.status})>"

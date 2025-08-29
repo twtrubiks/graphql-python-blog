@@ -233,12 +233,12 @@
 ## Phase 4: 互動功能開發 (Week 6-7)
 
 ### 4.1 標籤系統
-- [ ] 📝 測試：Tag 模型與多對多關聯
-- [ ] 實作：app/models/tag.py - Tag 模型
-- [ ] 📝 測試：文章標籤查詢
-- [ ] 實作：post.tags field resolver
-- [ ] 📝 測試：標籤過濾查詢
-- [ ] 實作：posts query with tag filter
+- [x] 📝 測試：Tag 模型與多對多關聯
+- [x] 實作：app/models/tag.py - Tag 模型
+- [x] 📝 測試：文章標籤查詢
+- [x] 實作：post.tags field resolver
+- [x] 📝 測試：標籤過濾查詢
+- [x] 實作：posts query with tag filter
 
 ### 4.2 評論系統 (TDD)
 - [ ] 📝 測試：Comment 模型

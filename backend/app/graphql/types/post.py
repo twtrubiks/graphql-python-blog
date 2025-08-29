@@ -3,6 +3,11 @@ import strawberry
 from typing import Optional, List, Annotated
 from datetime import datetime
 from enum import Enum
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+from app.graphql.types.tag import TagType
+from app.models.post import Post as PostModel
 
 
 @strawberry.enum
@@ -25,6 +30,7 @@ class PostType:
     author_id: int
     _author: strawberry.Private[Optional[object]] = None
     _excerpt: strawberry.Private[Optional[str]] = None
+    _tags: strawberry.Private[Optional[List[object]]] = None
     
     @strawberry.field
     def excerpt(self) -> str:
@@ -67,6 +73,26 @@ class PostType:
     def publishedAt(self) -> Optional[datetime]:
         return self.published_at
     
+    @strawberry.field
+    async def tags(self, info: strawberry.Info) -> List[TagType]:
+        """Resolve tags relationship"""
+        # If tags were preloaded, use them
+        if self._tags is not None:
+            return [TagType.from_model(tag) for tag in self._tags]
+        
+        # Otherwise, fetch from database
+        session = info.context["db_session"]
+        result = await session.execute(
+            select(PostModel)
+            .options(selectinload(PostModel.tags))
+            .where(PostModel.id == self.id)
+        )
+        post = result.scalar_one_or_none()
+        
+        if post and post.tags:
+            return [TagType.from_model(tag) for tag in post.tags]
+        return []
+    
     @classmethod
     def from_orm(cls, post):
         """Create PostType from ORM model"""
@@ -77,7 +103,8 @@ class PostType:
             content=post.content,
             _excerpt=post.excerpt,  # Store the actual excerpt
             _author=getattr(post, 'author', None),  # Store preloaded author if exists
-            status=PostStatus(post.status.value),
+            _tags=getattr(post, 'tags', None),  # Store preloaded tags if exists
+            status=PostStatus(post.status.value if hasattr(post.status, 'value') else post.status),
             author_id=post.author_id,
             created_at=post.created_at,
             updated_at=post.updated_at,
