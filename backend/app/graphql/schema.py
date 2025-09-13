@@ -2,13 +2,14 @@ import strawberry
 from typing import Optional, List
 from app.graphql.mutations.auth import register, login, AuthPayload
 from app.graphql.mutations.post import (
-    create_post, 
-    update_post, 
-    delete_post, 
+    create_post,
+    update_post,
+    delete_post,
     publish_post,
     unpublish_post,
     DeletePostResult
 )
+from app.graphql.mutations.comment import CommentMutation
 from app.graphql.queries.auth import me, protected_data, ProtectedData
 from app.graphql.queries.user import get_user, get_users
 from app.graphql.queries.post import PostQuery
@@ -33,7 +34,7 @@ class Query(PostQuery):
 
 
 @strawberry.type
-class Mutation:
+class Mutation(CommentMutation):
     register: AuthPayload = strawberry.field(resolver=register)
     login: AuthPayload = strawberry.field(resolver=login)
 

@@ -12,7 +12,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.database import Base, get_db, get_async_session
 from app.main import app
-from app.core.config import settings
 
 TEST_DATABASE_URL = "postgresql+asyncpg://blog_user:blog_password@localhost:5444/test_blog"
 
@@ -31,16 +30,16 @@ async def test_engine():
         poolclass=NullPool,
         echo=False
     )
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-    
+
     yield engine
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-    
+
     await engine.dispose()
 
 @pytest_asyncio.fixture(scope="function")
@@ -51,7 +50,7 @@ async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
         class_=AsyncSession,
         expire_on_commit=False
     )
-    
+
     async with async_session_maker() as session:
         yield session
         await session.rollback()
@@ -61,24 +60,24 @@ async def client(test_session) -> AsyncGenerator[AsyncClient, None]:
     """Create test client with overridden database dependency."""
     async def override_get_db():
         yield test_session
-    
+
     async def override_get_async_session():
         yield test_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_async_session] = override_get_async_session
-    
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-    
+
     app.dependency_overrides.clear()
 
 @pytest_asyncio.fixture
 async def authenticated_client(client, test_user) -> AsyncClient:
     """Create authenticated test client."""
     from app.core.security import create_access_token
-    
+
     access_token = create_access_token(data={"sub": str(test_user.id)})
     client.headers.update({"Authorization": f"Bearer {access_token}"})
     return client
@@ -88,7 +87,7 @@ async def test_user(test_session):
     """Create a test user."""
     from app.models.user import User
     from app.core.security import get_password_hash
-    
+
     user = User(
         email="test@example.com",
         username="testuser",
@@ -106,7 +105,7 @@ async def test_admin_user(test_session):
     """Create a test admin user."""
     from app.models.user import User
     from app.core.security import get_password_hash
-    
+
     admin = User(
         email="admin@example.com",
         username="admin",
@@ -118,3 +117,27 @@ async def test_admin_user(test_session):
     await test_session.commit()
     await test_session.refresh(admin)
     return admin
+
+@pytest_asyncio.fixture
+async def async_session(test_session):
+    """Alias for test_session to match test expectations."""
+    return test_session
+
+@pytest_asyncio.fixture
+async def test_post(test_session, test_user):
+    """Create a test post."""
+    from app.models.post import Post, PostStatus
+    from slugify import slugify
+
+    post = Post(
+        title="Test Post",
+        slug=slugify("Test Post"),
+        content="This is a test post content.",
+        excerpt="Test excerpt",
+        status=PostStatus.PUBLISHED,
+        author_id=test_user.id
+    )
+    test_session.add(post)
+    await test_session.commit()
+    await test_session.refresh(post)
+    return post

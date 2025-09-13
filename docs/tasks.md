@@ -241,9 +241,9 @@
 - [x] 實作：posts query with tag filter
 
 ### 4.2 評論系統 (TDD)
-- [ ] 📝 測試：Comment 模型
-- [ ] 實作：app/models/comment.py
-- [ ] 📝 測試：新增評論 mutation
+- [x] 📝 測試：Comment 模型
+- [x] 實作：app/models/comment.py
+- [x] 📝 測試：新增評論 mutation
   ```graphql
   mutation AddComment($postId: ID!, $content: String!) {
     addComment(postId: $postId, content: $content) {
@@ -254,11 +254,11 @@
     }
   }
   ```
-- [ ] 實作：addComment mutation resolver
-- [ ] 📝 測試：查詢文章評論
-- [ ] 實作：post.comments field resolver
-- [ ] 📝 測試：刪除評論 (作者或文章作者可刪)
-- [ ] 實作：deleteComment mutation
+- [x] 實作：addComment mutation resolver
+- [x] 📝 測試：查詢文章評論
+- [x] 實作：post.comments field resolver
+- [x] 📝 測試：刪除評論 (作者或文章作者可刪)
+- [x] 實作：deleteComment mutation
 
 ### 4.3 按讚功能 (TDD)
 - [ ] 📝 測試：Like 模型

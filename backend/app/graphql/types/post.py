@@ -31,6 +31,7 @@ class PostType:
     _author: strawberry.Private[Optional[object]] = None
     _excerpt: strawberry.Private[Optional[str]] = None
     _tags: strawberry.Private[Optional[List[object]]] = None
+    _comments: strawberry.Private[Optional[List[object]]] = None
     
     @strawberry.field
     def excerpt(self) -> str:
@@ -92,6 +93,50 @@ class PostType:
         if post and post.tags:
             return [TagType.from_model(tag) for tag in post.tags]
         return []
+    
+    @strawberry.field
+    async def comments(
+        self, 
+        info: strawberry.Info,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None
+    ) -> List[Annotated["Comment", strawberry.lazy("app.graphql.types.comment")]]:
+        """Resolve comments relationship with pagination"""
+        from app.graphql.types.comment import Comment
+        from app.services.comment import CommentService
+        
+        # Get database session
+        session = info.context["db_session"]
+        
+        # Fetch comments for this post
+        comments = await CommentService.get_post_comments(
+            db=session,
+            post_id=self.id,
+            limit=limit,
+            offset=offset
+        )
+        
+        # Convert to GraphQL types
+        return [
+            Comment(
+                id=str(comment.id),
+                content=comment.content,
+                created_at=comment.created_at,
+                updated_at=comment.updated_at,
+                deleted_at=comment.deleted_at,
+                author=comment.author,
+                post=None  # Avoid circular reference
+            )
+            for comment in comments
+        ]
+    
+    @strawberry.field
+    async def total_comments(self, info: strawberry.Info) -> int:
+        """Get total comment count for this post"""
+        from app.services.comment import CommentService
+        
+        session = info.context["db_session"]
+        return await CommentService.get_comment_count(session, self.id)
     
     @classmethod
     def from_orm(cls, post):
