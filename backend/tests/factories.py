@@ -8,6 +8,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.models.post import Post, PostStatus
+from app.models.comment import Comment
 from app.core.security import get_password_hash
 from slugify import slugify
 
@@ -94,3 +95,37 @@ class PostFactory:
         session.add(post)
         await session.flush()
         return post
+
+
+class CommentFactory:
+    """評論資料工廠"""
+    
+    _counter = 0
+    
+    @classmethod
+    async def create(
+        cls,
+        session: AsyncSession,
+        post_id: int,
+        user_id: int,
+        content: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        updated_at: Optional[datetime] = None
+    ) -> Comment:
+        """建立測試評論"""
+        cls._counter += 1
+        
+        if not content:
+            content = f"Test Comment {cls._counter}"
+        
+        comment = Comment(
+            content=content,
+            post_id=post_id,
+            user_id=user_id,
+            created_at=created_at or datetime.now(timezone.utc),
+            updated_at=updated_at or datetime.now(timezone.utc)
+        )
+        
+        session.add(comment)
+        await session.flush()
+        return comment

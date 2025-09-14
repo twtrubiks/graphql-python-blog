@@ -295,14 +295,14 @@
 > 本階段專注於展示 GraphQL 的三大核心優勢：效能優化、即時通訊、進階特性
 
 ### 5.1 DataLoader 優化 - 解決 N+1 問題 ⭐
-- [ ] 📝 測試：N+1 查詢問題檢測與效能基準測試
-- [ ] 實作：User DataLoader 批次載入機制
-- [ ] 📝 測試：Post DataLoader 效能提升驗證
-- [ ] 實作：Comment DataLoader 批次查詢優化
-- [ ] 📝 測試：巢狀查詢效能對比 (with/without DataLoader)
+- [x] 📝 測試：N+1 查詢問題檢測與效能基準測試
+- [x] 實作：User DataLoader 批次載入機制
+- [x] 📝 測試：Post DataLoader 效能提升驗證
+- [x] 實作：Comment DataLoader 批次查詢優化
+- [x] 📝 測試：巢狀查詢效能對比 (with/without DataLoader)
   - 測試案例：查詢 10 篇文章及其作者、評論、按讚數
   - 預期結果：查詢次數從 O(n) 降至 O(1)
-- [ ] 📊 效能報告：DataLoader 前後查詢次數與響應時間對比
+- [x] 📊 效能報告：DataLoader 前後查詢次數與響應時間對比
 
 ### 5.2 Subscription 即時通訊 - GraphQL 獨特功能 ⭐
 - [ ] 📝 測試：WebSocket 連線建立與斷線重連

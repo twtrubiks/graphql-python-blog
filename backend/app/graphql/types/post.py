@@ -57,7 +57,14 @@ class PostType:
         if self._author:
             return UserType.from_orm(self._author)
         
-        # Otherwise, fetch from database
+        # Check if DataLoader is available
+        dataloaders = info.context.get("dataloaders")
+        if dataloaders:
+            # Use DataLoader for batching
+            user = await dataloaders.get_user_loader().load(self.author_id)
+            return UserType.from_orm(user) if user else None
+        
+        # Fallback to direct database query
         session = info.context["db_session"]
         user = await UserService.get_user_by_id(session, self.author_id)
         return UserType.from_orm(user) if user else None
@@ -105,16 +112,20 @@ class PostType:
         from app.graphql.types.comment import Comment
         from app.services.comment import CommentService
         
-        # Get database session
-        session = info.context["db_session"]
-        
-        # Fetch comments for this post
-        comments = await CommentService.get_post_comments(
-            db=session,
-            post_id=self.id,
-            limit=limit,
-            offset=offset
-        )
+        # Check if DataLoader is available and no pagination is requested
+        dataloaders = info.context.get("dataloaders")
+        if dataloaders and limit is None and offset is None:
+            # Use DataLoader for batching when no pagination
+            comments = await dataloaders.get_post_comments_loader().load(self.id)
+        else:
+            # Fallback to direct query for paginated results
+            session = info.context["db_session"]
+            comments = await CommentService.get_post_comments(
+                db=session,
+                post_id=self.id,
+                limit=limit,
+                offset=offset
+            )
         
         # Convert to GraphQL types
         return [
@@ -143,6 +154,13 @@ class PostType:
         """Get total likes count for this post"""
         from app.services.like import LikeService
         
+        # Check if DataLoader is available
+        dataloaders = info.context.get("dataloaders")
+        if dataloaders:
+            # Use DataLoader for batching
+            return await dataloaders.get_like_count_loader().load(self.id)
+        
+        # Fallback to direct database query
         session = info.context["db_session"]
         return await LikeService.get_post_likes_count(session, self.id)
     
@@ -152,6 +170,13 @@ class PostType:
         from app.services.like import LikeService
         from app.core.deps import get_current_user_id
         
+        # Check if DataLoader is available
+        dataloaders = info.context.get("dataloaders")
+        if dataloaders:
+            # Use DataLoader for batching
+            return await dataloaders.get_user_liked_posts_loader().load(self.id)
+        
+        # Fallback to direct database query
         session = info.context["db_session"]
         user_id = await get_current_user_id(info)
         return await LikeService.is_post_liked_by_user(session, self.id, user_id)

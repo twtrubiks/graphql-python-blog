@@ -27,12 +27,26 @@ class UserType:
     @strawberry.field
     async def followers_count(self, info: Info) -> int:
         """獲取追蹤者數量"""
+        # Check if DataLoader is available
+        dataloaders = info.context.get("dataloaders")
+        if dataloaders:
+            # Use DataLoader for batching
+            return await dataloaders.get_followers_count_loader().load(int(self.id))
+        
+        # Fallback to direct database query
         session: AsyncSession = info.context.get("db_session")
         return await FollowService.get_followers_count(session, int(self.id))
     
     @strawberry.field
     async def following_count(self, info: Info) -> int:
         """獲取追蹤中數量"""
+        # Check if DataLoader is available
+        dataloaders = info.context.get("dataloaders")
+        if dataloaders:
+            # Use DataLoader for batching
+            return await dataloaders.get_following_count_loader().load(int(self.id))
+        
+        # Fallback to direct database query
         session: AsyncSession = info.context.get("db_session")
         return await FollowService.get_following_count(session, int(self.id))
     
