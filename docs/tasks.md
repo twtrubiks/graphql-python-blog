@@ -290,61 +290,60 @@
 
 ---
 
-## Phase 5: 進階功能與優化 (Week 8-9)
+## Phase 5: GraphQL 核心優勢展示 (Week 8-9)
 
-### 5.1 搜尋功能
-- [ ] 📝 測試：全文搜尋 query
-  ```graphql
-  query Search($query: String!, $type: SearchType) {
-    search(query: $query, type: $type) {
-      ... on Post { id, title, excerpt }
-      ... on User { id, username, bio }
-      ... on Tag { id, name, postsCount }
-    }
-  }
-  ```
-- [ ] 實作：PostgreSQL 全文搜尋
-- [ ] 📝 測試：搜尋結果排序
-- [ ] 實作：相關性排序算法
+> 本階段專注於展示 GraphQL 的三大核心優勢：效能優化、即時通訊、進階特性
 
-### 5.2 DataLoader 優化
-- [ ] 📝 測試：N+1 查詢問題檢測
-- [ ] 實作：User DataLoader
-- [ ] 📝 測試：Post DataLoader
-- [ ] 實作：Comment DataLoader
-- [ ] 📝 測試：批次載入效能驗證
-- [ ] 實作：Like/Follow DataLoader
+### 5.1 DataLoader 優化 - 解決 N+1 問題 ⭐
+- [ ] 📝 測試：N+1 查詢問題檢測與效能基準測試
+- [ ] 實作：User DataLoader 批次載入機制
+- [ ] 📝 測試：Post DataLoader 效能提升驗證
+- [ ] 實作：Comment DataLoader 批次查詢優化
+- [ ] 📝 測試：巢狀查詢效能對比 (with/without DataLoader)
+  - 測試案例：查詢 10 篇文章及其作者、評論、按讚數
+  - 預期結果：查詢次數從 O(n) 降至 O(1)
+- [ ] 📊 效能報告：DataLoader 前後查詢次數與響應時間對比
 
-### 5.3 Subscription 即時通訊
-- [ ] 📝 測試：WebSocket 連線
-- [ ] 實作：WebSocket endpoint 設置
-- [ ] 📝 測試：新評論即時通知
+### 5.2 Subscription 即時通訊 - GraphQL 獨特功能 ⭐
+- [ ] 📝 測試：WebSocket 連線建立與斷線重連
+- [ ] 實作：WebSocket endpoint 整合 Strawberry
+- [ ] 📝 測試：評論即時通知功能
   ```graphql
   subscription OnCommentAdded($postId: ID!) {
     commentAdded(postId: $postId) {
       id
       content
-      author { username }
+      author { username, avatar }
+      createdAt
     }
   }
   ```
-- [ ] 實作：commentAdded subscription
-- [ ] 📝 測試：文章發布通知
-- [ ] 實作：postPublished subscription
+- [ ] 實作：commentAdded subscription resolver
+- [ ] 📝 測試：簡單的用戶上線狀態
+- [ ] 實作：userStatusChanged subscription (online/offline)
 
-### 5.4 快取層實作 (選用 - 非教學重點)
-- [ ] ~~Redis 連線設置~~ (暫不實作)
-- [ ] ~~Redis 快取服務~~ (暫不實作)
-- [ ] ~~查詢結果快取~~ (暫不實作)
-- [ ] ~~GraphQL 查詢快取~~ (暫不實作)
-- [ ] ~~快取失效策略~~ (暫不實作)
-- [ ] ~~快取更新機制~~ (暫不實作)
-
-### 5.5 檔案上傳 (簡化版)
-- [ ] 📝 測試：圖片上傳 mutation
-- [ ] 實作：uploadImage mutation
-- [ ] 📝 測試：檔案大小與格式驗證
-- [ ] 實作：本地檔案儲存服務
+### 5.3 GraphQL 進階特性精選
+- [ ] 📝 測試：Union Types 搜尋功能
+  ```graphql
+  query SimpleSearch($term: String!) {
+    search(term: $term) {
+      ... on Post { id, title, excerpt }
+      ... on User { id, username, bio }
+    }
+  }
+  ```
+- [ ] 實作：Search union type resolver (簡化版)
+- [ ] 📝 測試：Fragment 重用提升程式碼維護性
+  ```graphql
+  fragment AuthorInfo on User {
+    id
+    username
+    avatar
+  }
+  ```
+- [ ] 實作：Fragment 在查詢中的應用範例
+- [ ] 📝 測試：Custom @auth directive 權限控制
+- [ ] 實作：@auth directive 實現 field-level 權限
 
 ---
 
