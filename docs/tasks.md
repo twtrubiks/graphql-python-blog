@@ -279,14 +279,14 @@
 - [x] 實作：post.isLiked, post.likesCount resolvers
 
 ### 4.4 追蹤功能 (TDD)
-- [ ] 📝 測試：Follow 模型
-- [ ] 實作：app/models/follow.py
-- [ ] 📝 測試：追蹤用戶 mutation
-- [ ] 實作：followUser mutation
-- [ ] 📝 測試：取消追蹤 mutation
-- [ ] 實作：unfollowUser mutation
-- [ ] 📝 測試：查詢追蹤者/追蹤中
-- [ ] 實作：user.followers, user.following resolvers
+- [x] 📝 測試：Follow 模型
+- [x] 實作：app/models/follow.py
+- [x] 📝 測試：追蹤用戶 mutation
+- [x] 實作：followUser mutation
+- [x] 📝 測試：取消追蹤 mutation
+- [x] 實作：unfollowUser mutation
+- [x] 📝 測試：查詢追蹤者/追蹤中
+- [x] 實作：user.followers, user.following resolvers
 
 ---
 

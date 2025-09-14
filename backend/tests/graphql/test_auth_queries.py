@@ -51,7 +51,7 @@ class TestMeQuery:
         assert "data" in data
         assert "me" in data["data"]
         me_data = data["data"]["me"]
-        assert me_data["id"] == user.id  # id should be integer
+        assert me_data["id"] == str(user.id)  # id is now returned as string
         assert me_data["email"] == "testuser@example.com"
         assert me_data["username"] == "testuser"
         assert me_data["isActive"] is True
@@ -239,7 +239,7 @@ class TestUserQuery:
         assert "data" in data
         assert "user" in data["data"]
         user_data = data["data"]["user"]
-        assert user_data["id"] == user.id
+        assert user_data["id"] == str(user.id)
         assert user_data["email"] == "queryuser@example.com"
         assert user_data["username"] == "queryuser"
         assert user_data["bio"] == "Test user bio"
@@ -285,7 +285,7 @@ class TestUserQuery:
         assert "data" in data
         assert "user" in data["data"]
         user_data = data["data"]["user"]
-        assert user_data["id"] == user.id
+        assert user_data["id"] == str(user.id)
         assert user_data["email"] == "testusername@example.com"
         assert user_data["username"] == "uniqueusername"
         assert user_data["isActive"] is True
@@ -358,7 +358,7 @@ class TestUserQuery:
         assert "data" in data
         assert "user" in data["data"]
         user_data = data["data"]["user"]
-        assert user_data["id"] == user.id
+        assert user_data["id"] == str(user.id)
         assert user_data["isActive"] is False
 
     @pytest.mark.asyncio

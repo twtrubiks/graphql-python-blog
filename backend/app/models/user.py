@@ -24,7 +24,18 @@ class User(Base):
     likes = relationship("Like", back_populates="user", cascade="all, delete-orphan")
     
     # Follow relationships (self-referential many-to-many)
-    # These will be defined when we create the Follow model
+    following_relationships = relationship(
+        "Follow",
+        foreign_keys="Follow.follower_id",
+        back_populates="follower",
+        cascade="all, delete-orphan"
+    )
+    follower_relationships = relationship(
+        "Follow",
+        foreign_keys="Follow.followed_id",
+        back_populates="followed",
+        cascade="all, delete-orphan"
+    )
     
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', email='{self.email}')>"

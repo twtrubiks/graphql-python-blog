@@ -141,3 +141,16 @@ async def test_post(test_session, test_user):
     await test_session.commit()
     await test_session.refresh(post)
     return post
+
+@pytest_asyncio.fixture
+async def user_factory(test_session):
+    """Factory for creating test users."""
+    from tests.factories import UserFactory
+    
+    UserFactory._counter = 0  # Reset counter for each test
+    
+    class Factory:
+        async def create(self, **kwargs):
+            return await UserFactory.create(test_session, **kwargs)
+    
+    return Factory()
