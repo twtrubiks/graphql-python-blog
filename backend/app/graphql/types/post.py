@@ -138,6 +138,24 @@ class PostType:
         session = info.context["db_session"]
         return await CommentService.get_comment_count(session, self.id)
     
+    @strawberry.field
+    async def likes_count(self, info: strawberry.Info) -> int:
+        """Get total likes count for this post"""
+        from app.services.like import LikeService
+        
+        session = info.context["db_session"]
+        return await LikeService.get_post_likes_count(session, self.id)
+    
+    @strawberry.field
+    async def is_liked(self, info: strawberry.Info) -> bool:
+        """Check if current user has liked this post"""
+        from app.services.like import LikeService
+        from app.core.deps import get_current_user_id
+        
+        session = info.context["db_session"]
+        user_id = await get_current_user_id(info)
+        return await LikeService.is_post_liked_by_user(session, self.id, user_id)
+    
     @classmethod
     def from_orm(cls, post):
         """Create PostType from ORM model"""

@@ -10,6 +10,7 @@ from app.graphql.mutations.post import (
     DeletePostResult
 )
 from app.graphql.mutations.comment import CommentMutation
+from app.graphql.mutations.like import LikeMutation
 from app.graphql.queries.auth import me, protected_data, ProtectedData
 from app.graphql.queries.user import get_user, get_users
 from app.graphql.queries.post import PostQuery
@@ -34,7 +35,7 @@ class Query(PostQuery):
 
 
 @strawberry.type
-class Mutation(CommentMutation):
+class Mutation(CommentMutation, LikeMutation):
     register: AuthPayload = strawberry.field(resolver=register)
     login: AuthPayload = strawberry.field(resolver=login)
 

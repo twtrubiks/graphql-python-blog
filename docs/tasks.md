@@ -261,9 +261,9 @@
 - [x] 實作：deleteComment mutation
 
 ### 4.3 按讚功能 (TDD)
-- [ ] 📝 測試：Like 模型
-- [ ] 實作：app/models/like.py
-- [ ] 📝 測試：按讚 mutation
+- [x] 📝 測試：Like 模型
+- [x] 實作：app/models/like.py
+- [x] 📝 測試：按讚 mutation
   ```graphql
   mutation LikePost($postId: ID!) {
     likePost(postId: $postId) {
@@ -272,11 +272,11 @@
     }
   }
   ```
-- [ ] 實作：likePost mutation
-- [ ] 📝 測試：取消按讚 mutation
-- [ ] 實作：unlikePost mutation
-- [ ] 📝 測試：查詢按讚狀態
-- [ ] 實作：post.isLiked, post.likesCount resolvers
+- [x] 實作：likePost mutation
+- [x] 📝 測試：取消按讚 mutation
+- [x] 實作：unlikePost mutation
+- [x] 📝 測試：查詢按讚狀態
+- [x] 實作：post.isLiked, post.likesCount resolvers
 
 ### 4.4 追蹤功能 (TDD)
 - [ ] 📝 測試：Follow 模型
