@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy import select
 from app.models.user import User
 from app.models.post import Post, PostStatus
+from app.core.security import get_password_hash
 
 @pytest.mark.asyncio
 async def test_database_connection(test_session):
@@ -12,8 +13,6 @@ async def test_database_connection(test_session):
 @pytest.mark.asyncio
 async def test_create_user(test_session):
     """Test creating a user in the database."""
-    from app.core.security import get_password_hash
-    
     user = User(
         email="newuser@example.com",
         username="newuser",

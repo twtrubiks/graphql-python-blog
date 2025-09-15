@@ -240,7 +240,8 @@ class TestUserQuery:
         assert "user" in data["data"]
         user_data = data["data"]["user"]
         assert user_data["id"] == str(user.id)
-        assert user_data["email"] == "queryuser@example.com"
+        # email 因為權限保護會是 None（沒有認證）
+        assert user_data["email"] is None
         assert user_data["username"] == "queryuser"
         assert user_data["bio"] == "Test user bio"
         assert user_data["avatarUrl"] == "https://example.com/avatar.jpg"
@@ -286,7 +287,8 @@ class TestUserQuery:
         assert "user" in data["data"]
         user_data = data["data"]["user"]
         assert user_data["id"] == str(user.id)
-        assert user_data["email"] == "testusername@example.com"
+        # email 因為權限保護會是 None（沒有認證）
+        assert user_data["email"] is None
         assert user_data["username"] == "uniqueusername"
         assert user_data["isActive"] is True
 

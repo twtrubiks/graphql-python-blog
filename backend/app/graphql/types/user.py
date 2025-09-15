@@ -5,16 +5,20 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.types import Info
+from strawberry.permission import PermissionExtension
 
 from app.models.follow import Follow
 from app.services.follow import FollowService
 from app.core.deps import get_current_user_id
+from app.graphql.permissions import IsOwnerOrSuperuser
 
 
 @strawberry.type
 class UserType:
     id: strawberry.ID
-    email: str
+    email: Optional[str] = strawberry.field(
+        extensions=[PermissionExtension(permissions=[IsOwnerOrSuperuser()], fail_silently=True)]
+    )
     username: str
     full_name: Optional[str] = None
     bio: Optional[str] = None

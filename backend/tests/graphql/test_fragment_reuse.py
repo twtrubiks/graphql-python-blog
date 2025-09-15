@@ -14,7 +14,7 @@ class TestFragmentReuse:
 
     async def test_fragment_in_multiple_queries(
         self,
-        client,
+        authenticated_client,
         test_session,
         test_user,
     ):
@@ -40,9 +40,8 @@ class TestFragmentReuse:
         test_session.add_all([post1, post2])
         await test_session.commit()
 
-        # 使用 Fragment 的查詢
-        # Fragment 定義在查詢字串中
-        query = """
+        # 測試 Fragment 在 posts 查詢中的使用
+        posts_query = """
             fragment AuthorInfo on UserType {
                 id
                 username
@@ -58,7 +57,7 @@ class TestFragmentReuse:
                 createdAt
             }
 
-            query GetPostsWithAuthor {
+            query GetPosts {
                 posts(limit: 10) {
                     edges {
                         node {
@@ -69,19 +68,13 @@ class TestFragmentReuse:
                         }
                     }
                 }
-
-                me {
-                    ...AuthorInfo
-                }
             }
         """
 
-        # 需要認證
-        headers = {"Authorization": f"Bearer test-token"}
-        response = await client.post(
+        # 執行 posts 查詢
+        response = await authenticated_client.post(
             "/graphql",
-            json={"query": query},
-            headers=headers
+            json={"query": posts_query}
         )
 
         # 驗證結果
@@ -110,14 +103,42 @@ class TestFragmentReuse:
                 assert "id" in author
                 assert "username" in author
 
+        # 測試 Fragment 在 me 查詢中的重用
+        me_query = """
+            fragment AuthorInfo on UserType {
+                id
+                username
+                email
+                bio
+            }
+
+            query GetMe {
+                me {
+                    ...AuthorInfo
+                }
+            }
+        """
+
+        # 執行 me 查詢
+        response = await authenticated_client.post(
+            "/graphql",
+            json={"query": me_query}
+        )
+
+        # 驗證結果
+        assert response.status_code == 200
+        data = response.json()
+        assert "errors" not in data
+        assert "data" in data
+
         # 驗證 me 查詢也使用了同樣的 Fragment
         me_data = data["data"]["me"]
-        if me_data:
-            assert "id" in me_data
-            assert "username" in me_data
-            assert "email" in me_data
-            # bio 可能是 None，但欄位應該存在
-            assert "bio" in me_data
+        assert me_data is not None
+        assert "id" in me_data
+        assert "username" in me_data
+        assert "email" in me_data
+        # bio 可能是 None，但欄位應該存在
+        assert "bio" in me_data
 
     async def test_nested_fragments(
         self,

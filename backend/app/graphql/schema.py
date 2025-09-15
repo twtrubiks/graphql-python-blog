@@ -20,6 +20,11 @@ from app.graphql.types.user import UserType
 from app.graphql.types.post import PostType
 from app.graphql.subscriptions.comment import CommentSubscription
 from app.graphql.subscriptions.user_status import UserStatusSubscription
+from app.graphql.permissions import (
+    IsAuthenticated,
+    IsSuperuser,
+    IsOwner,
+)
 
 
 @strawberry.type
@@ -32,8 +37,15 @@ class Query(PostQuery, SearchQuery):
     def version(self) -> str:
         return "1.0.0"
 
-    me: Optional[UserType] = strawberry.field(resolver=me)
-    protectedData: ProtectedData = strawberry.field(resolver=protected_data, name="protectedData")
+    me: Optional[UserType] = strawberry.field(
+        resolver=me,
+        permission_classes=[IsAuthenticated]
+    )
+    protectedData: ProtectedData = strawberry.field(
+        resolver=protected_data,
+        name="protectedData",
+        permission_classes=[IsAuthenticated]
+    )
     user: Optional[UserType] = strawberry.field(resolver=get_user)
     users: List[UserType] = strawberry.field(resolver=get_users)
 
@@ -44,11 +56,26 @@ class Mutation(CommentMutation, LikeMutation, FollowMutation):
     login: AuthPayload = strawberry.field(resolver=login)
 
     # Post mutations
-    create_post: PostType = strawberry.field(resolver=create_post)
-    update_post: PostType = strawberry.field(resolver=update_post)
-    delete_post: DeletePostResult = strawberry.field(resolver=delete_post)
-    publish_post: PostType = strawberry.field(resolver=publish_post)
-    unpublish_post: PostType = strawberry.field(resolver=unpublish_post)
+    create_post: PostType = strawberry.field(
+        resolver=create_post,
+        permission_classes=[IsAuthenticated]
+    )
+    update_post: PostType = strawberry.field(
+        resolver=update_post,
+        permission_classes=[IsAuthenticated]
+    )
+    delete_post: DeletePostResult = strawberry.field(
+        resolver=delete_post,
+        permission_classes=[IsAuthenticated]
+    )
+    publish_post: PostType = strawberry.field(
+        resolver=publish_post,
+        permission_classes=[IsAuthenticated]
+    )
+    unpublish_post: PostType = strawberry.field(
+        resolver=unpublish_post,
+        permission_classes=[IsAuthenticated]
+    )
 
     @strawberry.mutation
     def echo(self, message: str) -> str:
@@ -61,7 +88,7 @@ class Subscription(CommentSubscription, UserStatusSubscription):
 
 
 schema = strawberry.Schema(
-    query=Query, 
+    query=Query,
     mutation=Mutation,
     subscription=Subscription
 )

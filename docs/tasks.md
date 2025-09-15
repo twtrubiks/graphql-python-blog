@@ -360,12 +360,12 @@
   - 測試 Fragment 巢狀使用
   - 測試 Fragment 型別安全性
 - [x] 實作：Fragment 在查詢中的應用範例
-- [ ] 📝 TDD 測試：Custom @auth directive 權限控制
+- [x] 📝 TDD 測試：Custom @auth directive 權限控制 ([詳細文檔](./auth-directive-guide.md))
   - 測試未認證用戶存取限制
   - 測試認證用戶正常存取
   - 測試 field-level 權限控制
   - 測試角色基礎的權限管理
-- [ ] 實作：@auth directive 實現 field-level 權限
+- [x] 實作：@auth directive 實現 field-level 權限
 
 ---
 

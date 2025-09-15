@@ -1,7 +1,9 @@
 import pytest
 from datetime import datetime, timezone
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from app.models.comment import Comment
+from app.models.post import Post
 
 
 @pytest.mark.asyncio
@@ -151,8 +153,13 @@ class TestCommentModel:
         async_session.add_all([comment1, comment2])
         await async_session.commit()
 
-        await async_session.refresh(test_post, ["comments"])
+        # 從當前 session 重新載入 post
+        result = await async_session.execute(
+            select(Post).where(Post.id == test_post.id)
+        )
+        post = result.scalar_one()
+        await async_session.refresh(post, ["comments"])
 
-        assert len(test_post.comments) == 2
-        assert any(c.content == "第一個評論" for c in test_post.comments)
-        assert any(c.content == "第二個評論" for c in test_post.comments)
+        assert len(post.comments) == 2
+        assert any(c.content == "第一個評論" for c in post.comments)
+        assert any(c.content == "第二個評論" for c in post.comments)
