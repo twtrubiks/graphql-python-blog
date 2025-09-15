@@ -46,6 +46,7 @@ graphql-python-blog
 | [測試策略](./docs/testing-strategy.md) | GraphQL-First TDD 方法論 | 了解如何測試 |
 | [測試範例](./docs/tests-examples.md) | 完整的測試程式碼範例 | 參考實作方式 |
 | [DataLoader 實作](./docs/dataloader-implementation.md) | N+1 查詢問題解決方案 | 效能優化指南 |
+| [Union Types 指南](./docs/union-types-guide.md) | GraphQL Union Types 完整說明 | 多型返回值處理 |
 
 ## 🚀 快速開始
 

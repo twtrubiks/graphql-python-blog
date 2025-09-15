@@ -15,6 +15,7 @@ from app.graphql.mutations.follow import FollowMutation
 from app.graphql.queries.auth import me, protected_data, ProtectedData
 from app.graphql.queries.user import get_user, get_users
 from app.graphql.queries.post import PostQuery
+from app.graphql.queries.search import SearchQuery
 from app.graphql.types.user import UserType
 from app.graphql.types.post import PostType
 from app.graphql.subscriptions.comment import CommentSubscription
@@ -22,7 +23,7 @@ from app.graphql.subscriptions.user_status import UserStatusSubscription
 
 
 @strawberry.type
-class Query(PostQuery):
+class Query(PostQuery, SearchQuery):
     @strawberry.field
     def hello(self, name: Optional[str] = None) -> str:
         return f"Hello {name or 'World'}!"

@@ -178,7 +178,7 @@ classDiagram
         +me(): User
         +user(id, username): User
         +users(page, limit): UserConnection!
-        +search(query, type): SearchResult!
+        +search(term): [SearchResult!]!
         +tags(popular): [Tag!]!
     }
 
@@ -247,9 +247,15 @@ classDiagram
         +posts(): [Post!]!
     }
 
+    class SearchResult {
+        <<Union Type>>
+        PostType | UserType
+    }
+
     Query --> User : returns
     Query --> Post : returns
     Query --> Tag : returns
+    Query --> SearchResult : returns
     
     Mutation --> User : returns
     Mutation --> Post : returns
@@ -270,6 +276,7 @@ classDiagram
 > - **計算欄位**：如 `isLiked`、`readTime` 等動態計算
 > - **關係導航**：客戶端可自由組合查詢關聯資料
 > - **單一入口**：所有操作通過 Query/Mutation/Subscription
+> - **Union Types**：支援多型返回值，如搜尋結果可同時返回文章和用戶（[詳細說明](./union-types-guide.md)）
 
 ## 技術決策
 

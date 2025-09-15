@@ -333,12 +333,12 @@
 - [x] 實作：userStatusChanged subscription (online/offline)
 
 ### 5.3 GraphQL 進階特性精選 (TDD)
-- [ ] 📝 TDD 測試：Union Types 搜尋功能
+- [x] 📝 TDD 測試：Union Types 搜尋功能 ([詳細文檔](./union-types-guide.md))
   ```graphql
   query SimpleSearch($term: String!) {
     search(term: $term) {
-      ... on Post { id, title, excerpt }
-      ... on User { id, username, bio }
+      ... on PostType { id, title, excerpt }
+      ... on UserType { id, username, bio }
     }
   }
   ```
@@ -346,7 +346,7 @@
   - 測試搜尋返回用戶結果
   - 測試混合結果型別處理
   - 測試空搜尋結果
-- [ ] 實作：Search union type resolver (簡化版)
+- [x] 實作：Search union type resolver (簡化版)
 - [ ] 📝 TDD 測試：Fragment 重用提升程式碼維護性
   ```graphql
   fragment AuthorInfo on User {
