@@ -347,18 +347,19 @@
   - 測試混合結果型別處理
   - 測試空搜尋結果
 - [x] 實作：Search union type resolver (簡化版)
-- [ ] 📝 TDD 測試：Fragment 重用提升程式碼維護性
+- [x] 📝 TDD 測試：Fragment 重用提升程式碼維護性 ([詳細文檔](./fragment-guide.md))
   ```graphql
-  fragment AuthorInfo on User {
+  fragment AuthorInfo on UserType {
     id
     username
-    avatar
+    email
+    bio
   }
   ```
   - 測試 Fragment 在多個查詢中重用
   - 測試 Fragment 巢狀使用
   - 測試 Fragment 型別安全性
-- [ ] 實作：Fragment 在查詢中的應用範例
+- [x] 實作：Fragment 在查詢中的應用範例
 - [ ] 📝 TDD 測試：Custom @auth directive 權限控制
   - 測試未認證用戶存取限制
   - 測試認證用戶正常存取

@@ -424,7 +424,11 @@ sequenceDiagram
    - 批次載入關聯資料
    - 詳細實作請參考 [DataLoader 實作文檔](./dataloader-implementation.md)
 
-2. **資料庫索引**
+2. **GraphQL 進階特性**
+   - [Union Types 指南](./union-types-guide.md) - 多型查詢返回
+   - [Fragment 指南](./fragment-guide.md) - 查詢片段重用
+
+3. **資料庫索引**
 
 ```sql
 -- 常用查詢索引
@@ -439,7 +443,7 @@ CREATE INDEX idx_posts_search ON posts USING gin(to_tsvector('english', title ||
 CREATE INDEX idx_posts_embedding ON posts USING ivfflat (embedding vector_cosine_ops);
 ```
 
-3. **快取策略（選用）**
+4. **快取策略（選用）**
    - 應用層快取（Python 內建快取）
    - 瀏覽器快取
 
