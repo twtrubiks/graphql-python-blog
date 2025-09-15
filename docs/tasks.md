@@ -303,11 +303,15 @@
   - 測試案例：查詢 10 篇文章及其作者、評論、按讚數
   - 預期結果：查詢次數從 O(n) 降至 O(1)
 - [x] 📊 效能報告：DataLoader 前後查詢次數與響應時間對比
+- [x] 📁 實作文檔：[DataLoader 完整實作指南](./dataloader-implementation.md)
 
-### 5.2 Subscription 即時通訊 - GraphQL 獨特功能 ⭐
-- [ ] 📝 測試：WebSocket 連線建立與斷線重連
-- [ ] 實作：WebSocket endpoint 整合 Strawberry
-- [ ] 📝 測試：評論即時通知功能
+### 5.2 Subscription 即時通訊 - GraphQL 獨特功能 ⭐ (TDD)
+- [x] 📝 TDD 測試：WebSocket 連線建立與斷線重連
+  - 測試 WebSocket 握手成功
+  - 測試斷線後自動重連機制
+  - 測試連線超時處理
+- [x] 實作：WebSocket endpoint 整合 Strawberry
+- [x] 📝 TDD 測試：評論即時通知功能
   ```graphql
   subscription OnCommentAdded($postId: ID!) {
     commentAdded(postId: $postId) {
@@ -318,12 +322,18 @@
     }
   }
   ```
-- [ ] 實作：commentAdded subscription resolver
-- [ ] 📝 測試：簡單的用戶上線狀態
-- [ ] 實作：userStatusChanged subscription (online/offline)
+  - 測試新評論時發送通知
+  - 測試只接收訂閱文章的評論
+  - 測試多用戶同時訂閱
+- [x] 實作：commentAdded subscription resolver
+- [x] 📝 TDD 測試：簡單的用戶上線狀態
+  - 測試用戶上線狀態變更通知
+  - 測試用戶離線狀態變更通知
+  - 測試狀態同步準確性
+- [x] 實作：userStatusChanged subscription (online/offline)
 
-### 5.3 GraphQL 進階特性精選
-- [ ] 📝 測試：Union Types 搜尋功能
+### 5.3 GraphQL 進階特性精選 (TDD)
+- [ ] 📝 TDD 測試：Union Types 搜尋功能
   ```graphql
   query SimpleSearch($term: String!) {
     search(term: $term) {
@@ -332,8 +342,12 @@
     }
   }
   ```
+  - 測試搜尋返回文章結果
+  - 測試搜尋返回用戶結果
+  - 測試混合結果型別處理
+  - 測試空搜尋結果
 - [ ] 實作：Search union type resolver (簡化版)
-- [ ] 📝 測試：Fragment 重用提升程式碼維護性
+- [ ] 📝 TDD 測試：Fragment 重用提升程式碼維護性
   ```graphql
   fragment AuthorInfo on User {
     id
@@ -341,8 +355,15 @@
     avatar
   }
   ```
+  - 測試 Fragment 在多個查詢中重用
+  - 測試 Fragment 巢狀使用
+  - 測試 Fragment 型別安全性
 - [ ] 實作：Fragment 在查詢中的應用範例
-- [ ] 📝 測試：Custom @auth directive 權限控制
+- [ ] 📝 TDD 測試：Custom @auth directive 權限控制
+  - 測試未認證用戶存取限制
+  - 測試認證用戶正常存取
+  - 測試 field-level 權限控制
+  - 測試角色基礎的權限管理
 - [ ] 實作：@auth directive 實現 field-level 權限
 
 ---

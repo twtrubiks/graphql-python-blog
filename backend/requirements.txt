@@ -1,5 +1,6 @@
 fastapi[standard]
 strawberry-graphql[fastapi]
+websockets
 sqlalchemy
 pydantic_settings
 asyncpg

@@ -111,7 +111,7 @@ graph TB
         end
 
         subgraph "Business Logic"
-            DataLoader[DataLoader<br/>批次載入 N+1 解決]
+            DataLoader[DataLoader<br/>批次載入 N+1 解決<br/>[詳細文檔](./dataloader-implementation.md)]
             Auth[Authentication<br/>& Authorization]
             PostSvc[Post Service]
             UserSvc[User Service]
@@ -415,6 +415,7 @@ sequenceDiagram
 1. **DataLoader Pattern**
    - 解決 N+1 查詢問題
    - 批次載入關聯資料
+   - 詳細實作請參考 [DataLoader 實作文檔](./dataloader-implementation.md)
 
 2. **資料庫索引**
 

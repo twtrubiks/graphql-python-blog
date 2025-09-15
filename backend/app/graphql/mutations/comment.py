@@ -6,6 +6,7 @@ from app.core.database import get_async_session
 from app.services.comment import CommentService
 from app.graphql.types.comment import Comment as CommentType, CommentMutationResponse
 from app.graphql.utils import convert_model_to_graphql
+from app.graphql.subscriptions.comment import CommentEvent
 
 
 @strawberry.type
@@ -41,6 +42,10 @@ class CommentMutation:
             # Add relationships
             comment_type.author = comment.author
             comment_type.post = comment.post
+            
+            # 發送即時通知給訂閱者
+            await CommentEvent.publish(str(post_id), comment_type)
+            
             return comment_type
             
         except ValueError as e:

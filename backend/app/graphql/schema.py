@@ -17,6 +17,8 @@ from app.graphql.queries.user import get_user, get_users
 from app.graphql.queries.post import PostQuery
 from app.graphql.types.user import UserType
 from app.graphql.types.post import PostType
+from app.graphql.subscriptions.comment import CommentSubscription
+from app.graphql.subscriptions.user_status import UserStatusSubscription
 
 
 @strawberry.type
@@ -52,4 +54,13 @@ class Mutation(CommentMutation, LikeMutation, FollowMutation):
         return f"Echo: {message}"
 
 
-schema = strawberry.Schema(query=Query, mutation=Mutation)
+@strawberry.type
+class Subscription(CommentSubscription, UserStatusSubscription):
+    pass
+
+
+schema = strawberry.Schema(
+    query=Query, 
+    mutation=Mutation,
+    subscription=Subscription
+)
