@@ -111,7 +111,8 @@ graph TB
         end
 
         subgraph "Business Logic"
-            DataLoader[DataLoader<br/>批次載入 N+1 解決<br/>[詳細文檔](./dataloader-implementation.md)]
+            DataLoader[DataLoader<br/>批次載入 N+1 解決]
+            click DataLoader "./dataloader-implementation.md" "詳細文檔"
             Auth[Authentication<br/>& Authorization]
             PostSvc[Post Service]
             UserSvc[User Service]
@@ -256,7 +257,7 @@ classDiagram
     Query --> Post : returns
     Query --> Tag : returns
     Query --> SearchResult : returns
-    
+
     Mutation --> User : returns
     Mutation --> Post : returns
     Mutation --> Comment : returns
@@ -277,6 +278,34 @@ classDiagram
 > - **關係導航**：客戶端可自由組合查詢關聯資料
 > - **單一入口**：所有操作通過 Query/Mutation/Subscription
 > - **Union Types**：支援多型返回值，如搜尋結果可同時返回文章和用戶（[詳細說明](./union-types-guide.md)）
+
+### Subscription 即時通訊架構
+
+GraphQL Subscription 透過 WebSocket 提供即時雙向通訊能力：
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant WebSocket
+    participant GraphQL
+    participant PubSub
+    participant Service
+
+    Client->>WebSocket: 建立 WebSocket 連線
+    WebSocket-->>Client: 連線確認
+    Client->>GraphQL: 訂閱 commentAdded(postId)
+    GraphQL->>PubSub: 註冊訂閱
+
+    Note over Client,Service: 另一用戶發表評論
+    Service->>PubSub: 發布新評論事件
+    PubSub->>GraphQL: 通知訂閱者
+    GraphQL->>WebSocket: 推送更新
+    WebSocket-->>Client: 即時評論通知
+```
+
+**實作的 Subscription 功能：**
+- `commentAdded(postId: ID!)` - 文章新評論即時通知
+- `userStatusChanged(userId: ID!)` - 用戶上線/離線狀態追蹤
 
 ## 技術決策
 
@@ -396,6 +425,7 @@ sequenceDiagram
    - Field-level 授權：每個欄位可有獨立權限
    - Resolver 層級驗證：業務邏輯層的安全檢查
    - Context-based 權限：基於使用者身份動態控制
+   - **@auth Directive**：自定義權限指令實現（[詳細實作指南](./auth-directive-guide.md)）
 
 4. **防護最佳實踐**
    ```python
@@ -427,6 +457,8 @@ sequenceDiagram
 2. **GraphQL 進階特性**
    - [Union Types 指南](./union-types-guide.md) - 多型查詢返回
    - [Fragment 指南](./fragment-guide.md) - 查詢片段重用
+   - [Auth Directive 指南](./auth-directive-guide.md) - 自定義權限控制指令
+   - **Subscription 即時通訊** - WebSocket 整合實現評論即時更新、用戶狀態追蹤
 
 3. **資料庫索引**
 

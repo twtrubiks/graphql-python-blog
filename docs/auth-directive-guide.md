@@ -1,4 +1,4 @@
-# GraphQL @auth Directive 權限控制指南
+# GraphQL 權限控制指南 (Strawberry Framework)
 
 ## 📚 目錄
 
@@ -14,7 +14,9 @@
 
 ## 什麼是權限控制？
 
-權限控制是確保只有授權用戶能存取特定資源或執行特定操作的機制。**權限控制並非 GraphQL 獨有**，Django、FastAPI、Express.js 等框架都有完整的權限系統。
+權限控制是確保只有授權用戶能存取特定資源或執行特定操作的機制。
+
+**權限控制並非 GraphQL 獨有**，Django、FastAPI、Express.js 等框架都有完整的權限系統。
 
 ### 權限控制的層級
 
@@ -98,8 +100,61 @@ query {
 graph TD
     A[GraphQL 請求] --> B{檢查權限}
     B -->|通過| C[執行 Resolver]
-    B -->|拒絕| D[返回錯誤]
+    B -->|拒絕| D[返回錯誤/null]
     C --> E[返回資料]
+```
+
+### Strawberry PermissionExtension 實作
+
+在 Strawberry 中，我們使用 `PermissionExtension` 而非 `@auth` directive 來實現權限控制：
+
+```python
+# backend/app/graphql/permissions.py
+from strawberry.permission import BasePermission
+
+class IsOwnerOrSuperuser(BasePermission):
+    """擁有者或超級用戶可以存取"""
+    message = "You don't have permission to view this field"
+
+    async def has_permission(self, source, info, **kwargs) -> bool:
+        user = await get_current_user(info)
+        if user is None:
+            return False
+
+        # 超級用戶允許存取
+        if user.is_superuser:
+            return True
+
+        # 檢查是否為資源擁有者
+        if hasattr(source, 'id'):
+            source_id = int(source.id)
+            if source_id == user.id:
+                return True
+
+        return False
+```
+
+### Field-Level 權限應用
+
+```python
+# backend/app/graphql/types/user.py
+import strawberry
+from strawberry.extensions import PermissionExtension
+
+@strawberry.type
+class UserType:
+    id: strawberry.ID
+    username: str
+
+    # 使用 PermissionExtension 保護敏感欄位
+    email: Optional[str] = strawberry.field(
+        extensions=[
+            PermissionExtension(
+                permissions=[IsOwnerOrSuperuser()],
+                fail_silently=True  # 無權限時返回 null 而非錯誤
+            )
+        ]
+    )
 ```
 
 ### 權限應用範例
@@ -115,8 +170,8 @@ graph TD
 - `deletePost` → 需要認證且是擁有者
 
 **Field 權限**
-- `UserType.email` → 只有擁有者或超級用戶能看
-- `PostType.draftNotes` → 只有作者能看
+- `UserType.email` → 只有擁有者或超級用戶能看（已實作）
+- `UserType.is_superuser` → 所有認證用戶都能看到（公開欄位）
 
 ## 最佳實踐
 
@@ -164,9 +219,24 @@ graph TD
 
 ### Q3: 如何處理部分欄位無權限的情況？
 
-**兩種策略**：
-1. **拋出錯誤**：明確告知用戶無權限
-2. **返回 null**：靜默處理，適用於選擇性欄位
+**Strawberry 提供兩種策略**：
+
+1. **拋出錯誤**（`fail_silently=False`）：明確告知用戶無權限
+   ```python
+   email: str = strawberry.field(
+       extensions=[PermissionExtension(permissions=[IsOwner()])]
+   )  # 無權限時拋出錯誤
+   ```
+
+2. **返回 null**（`fail_silently=True`）：靜默處理，適用於選擇性欄位
+   ```python
+   email: Optional[str] = strawberry.field(
+       extensions=[PermissionExtension(
+           permissions=[IsOwnerOrSuperuser()],
+           fail_silently=True
+       )]
+   )  # 無權限時返回 null
+   ```
 
 ### Q4: 權限與訂閱（Subscription）如何配合？
 
@@ -186,20 +256,33 @@ graph TD
 
 ### GraphQL 權限的核心優勢
 
-✅ **細粒度控制**：Field-level 權限精確控制資料存取
-✅ **單一端點**：不需要為不同權限建立多個端點
-✅ **動態返回**：同一查詢根據權限返回不同資料
-✅ **概念通用**：與其他框架的權限概念相通
+**細粒度控制**：Field-level 權限精確控制資料存取
+
+**單一端點**：不需要為不同權限建立多個端點
+
+**動態返回**：同一查詢根據權限返回不同資料
+
+**概念通用**：與其他框架的權限概念相通
+
+### Strawberry 實作特色
+
+1. **PermissionExtension**：優雅的權限裝飾器模式
+2. **fail_silently 選項**：彈性的錯誤處理策略
+3. **BasePermission 繼承**：易於擴展的權限類別設計
+4. **異步支援**：原生支援 async/await 權限檢查
 
 ### 重要提醒
 
 1. **權限控制不是 GraphQL 獨有**，但 Field-level 控制是其特色
 2. **概念與 Django/REST 相似**，實作層級不同
 3. **正確實施權限控制**是保護 API 安全的關鍵
+4. **Strawberry 使用 PermissionExtension 而非 @auth directive**
 
 ## 相關資源
 
-- [Strawberry 權限文檔](https://strawberry.rocks/docs/guides/permissions)
-- [GraphQL 授權最佳實踐](https://graphql.org/learn/authorization/)
+- [GraphQL 官方文檔 - Authorization](https://graphql.org/learn/authorization/)
+- [Strawberry GraphQL - Permissions](https://strawberry.rocks/docs/guides/permissions)
+- [Strawberry PermissionExtension](https://strawberry.rocks/docs/extensions/permission-extension)
 - [本專案權限實作](../backend/app/graphql/permissions.py)
 - [權限測試範例](../backend/tests/graphql/test_auth_directive.py)
+- [架構設計文檔](./architecture.md#graphql-安全特性)

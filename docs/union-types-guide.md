@@ -13,7 +13,9 @@
 
 ## 什麼是 Union Types？
 
-Union Types 是 GraphQL 中的一個強大特性，允許一個欄位返回多種不同類型的物件。它表示「這個欄位可能返回 A 類型或 B 類型或 C 類型...」的概念。
+Union Types 是 GraphQL 中的一個強大特性，允許一個欄位返回多種不同類型的物件。
+
+它表示「這個欄位可能返回 A 類型或 B 類型或 C 類型...」的概念。
 
 ### 基本語法
 
@@ -45,14 +47,164 @@ query {
 ### 1. 統一介面
 單一 API 端點可以返回不同類型的資料，減少端點數量。
 
+**傳統方式（多個端點）：**
+```graphql
+# 需要維護三個不同的查詢
+query SearchPosts($term: String!) {
+  searchPosts(term: $term) {
+    title
+    content
+  }
+}
+
+query SearchUsers($term: String!) {
+  searchUsers(term: $term) {
+    username
+    email
+  }
+}
+
+query SearchComments($term: String!) {
+  searchComments(term: $term) {
+    content
+    author
+  }
+}
+```
+
+**使用 Union Types（單一端點）：**
+```graphql
+# 一個查詢搞定所有類型
+query UniversalSearch($term: String!) {
+  search(term: $term) {
+    ... on Post { title, content }
+    ... on User { username, email }
+    ... on Comment { content, author }
+  }
+}
+```
+
 ### 2. 靈活性
 搜尋結果可以包含文章、用戶、標籤等多種類型，不需要分開查詢。
+
+**實際例子：**
+```javascript
+// ❌ 傳統方式：需要決定搜尋哪種類型
+if (searchType === 'posts') {
+  results = await searchPosts(keyword);
+} else if (searchType === 'users') {
+  results = await searchUsers(keyword);
+}
+
+// ✅ Union Types：自動返回所有相關類型
+const results = await search(keyword);
+// 結果可能包含：[Post, Post, User, Comment, User, ...]
+```
 
 ### 3. 類型安全
 客戶端必須明確處理每種可能的類型，避免運行時錯誤。
 
+**TypeScript 範例：**
+```typescript
+// 編譯時期就能檢查類型
+interface SearchResult {
+  __typename: 'Post' | 'User' | 'Comment';
+}
+
+function displayResult(item: SearchResult) {
+  switch(item.__typename) {
+    case 'Post':
+      // TypeScript 確保這裡只能存取 Post 的欄位
+      return `文章：${item.title}`;
+    case 'User':
+      // TypeScript 確保這裡只能存取 User 的欄位
+      return `用戶：${item.username}`;
+    case 'Comment':
+      // TypeScript 確保這裡只能存取 Comment 的欄位
+      return `評論：${item.content}`;
+    default:
+      // TypeScript 會警告有未處理的類型
+      throw new Error(`未知類型：${item.__typename}`);
+  }
+}
+```
+
 ### 4. 效能優化
 一次查詢獲取多種類型的資料，減少網路請求。
+
+**效能比較：**
+```javascript
+// ❌ 多次網路請求（較慢）
+const posts = await fetch('/api/searchPosts?q=GraphQL');     // 請求 1：100ms
+const users = await fetch('/api/searchUsers?q=GraphQL');     // 請求 2：100ms
+const comments = await fetch('/api/searchComments?q=GraphQL'); // 請求 3：100ms
+// 總時間：300ms（串列）或 100ms（並行）+ 多次連線開銷
+
+// ✅ 單次網路請求（較快）
+const results = await graphql`
+  query {
+    search(term: "GraphQL") {
+      ... on Post { title }
+      ... on User { username }
+      ... on Comment { content }
+    }
+  }
+`;
+// 總時間：100ms + 單次連線開銷
+```
+
+### 5. 減少過度獲取（Over-fetching）
+只獲取每種類型需要的欄位，避免浪費頻寬。
+
+```graphql
+search(term: "GraphQL") {
+  ... on Post {
+    # 文章需要標題和內容
+    title
+    content
+    publishedAt
+  }
+  ... on User {
+    # 用戶只需要基本資訊
+    username
+    avatar
+  }
+  ... on Comment {
+    # 評論只需要簡短內容
+    content
+    createdAt
+  }
+}
+```
+
+### 6. 簡化前端邏輯
+前端不需要協調多個 API 呼叫的結果。
+
+```javascript
+// ❌ 複雜的前端邏輯
+async function getSearchResults(keyword) {
+  const [posts, users, comments] = await Promise.all([
+    searchPosts(keyword),
+    searchUsers(keyword),
+    searchComments(keyword)
+  ]);
+
+  // 需要手動合併和排序
+  const combined = [
+    ...posts.map(p => ({...p, type: 'post'})),
+    ...users.map(u => ({...u, type: 'user'})),
+    ...comments.map(c => ({...c, type: 'comment'}))
+  ];
+
+  return combined.sort((a, b) => b.relevance - a.relevance);
+}
+
+// ✅ 簡單的前端邏輯
+async function getSearchResults(keyword) {
+  const { search } = await graphqlQuery(SEARCH_QUERY, { keyword });
+  return search; // 後端已經處理好合併和排序
+}
+```
 
 ## Union Types vs Interface
 
