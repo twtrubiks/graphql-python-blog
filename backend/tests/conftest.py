@@ -27,21 +27,23 @@ def event_loop() -> Generator:
     yield loop
     loop.close()
 
-@pytest_asyncio.fixture(scope="function")
+@pytest_asyncio.fixture(scope="session")
 async def test_engine():
-    """Create test database engine."""
+    """Create test database engine - session scope for better performance."""
     engine = create_async_engine(
         TEST_DATABASE_URL,
         poolclass=NullPool,
         echo=False
     )
 
+    # 只在測試 session 開始時創建一次表格
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
 
+    # 測試 session 結束時清理
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
@@ -210,3 +212,14 @@ async def user_factory(test_engine):
                 return user
 
     return Factory()
+
+@pytest_asyncio.fixture(autouse=True, scope="function")
+async def cleanup_db(test_engine):
+    """自動清理每個測試後的資料庫資料，但保留表結構。"""
+    yield  # 執行測試
+
+    # 測試結束後清理所有資料（但不刪除表格）
+    async with test_engine.begin() as conn:
+        # 按照反向順序刪除資料，避免外鍵約束問題
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(table.delete())

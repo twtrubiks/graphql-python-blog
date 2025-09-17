@@ -240,6 +240,16 @@ class TestSearchUnionTypes:
         test_session,
     ):
         """測試空搜尋結果"""
+        # 先創建一個用戶作為文章作者
+        author = User(
+            username="test_author",
+            email="author@example.com",
+            bio="Test author",
+            hashed_password="hashed"
+        )
+        test_session.add(author)
+        await test_session.flush()  # 先 flush 以獲取 author.id
+
         # 創建一些不匹配的數據
         post = Post(
             title="Java Programming",
@@ -247,9 +257,10 @@ class TestSearchUnionTypes:
             content="Learn Java",
             excerpt="Java basics",
             status="published",
-            author_id=1
+            author_id=author.id  # 使用實際創建的用戶 ID
         )
 
+        # 創建另一個用戶
         user = User(
             username="java_dev",
             email="java@example.com",
