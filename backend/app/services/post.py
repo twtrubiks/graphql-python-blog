@@ -99,14 +99,39 @@ class PostService:
         return result.scalar_one_or_none()
     
     @staticmethod
-    async def get_post_by_slug(session: AsyncSession, slug: str) -> Optional[Post]:
-        """Get a post by slug (excludes soft-deleted posts)"""
-        stmt = select(Post).where(
+    async def get_post_by_slug(
+        session: AsyncSession,
+        slug: str,
+        current_user_id: Optional[int] = None
+    ) -> Optional[Post]:
+        """Get a post by slug with permission check
+
+        - Published posts are visible to everyone
+        - Draft/archived posts are only visible to their authors
+        - Soft-deleted posts are not visible
+        """
+        stmt = select(Post).options(
+            joinedload(Post.author),
+            selectinload(Post.tags)
+        ).where(
             Post.slug == slug,
             Post.deleted_at.is_(None)  # Exclude soft-deleted posts
         )
         result = await session.execute(stmt)
-        return result.scalar_one_or_none()
+        post = result.scalar_one_or_none()
+
+        if not post:
+            return None
+
+        # Check permissions
+        if post.status == PostStatus.PUBLISHED:
+            return post
+
+        # Draft or archived posts - only visible to author
+        if current_user_id and post.author_id == current_user_id:
+            return post
+
+        return None
     
     @staticmethod
     async def get_posts(

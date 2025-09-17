@@ -48,22 +48,43 @@ class PostQuery:
     async def post(
         self,
         info: Info,
-        id: strawberry.ID
+        id: Optional[strawberry.ID] = None,
+        slug: Optional[str] = None
     ) -> Optional[PostType]:
-        """Get a single post by ID"""
+        """Get a single post by ID or slug"""
+        if not id and not slug:
+            raise ValueError("Either id or slug must be provided")
+
         session = info.context["db_session"]
-        
+
         # Get current user if authenticated
         user = await get_current_user_optional(info)
         current_user_id = user.id if user else None
-        
-        # Get post with permission check
-        post = await PostService.get_post_with_permission_check(
-            session,
-            int(id),
-            current_user_id
-        )
-        
+
+        # Get post by ID or slug
+        if id:
+            # Try to parse as integer ID
+            try:
+                post = await PostService.get_post_with_permission_check(
+                    session,
+                    int(id),
+                    current_user_id
+                )
+            except ValueError:
+                # If not a valid integer, treat it as slug
+                post = await PostService.get_post_by_slug(
+                    session,
+                    str(id),
+                    current_user_id
+                )
+        else:
+            # Get by slug
+            post = await PostService.get_post_by_slug(
+                session,
+                slug,
+                current_user_id
+            )
+
         return PostType.from_orm(post) if post else None
     
     @strawberry.field

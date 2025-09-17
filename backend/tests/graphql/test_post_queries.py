@@ -437,3 +437,288 @@ class TestPostsQuery:
         assert len(posts_data["edges"]) == 0
         assert posts_data["pageInfo"]["totalCount"] == 0
         assert posts_data["pageInfo"]["hasNextPage"] is False
+
+
+class TestPostQueryBySlug:
+    """測試通過 slug 查詢文章"""
+
+    @pytest.mark.asyncio
+    async def test_get_post_by_slug_success(
+        self,
+        client,
+        test_session
+    ):
+        """測試：成功通過 slug 查詢文章"""
+        # Arrange
+        user = await UserFactory.create(test_session)
+        post = await PostFactory.create(
+            test_session,
+            author_id=user.id,
+            title="測試文章",
+            slug="test-article",
+            status=PostStatus.PUBLISHED
+        )
+        await test_session.commit()
+
+        # Act - 使用 slug 參數查詢
+        query = """
+            query GetPostBySlug($slug: String!) {
+                post(slug: $slug) {
+                    id
+                    title
+                    slug
+                    status
+                }
+            }
+        """
+
+        response = await client.post(
+            "/graphql",
+            json={
+                "query": query,
+                "variables": {"slug": "test-article"}
+            }
+        )
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert "errors" not in data
+
+        post_data = data["data"]["post"]
+        assert str(post_data["id"]) == str(post.id)
+        assert post_data["title"] == "測試文章"
+        assert post_data["slug"] == "test-article"
+        assert post_data["status"] == "PUBLISHED"
+
+    @pytest.mark.asyncio
+    async def test_get_post_auto_detect_slug(
+        self,
+        client,
+        test_session
+    ):
+        """測試：自動判斷 ID 參數為 slug"""
+        # Arrange
+        user = await UserFactory.create(test_session)
+        post = await PostFactory.create(
+            test_session,
+            author_id=user.id,
+            title="自動判斷測試",
+            slug="auto-detect-test",
+            status=PostStatus.PUBLISHED
+        )
+        await test_session.commit()
+
+        # Act - 使用 id 參數但傳入 slug 值
+        query = """
+            query GetPost($id: ID!) {
+                post(id: $id) {
+                    id
+                    title
+                    slug
+                }
+            }
+        """
+
+        response = await client.post(
+            "/graphql",
+            json={
+                "query": query,
+                "variables": {"id": "auto-detect-test"}
+            }
+        )
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert "errors" not in data
+
+        post_data = data["data"]["post"]
+        assert str(post_data["id"]) == str(post.id)
+        assert post_data["slug"] == "auto-detect-test"
+
+    @pytest.mark.asyncio
+    async def test_get_post_by_slug_not_found(
+        self,
+        client
+    ):
+        """測試：查詢不存在的 slug"""
+        query = """
+            query GetPostBySlug($slug: String!) {
+                post(slug: $slug) {
+                    id
+                    title
+                }
+            }
+        """
+
+        response = await client.post(
+            "/graphql",
+            json={
+                "query": query,
+                "variables": {"slug": "non-existent-slug"}
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["data"]["post"] is None
+
+    @pytest.mark.asyncio
+    async def test_get_draft_post_by_slug_with_permission(
+        self,
+        client,
+        test_session
+    ):
+        """測試：作者可以通過 slug 查看自己的草稿"""
+        # Arrange
+        user = await UserFactory.create(test_session)
+        post = await PostFactory.create(
+            test_session,
+            author_id=user.id,
+            title="草稿測試",
+            slug="draft-test",
+            status=PostStatus.DRAFT
+        )
+        await test_session.commit()
+
+        # 使用作者的認證
+        access_token = create_access_token(data={"sub": str(user.id)})
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        # Act
+        query = """
+            query GetPostBySlug($slug: String!) {
+                post(slug: $slug) {
+                    id
+                    title
+                    slug
+                    status
+                }
+            }
+        """
+
+        response = await client.post(
+            "/graphql",
+            json={
+                "query": query,
+                "variables": {"slug": "draft-test"}
+            },
+            headers=headers
+        )
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert "errors" not in data
+
+        post_data = data["data"]["post"]
+        assert str(post_data["id"]) == str(post.id)
+        assert post_data["slug"] == "draft-test"
+        assert post_data["status"] == "DRAFT"
+
+    @pytest.mark.asyncio
+    async def test_cannot_get_others_draft_by_slug(
+        self,
+        client,
+        test_session
+    ):
+        """測試：無法通過 slug 查看他人的草稿"""
+        # Arrange
+        author = await UserFactory.create(test_session)
+        other_user = await UserFactory.create(test_session)
+
+        post = await PostFactory.create(
+            test_session,
+            author_id=author.id,
+            title="他人草稿",
+            slug="others-draft",
+            status=PostStatus.DRAFT
+        )
+        await test_session.commit()
+
+        # 使用其他用戶的認證
+        access_token = create_access_token(data={"sub": str(other_user.id)})
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        # Act
+        query = """
+            query GetPostBySlug($slug: String!) {
+                post(slug: $slug) {
+                    id
+                    title
+                    status
+                }
+            }
+        """
+
+        response = await client.post(
+            "/graphql",
+            json={
+                "query": query,
+                "variables": {"slug": "others-draft"}
+            },
+            headers=headers
+        )
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["data"]["post"] is None
+
+    @pytest.mark.asyncio
+    async def test_mixed_id_and_slug_query(
+        self,
+        client,
+        test_session
+    ):
+        """測試：同時支援數字 ID 和 slug 查詢"""
+        # Arrange
+        user = await UserFactory.create(test_session)
+        post = await PostFactory.create(
+            test_session,
+            author_id=user.id,
+            title="混合測試",
+            slug="mixed-test",
+            status=PostStatus.PUBLISHED
+        )
+        await test_session.commit()
+
+        # Act 1 - 使用數字 ID 查詢
+        query = """
+            query GetPost($id: ID!) {
+                post(id: $id) {
+                    id
+                    title
+                    slug
+                }
+            }
+        """
+
+        response1 = await client.post(
+            "/graphql",
+            json={
+                "query": query,
+                "variables": {"id": str(post.id)}
+            }
+        )
+
+        # Act 2 - 使用 slug 查詢
+        response2 = await client.post(
+            "/graphql",
+            json={
+                "query": query,
+                "variables": {"id": "mixed-test"}
+            }
+        )
+
+        # Assert - 兩種方式都應該返回相同的文章
+        assert response1.status_code == 200
+        assert response2.status_code == 200
+
+        data1 = response1.json()
+        data2 = response2.json()
+
+        assert data1["data"]["post"]["id"] == data2["data"]["post"]["id"]
+        assert data1["data"]["post"]["slug"] == "mixed-test"
+        assert data2["data"]["post"]["slug"] == "mixed-test"

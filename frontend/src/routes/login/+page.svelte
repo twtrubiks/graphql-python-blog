@@ -18,11 +18,10 @@
 		isLoading = true;
 
 		try {
+			// Houdini expects variables directly, not wrapped in a variables object
 			const result = await loginStore.mutate({
-				variables: {
-					email,
-					password
-				}
+				email,
+				password
 			});
 
 			if (result.data?.login) {

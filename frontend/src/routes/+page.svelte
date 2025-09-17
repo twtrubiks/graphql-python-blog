@@ -1,16 +1,43 @@
 <script lang="ts">
 	import { PUBLIC_APP_NAME, PUBLIC_APP_DESCRIPTION } from '$env/static/public';
+	import { GetPostsStore } from '$houdini';
 	import type { PageData } from './$types';
 
 	// Svelte 5: 使用 $props 接收資料
 	let { data }: { data: PageData } = $props();
 
+	// 建立 Houdini store
+	const postsStore = new GetPostsStore();
+
 	// Svelte 5: 使用 $state rune
-	let isLoading = $state(false);
+	let isLoading = $state(true);
+	let postsData = $state<any>(null);
+
+	// 載入文章資料
+	$effect(() => {
+		loadPosts();
+	});
+
+	async function loadPosts() {
+		isLoading = true;
+		try {
+			const result = await postsStore.fetch({
+				variables: {
+					page: 1,
+					limit: 6 // 首頁顯示 6 篇精選文章
+				}
+			});
+			postsData = result.data?.posts;
+		} catch (error) {
+			console.error('Failed to load posts:', error);
+		} finally {
+			isLoading = false;
+		}
+	}
 
 	// Svelte 5: 使用 $derived 處理衍生狀態
 	let featuredPosts = $derived(
-		data?.posts?.edges?.map(edge => ({
+		postsData?.edges?.map(edge => ({
 			id: edge.node.id,
 			title: edge.node.title,
 			slug: edge.node.slug,
@@ -40,7 +67,7 @@
 			<a href="/posts" class="btn btn-primary text-base">
 				瀏覽文章
 			</a>
-			<a href="/register" class="btn btn-secondary text-base">
+			<a href="/posts/new" class="btn btn-secondary text-base">
 				開始寫作
 			</a>
 		</div>
@@ -59,7 +86,7 @@
 					</div>
 				{/each}
 			</div>
-		{:else}
+		{:else if featuredPosts.length > 0}
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 				{#each featuredPosts as post}
 					<article class="card hover:shadow-lg transition-shadow">
@@ -81,6 +108,11 @@
 						</div>
 					</article>
 				{/each}
+			</div>
+		{:else}
+			<div class="text-center py-8">
+				<p class="text-gray-600 mb-4">目前還沒有文章</p>
+				<a href="/posts/new" class="btn btn-primary">撰寫第一篇文章</a>
 			</div>
 		{/if}
 	</section>
