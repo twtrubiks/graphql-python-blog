@@ -1,13 +1,16 @@
 <script lang="ts">
-	import { GetPostStore, AddCommentStore, LikePostStore, UnlikePostStore } from '$houdini';
+	import { GetPostStore, AddCommentStore, LikePostStore, UnlikePostStore, CommentAddedStore } from '$houdini';
 	import { page } from '$app/state';
 	import { auth } from '$lib/stores/auth.svelte';
+	import { notifications } from '$lib/stores/notifications.svelte';
 	import { goto } from '$app/navigation';
+	import { onMount, onDestroy } from 'svelte';
 
 	const postStore = new GetPostStore();
 	const addCommentStore = new AddCommentStore();
 	const likePostStore = new LikePostStore();
 	const unlikePostStore = new UnlikePostStore();
+	const commentAddedStore = new CommentAddedStore();
 
 	let post = $state<any>(null);
 	let isLoading = $state(true);
@@ -17,8 +20,116 @@
 	let isSubmittingComment = $state(false);
 	let isLiking = $state(false);
 
+	// Subscription 狀態管理
+	let subscriptionStatus = $state<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+	let isSubscriptionActive = $state(false);
+	let lastCommentId = $state<string | null>(null);
+	let storeUnsubscribe: (() => void) | null = null;
+	let currentPostId = $state<string | null>(null);
+
+	// 載入文章資料
 	$effect(() => {
 		loadPost();
+	});
+
+	// 當 post ID 變化時建立 subscription
+	$effect(() => {
+		// 防禦性檢查
+		if (!post?.id || isLoading) {
+			return;
+		}
+
+		const postId = String(post.id);
+		if (!postId || postId === 'undefined') {
+			console.error('[Subscription] Invalid post ID');
+			return;
+		}
+
+		// 只有當 postId 真正改變時才重新建立 subscription
+		if (currentPostId === postId) {
+			return;
+		}
+
+		currentPostId = postId;
+
+		// 如果有舊的 subscription，先清理
+		if (isSubscriptionActive && commentAddedStore.unlisten) {
+			console.log('[Subscription] Cleaning up old subscription');
+			commentAddedStore.unlisten();
+			isSubscriptionActive = false;
+		}
+
+		console.log('[Subscription] Starting subscription for post:', postId);
+		console.log('[Subscription] Current user:', auth.user?.username || 'Unknown');
+		subscriptionStatus = 'connecting';
+		isSubscriptionActive = true;
+
+		try {
+			// 觸發 subscription 開始監聽
+			commentAddedStore.listen({
+				postId: postId
+			}).then(() => {
+				subscriptionStatus = 'connected';
+				console.log('[Subscription] Successfully connected for post:', postId);
+				console.log('[Subscription] Ready to receive comments');
+			}).catch((error) => {
+				console.error('[Subscription] Failed to connect:', error);
+				subscriptionStatus = 'error';
+				isSubscriptionActive = false;
+			});
+		} catch (error) {
+			console.error('[Subscription] Error starting subscription:', error);
+			subscriptionStatus = 'error';
+			isSubscriptionActive = false;
+		}
+	});
+
+	// 監聽 subscription store 資料變化
+	onMount(() => {
+		// 使用 onMount 來建立 store subscription，避免重複建立
+		storeUnsubscribe = commentAddedStore.subscribe((value: any) => {
+			// 只檢查 value 是否存在，不檢查 isSubscriptionActive
+			if (!value) return;
+
+			// 檢查是否有新評論
+			if (value.data?.commentAdded) {
+				const newComment = value.data.commentAdded;
+
+				// 避免重複處理同一則評論
+				if (newComment.id !== lastCommentId) {
+					lastCommentId = newComment.id;
+					console.log('[Subscription] Processing new comment:', newComment.id);
+					handleNewComment({ commentAdded: newComment });
+				}
+			}
+
+			// 處理錯誤
+			if (value.error) {
+				console.error('[Subscription] Error:', value.error);
+				subscriptionStatus = 'error';
+			}
+		});
+
+		return () => {
+			// onMount 的 cleanup
+			if (storeUnsubscribe) {
+				storeUnsubscribe();
+				storeUnsubscribe = null;
+			}
+		};
+	});
+
+	onDestroy(async () => {
+		// 元件銷毀時停止訂閱
+		if (storeUnsubscribe) {
+			storeUnsubscribe();
+			storeUnsubscribe = null;
+		}
+		if (isSubscriptionActive && commentAddedStore.unlisten) {
+			await commentAddedStore.unlisten();
+			isSubscriptionActive = false;
+			subscriptionStatus = 'idle';
+		}
 	});
 
 	async function loadPost() {
@@ -36,6 +147,7 @@
 
 			if (result.data?.post) {
 				post = result.data.post;
+				// subscription 會透過 $effect 自動建立
 			} else {
 				error = '文章不存在';
 			}
@@ -66,8 +178,9 @@
 			});
 
 			if (result.data?.addComment) {
-				post.comments = [...post.comments, result.data.addComment];
-				post.totalComments += 1;
+				// 不要在這裡直接加入評論，讓 subscription 統一處理
+				// 這樣可以避免重複，並確保所有用戶看到一致的結果
+				console.log('[AddComment] Comment sent successfully, waiting for subscription update');
 				newComment = '';
 			}
 		} catch (err) {
@@ -120,6 +233,60 @@
 			hour: '2-digit',
 			minute: '2-digit'
 		}).format(date);
+	}
+
+	// 處理新評論
+	function handleNewComment(data: any) {
+		console.log('[Subscription] New comment received:', data);
+
+		const newComment = data?.commentAdded;
+		if (!newComment || newComment.isDeleted) {
+			console.log('[Subscription] Comment is null or deleted, skipping');
+			return;
+		}
+
+		// 防止重複添加
+		const exists = post.comments?.some((c: any) => c.id === newComment.id);
+		if (exists) {
+			console.log('[Subscription] Comment already exists, skipping');
+			return;
+		}
+
+		console.log('[Subscription] Adding comment to list:', {
+			id: newComment.id,
+			author: newComment.author?.username,
+			content: newComment.content.substring(0, 30)
+		});
+
+		// 更新狀態
+		post = {
+			...post,
+			comments: [...(post.comments || []), newComment],
+			totalComments: newComment.post?.totalComments ?? (post.totalComments + 1)
+		};
+
+		// 檢查是否需要顯示通知
+		console.log('[Notification] Checking notification conditions:', {
+			authorUsername: newComment.author?.username,
+			currentUser: auth.user?.username,
+			isOwnComment: newComment.author?.username === auth.user?.username
+		});
+
+		// 顯示通知（使用統一的通知系統）
+		if (newComment.author?.username && newComment.author.username !== auth.user?.username) {
+			console.log(`[Notification] Showing notification for comment from ${newComment.author.username}`);
+
+			// 使用統一的通知系統，顯示在畫面右上角
+			notifications.info(
+				`${newComment.author.username} 發表了新評論：${newComment.content.substring(0, 50)}${newComment.content.length > 50 ? '...' : ''}`,
+				{
+					duration: 6000,
+					link: null  // 已經在同一頁面，不需要連結
+				}
+			);
+		} else {
+			console.log('[Notification] Not showing notification (own comment or missing author)');
+		}
 	}
 
 	function renderMarkdown(content: string) {
@@ -261,7 +428,38 @@
 
 			<!-- Comments Section -->
 			<section>
-				<h2 class="text-2xl font-semibold mb-6">留言區</h2>
+				<div class="flex items-center justify-between mb-6">
+					<h2 class="text-2xl font-semibold">留言區</h2>
+
+					<!-- Subscription 狀態指示器 -->
+					<div class="flex items-center gap-2 text-sm">
+						{#if subscriptionStatus === 'connecting'}
+							<div class="flex items-center gap-2 text-gray-500">
+								<div class="animate-spin w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full"></div>
+								<span>即時更新連線中...</span>
+							</div>
+						{:else if subscriptionStatus === 'connected'}
+							<div class="flex items-center gap-2 text-green-600">
+								<div class="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+								<span>即時更新已連線</span>
+							</div>
+						{:else if subscriptionStatus === 'error'}
+							{#if reconnectAttempts < MAX_RECONNECT_ATTEMPTS}
+								<div class="flex items-center gap-2 text-orange-500">
+									<div class="animate-spin w-4 h-4 border-2 border-orange-300 border-t-orange-600 rounded-full"></div>
+									<span>重新連線中... (嘗試 {reconnectAttempts}/{MAX_RECONNECT_ATTEMPTS})</span>
+								</div>
+							{:else}
+								<div class="flex items-center gap-2 text-red-500">
+									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+									</svg>
+									<span>即時更新暫時無法使用</span>
+								</div>
+							{/if}
+						{/if}
+					</div>
+				</div>
 
 				<!-- Add Comment Form -->
 				{#if auth.isAuthenticated}

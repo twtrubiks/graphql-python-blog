@@ -20,6 +20,7 @@ from app.graphql.types.user import UserType
 from app.graphql.types.post import PostType
 from app.graphql.subscriptions.comment import CommentSubscription
 from app.graphql.subscriptions.user_status import UserStatusSubscription
+from app.graphql.subscriptions.post import PostSubscription
 from app.graphql.permissions import (
     IsAuthenticated,
     IsSuperuser,
@@ -83,7 +84,7 @@ class Mutation(CommentMutation, LikeMutation, FollowMutation):
 
 
 @strawberry.type
-class Subscription(CommentSubscription, UserStatusSubscription):
+class Subscription(CommentSubscription, UserStatusSubscription, PostSubscription):
     pass
 
 

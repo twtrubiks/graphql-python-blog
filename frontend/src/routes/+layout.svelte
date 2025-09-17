@@ -2,17 +2,110 @@
 	import '../app.css';
 	import { page } from '$app/state';
 	import { auth } from '$lib/stores/auth.svelte';
+	import { notifications } from '$lib/stores/notifications.svelte';
+	import RealtimeNotification from '$lib/components/RealtimeNotification.svelte';
+	import { PostPublishedStore } from '$houdini';
+	import { onMount, onDestroy } from 'svelte';
 	import type { LayoutProps } from './$types';
 
 	// Svelte 5 syntax - using $props
 	let { children }: LayoutProps = $props();
 
 	let showUserMenu = $state(false);
+	let postPublishedStore: any = null;
+	let isSubscriptionActive = $state(false);
+	let lastPostId: string | null = null;
+	let storeUnsubscribe: (() => void) | null = null;
 
 	async function handleLogout() {
 		await auth.logout();
 		showUserMenu = false;
 	}
+
+	onMount(async () => {
+		// 初始化 postPublished subscription
+		postPublishedStore = new PostPublishedStore();
+
+		// 建立 store subscription
+		storeUnsubscribe = postPublishedStore.subscribe((value: any) => {
+			if (!value || !isSubscriptionActive) return;
+
+			// 檢查是否有新文章
+			if (value.data?.postPublished) {
+				const post = value.data.postPublished;
+
+				// 避免重複處理
+				if (post.id !== lastPostId) {
+					lastPostId = post.id;
+					const authorName = post.author?.fullName || post.author?.username || '某用戶';
+
+					console.log('[Subscription] New post published:', post);
+
+					// 顯示通知
+					notifications.info(
+						`${authorName} 發表了新文章：${post.title}`,
+						{
+							duration: 8000,
+							link: {
+								text: '立即查看',
+								href: `/posts/${post.slug || post.id}`
+							}
+						}
+					);
+
+					// 如果在文章列表頁，可以考慮重新載入
+					if ($page.url.pathname === '/posts' || $page.url.pathname === '/') {
+						console.log('[Info] New post available. Consider refreshing the list.');
+					}
+				}
+			}
+
+			// 處理錯誤
+			if (value.error) {
+				console.error('[Subscription] Error:', value.error);
+			}
+		});
+
+		// 啟動 subscription
+		subscribeToNewPosts();
+
+		return () => {
+			// onMount cleanup
+			if (storeUnsubscribe) {
+				storeUnsubscribe();
+				storeUnsubscribe = null;
+			}
+		};
+	});
+
+	onDestroy(async () => {
+		// 清理 subscription
+		if (storeUnsubscribe) {
+			storeUnsubscribe();
+			storeUnsubscribe = null;
+		}
+		if (postPublishedStore && isSubscriptionActive) {
+			await postPublishedStore.unlisten();
+			isSubscriptionActive = false;
+		}
+	});
+
+	async function subscribeToNewPosts() {
+		if (!postPublishedStore || isSubscriptionActive) return;
+
+		console.log('[Subscription] Starting post published subscription');
+		isSubscriptionActive = true;
+
+		try {
+			// 觸發 subscription
+			await postPublishedStore.listen({});
+			console.log('[Subscription] Post published subscription connected');
+		} catch (error) {
+			console.error('[Subscription] Failed to start subscription:', error);
+			isSubscriptionActive = false;
+		}
+	}
+
 </script>
 
 <div class="min-h-screen flex flex-col">
@@ -139,4 +232,17 @@
 			</div>
 		</div>
 	</footer>
+</div>
+
+<!-- 全站通知容器 -->
+<div class="notification-stack fixed top-4 right-4 z-[100] flex flex-col gap-2">
+	{#each notifications.notifications as notification (notification.id)}
+		<RealtimeNotification
+			message={notification.message}
+			type={notification.type}
+			duration={notification.duration}
+			link={notification.link}
+			onClose={() => notifications.remove(notification.id)}
+		/>
+	{/each}
 </div>

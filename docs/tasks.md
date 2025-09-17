@@ -420,10 +420,10 @@
 - [ ] ~~實作搜尋元件~~
 
 ### 6.7 GraphQL Subscriptions 整合
-- [ ] 設置 WebSocket 連線到 GraphQL endpoint
-- [ ] 實作 commentAdded subscription 監聽
-- [ ] 實作 postPublished subscription 監聽
-- [ ] UI 即時更新顯示
+- [x] 設置 WebSocket 連線到 GraphQL endpoint
+- [x] 實作 commentAdded subscription 監聽
+- [x] 實作 postPublished subscription 監聽
+- [x] UI 即時更新顯示
 
 ---
 

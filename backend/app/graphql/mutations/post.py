@@ -3,11 +3,13 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload, joinedload
 from strawberry.types import Info
+import asyncio
 
 from app.models.post import Post
 from app.graphql.types.post import PostType, PostInput, UpdatePostInput, PostStatus
 from app.services.post import PostService
 from app.core.auth import require_auth
+from app.graphql.subscriptions.post import PostEvent
 
 
 async def create_post(
@@ -231,7 +233,13 @@ async def publish_post(
     )
     post = result.scalar_one()
 
-    return PostType.from_orm(post)
+    # 轉換為 PostType
+    post_type = PostType.from_orm(post)
+
+    # 觸發 subscription 事件 (非同步執行，不等待)
+    asyncio.create_task(PostEvent.publish_post(post_type))
+
+    return post_type
 
 
 async def unpublish_post(

@@ -1,10 +1,46 @@
-import { HoudiniClient } from '$houdini'
+import { HoudiniClient, subscription } from '$houdini'
 import { browser } from '$app/environment'
+import { createClient } from 'graphql-ws'
 
 // 取得 token 的函數
 function getToken(): string | null {
     if (!browser) return null
     return localStorage.getItem('token')
+}
+
+// WebSocket 客戶端配置 (僅在瀏覽器端)
+let wsClient: ReturnType<typeof createClient> | null = null
+
+if (browser) {
+    // 決定 WebSocket URL
+    const wsUrl = import.meta.env.VITE_WS_ENDPOINT ||
+                  (window.location.protocol === 'https:'
+                    ? `wss://${window.location.host}/graphql`
+                    : 'ws://localhost:8000/graphql')
+
+    wsClient = createClient({
+        url: wsUrl,
+        // 連線參數，用於認證
+        connectionParams: () => {
+            const token = getToken()
+            return token ? { Authorization: `Bearer ${token}` } : {}
+        },
+        // 自動重連設置
+        shouldRetry: () => true,
+        retryAttempts: 5,
+        retryWait: async (retries) => {
+            // 指數退避：1s, 2s, 4s, 8s, 16s
+            const delay = Math.min(1000 * Math.pow(2, retries), 16000)
+            await new Promise(resolve => setTimeout(resolve, delay))
+        },
+        // 連線生命週期回調
+        on: {
+            connected: () => console.log('[WS] Connected to GraphQL WebSocket'),
+            error: (error) => console.error('[WS] Connection error:', error),
+            closed: () => console.log('[WS] Connection closed'),
+            connecting: () => console.log('[WS] Connecting...')
+        }
+    })
 }
 
 // v2 簡化的客戶端配置
@@ -25,5 +61,10 @@ export default new HoudiniClient({
             // 只在瀏覽器端使用 credentials
             ...(browser ? { credentials: 'include' as RequestCredentials } : {})
         }
-    }
+    },
+
+    // 配置 subscription 插件
+    plugins: browser && wsClient ? [
+        subscription(() => wsClient!)
+    ] : []
 })
