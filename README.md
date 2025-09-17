@@ -23,10 +23,11 @@ graphql-python-blog
 - **pgvector** - 向量搜尋擴充套件（進階功能）
 
 ### 前端
-- **SvelteKit 2.x** - 全端框架
+- **SvelteKit 2.41+** - 全端框架
 - **Svelte 5** - 使用最新的 Runes 系統
-- **Houdini** - GraphQL 客戶端
+- **Houdini v2.0.0-next.9** - GraphQL 客戶端（完整支援 Svelte 5）
 - **Tailwind CSS** - 樣式框架
+- **Vite 7** - 極速建置工具
 
 ### 測試
 - **pytest** - 測試框架
@@ -36,18 +37,41 @@ graphql-python-blog
 
 ## 📋 專案文件
 
-完整的專案文件幫助你了解和開發：
-
+### 核心文件
 | 文件 | 說明 | 用途 |
 |------|------|------|
 | [產品需求文件](./docs/prd.md) | 定義專案功能與需求 | 了解要做什麼 |
 | [系統架構文件](./docs/architecture.md) | C4 模型架構圖與技術決策 | 了解怎麼做 |
 | [任務清單](./docs/tasks.md) | 詳細的開發任務分解 | 追蹤執行進度 |
+
+### 開發指南
+| 文件 | 說明 | 用途 |
+|------|------|------|
+| [TDD 完整指南](./docs/tdd-guide.md) | 測試驅動開發實踐方法 | 學習 TDD 方法論 |
 | [測試策略](./docs/testing-strategy.md) | GraphQL-First TDD 方法論 | 了解如何測試 |
 | [測試範例](./docs/tests-examples.md) | 完整的測試程式碼範例 | 參考實作方式 |
+| [Alembic 指南](./docs/alembic-guide.md) | 資料庫遷移管理 | 管理資料庫版本 |
+
+### GraphQL 專題
+| 文件 | 說明 | 用途 |
+|------|------|------|
 | [DataLoader 實作](./docs/dataloader-implementation.md) | N+1 查詢問題解決方案 | 效能優化指南 |
 | [Union Types 指南](./docs/union-types-guide.md) | GraphQL Union Types 完整說明 | 多型返回值處理 |
 | [Fragment 指南](./docs/fragment-guide.md) | GraphQL Fragment 重用機制 | 減少重複查詢 |
+| [Auth Directive 指南](./docs/auth-directive-guide.md) | GraphQL 權限控制指令 | 實作授權機制 |
+| [Relay Connection Pattern](./docs/relay-connection-pattern.md) | 標準化分頁實作 | 實現游標分頁 |
+
+### 參考資料
+| 文件 | 說明 | 用途 |
+|------|------|------|
+| [GraphQL 介紹](./docs/graphql-intro.md) | GraphQL 基礎概念 | 入門學習 |
+| [GraphQL vs REST](./docs/graphql-vs-rest.md) | API 設計比較 | 技術選型參考 |
+
+### 專案模組文件
+| 模組 | 文件連結 | 說明 |
+|------|---------|------|
+| 前端 | [Frontend README](./frontend/README.md) | SvelteKit + Houdini 前端專案 |
+| 後端 | [Backend README](./backend/README.md) | FastAPI + Strawberry 後端專案 |
 
 ## 🚀 快速開始
 

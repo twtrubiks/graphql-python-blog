@@ -385,11 +385,11 @@
 - [x] 配置 SSR/CSR 策略
 
 ### 6.2 Houdini GraphQL 整合
-- [ ] 安裝並配置 Houdini
-- [ ] 設置 GraphQL endpoint
-- [ ] 生成 TypeScript types
-- [ ] 創建基礎查詢與 mutations
-- [ ] 設置認證 headers
+- [x] 安裝並配置 Houdini (v2.0.0-next.9)
+- [x] 設置 GraphQL endpoint
+- [x] 生成 TypeScript types
+- [x] 創建基礎查詢與 mutations (12個操作已定義)
+- [x] 設置認證 headers (JWT token 自動附加)
 
 ### 6.3 認證流程頁面
 - [ ] 實作登入頁面

@@ -1,0 +1,15 @@
+query GetMe {
+  me {
+    id
+    email
+    username
+    fullName
+    bio
+    avatarUrl
+    isActive
+    isSuperuser
+    createdAt
+    followersCount
+    followingCount
+  }
+}

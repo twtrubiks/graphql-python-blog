@@ -1,0 +1,18 @@
+mutation AddComment($postId: ID!, $content: String!) {
+  addComment(postId: $postId, content: $content) {
+    id
+    content
+    createdAt
+    updatedAt
+    isDeleted
+    author {
+      id
+      username
+      avatarUrl
+    }
+    post {
+      id
+      totalComments
+    }
+  }
+}

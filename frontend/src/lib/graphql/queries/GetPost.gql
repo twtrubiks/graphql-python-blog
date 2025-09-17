@@ -1,0 +1,43 @@
+query GetPost($id: ID!) {
+  post(id: $id) {
+    id
+    title
+    slug
+    content
+    excerpt
+    status
+    createdAt
+    updatedAt
+    publishedAt
+    author {
+      id
+      username
+      fullName
+      bio
+      avatarUrl
+      followersCount
+      followingCount
+      isFollowedByMe
+    }
+    tags {
+      id
+      name
+      slug
+    }
+    comments(limit: 50) {
+      id
+      content
+      createdAt
+      updatedAt
+      isDeleted
+      author {
+        id
+        username
+        avatarUrl
+      }
+    }
+    totalComments
+    likesCount
+    isLiked
+  }
+}

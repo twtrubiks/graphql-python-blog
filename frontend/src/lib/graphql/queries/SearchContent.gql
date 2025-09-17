@@ -1,0 +1,33 @@
+query SearchContent($term: String!) {
+  search(term: $term) {
+    __typename
+    ... on PostType {
+      postId: id
+      title
+      slug
+      excerpt
+      createdAt
+      author {
+        id
+        username
+        avatarUrl
+      }
+      tags {
+        id
+        name
+        slug
+      }
+      totalComments
+      likesCount
+    }
+    ... on UserType {
+      userId: id
+      username
+      fullName
+      bio
+      avatarUrl
+      followersCount
+      followingCount
+    }
+  }
+}

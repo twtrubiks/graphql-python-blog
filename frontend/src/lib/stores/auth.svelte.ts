@@ -1,12 +1,17 @@
 // Svelte 5: Store 使用 .svelte.ts 副檔名
 // 這樣可以在檔案中使用 runes
+import { browser } from '$app/environment';
+import { goto } from '$app/navigation';
 
 interface User {
-	id: number;
+	id: string;
 	email: string;
 	username: string;
+	fullName?: string;
 	bio?: string;
-	avatar?: string;
+	avatarUrl?: string;
+	isActive?: boolean;
+	isSuperuser?: boolean;
 }
 
 interface AuthState {
@@ -26,10 +31,18 @@ function createAuthStore() {
 	let isAuthenticated = $derived(!!user && !!token);
 
 	// 從 localStorage 載入 token
-	if (typeof window !== 'undefined') {
-		const storedToken = localStorage.getItem('auth_token');
+	if (browser) {
+		const storedToken = localStorage.getItem('token');
+		const storedUser = localStorage.getItem('user');
 		if (storedToken) {
 			token = storedToken;
+		}
+		if (storedUser) {
+			try {
+				user = JSON.parse(storedUser);
+			} catch (e) {
+				console.error('Failed to parse stored user:', e);
+			}
 		}
 	}
 
@@ -41,19 +54,22 @@ function createAuthStore() {
 		get isLoading() { return isLoading; },
 
 		// Methods
-		login(userData: User, authToken: string) {
+		async login(userData: User, authToken: string) {
 			user = userData;
 			token = authToken;
-			if (typeof window !== 'undefined') {
-				localStorage.setItem('auth_token', authToken);
+			if (browser) {
+				localStorage.setItem('token', authToken);
+				localStorage.setItem('user', JSON.stringify(userData));
 			}
 		},
 
-		logout() {
+		async logout() {
 			user = null;
 			token = null;
-			if (typeof window !== 'undefined') {
-				localStorage.removeItem('auth_token');
+			if (browser) {
+				localStorage.removeItem('token');
+				localStorage.removeItem('user');
+				await goto('/');
 			}
 		},
 

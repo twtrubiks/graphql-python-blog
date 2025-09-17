@@ -1,0 +1,8 @@
+subscription UserStatusChanged {
+  userStatusChanged {
+    userId
+    username
+    status
+    timestamp
+  }
+}

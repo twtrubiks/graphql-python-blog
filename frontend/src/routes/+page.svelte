@@ -1,14 +1,25 @@
 <script lang="ts">
 	import { PUBLIC_APP_NAME, PUBLIC_APP_DESCRIPTION } from '$env/static/public';
+	import type { PageData } from './$types';
+
+	// Svelte 5: 使用 $props 接收資料
+	let { data }: { data: PageData } = $props();
 
 	// Svelte 5: 使用 $state rune
-	let featuredPosts = $state([
-		{ id: 1, title: "開始使用 GraphQL", excerpt: "了解 GraphQL 的基礎概念和優勢...", author: "John Doe" },
-		{ id: 2, title: "SvelteKit 與 Svelte 5", excerpt: "探索 Svelte 5 的新特性，包括 runes 和 snippets...", author: "Jane Smith" },
-		{ id: 3, title: "建立現代化部落格", excerpt: "使用最新技術堆疊打造高效能部落格平台...", author: "Alice Chen" }
-	]);
-
 	let isLoading = $state(false);
+
+	// Svelte 5: 使用 $derived 處理衍生狀態
+	let featuredPosts = $derived(
+		data?.posts?.edges?.map(edge => ({
+			id: edge.node.id,
+			title: edge.node.title,
+			slug: edge.node.slug,
+			excerpt: edge.node.excerpt || '',
+			author: edge.node.author.username,
+			totalComments: edge.node.totalComments,
+			likesCount: edge.node.likesCount
+		})) || []
+	);
 </script>
 
 <svelte:head>
@@ -53,14 +64,18 @@
 				{#each featuredPosts as post}
 					<article class="card hover:shadow-lg transition-shadow">
 						<h3 class="text-xl font-semibold mb-2">
-							<a href="/posts/{post.id}" class="hover:text-primary-600 transition-colors">
+							<a href="/posts/{post.slug || post.id}" class="hover:text-primary-600 transition-colors">
 								{post.title}
 							</a>
 						</h3>
 						<p class="text-gray-600 mb-3">{post.excerpt}</p>
 						<div class="flex items-center justify-between text-sm text-gray-500">
-							<span>作者：{post.author}</span>
-							<a href="/posts/{post.id}" class="link text-primary-600">
+							<div class="flex items-center gap-4">
+								<span>作者：{post.author}</span>
+								<span>💬 {post.totalComments}</span>
+								<span>👍 {post.likesCount}</span>
+							</div>
+							<a href="/posts/{post.slug || post.id}" class="link text-primary-600">
 								閱讀更多 →
 							</a>
 						</div>
