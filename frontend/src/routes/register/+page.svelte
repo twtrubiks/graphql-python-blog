@@ -251,6 +251,7 @@
 			</button>
 		</form>
 
+		<!-- 暫時註解：隱私政策和服務條款尚未實作
 		<div class="mt-6 text-center">
 			<p class="text-sm text-gray-600">
 				點擊註冊即表示您同意我們的
@@ -259,6 +260,7 @@
 				<a href="/privacy" class="link text-primary-600">隱私政策</a>
 			</p>
 		</div>
+		-->
 
 		<div class="mt-4 text-center text-sm text-gray-600">
 			已經有帳號了？

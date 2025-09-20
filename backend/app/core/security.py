@@ -8,7 +8,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 SECRET_KEY = getattr(settings, "SECRET_KEY", "your-secret-key-here")
 ALGORITHM = getattr(settings, "ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 30)
+# 調整為 7 天過期（7 天 * 24 小時 * 60 分鐘）
+ACCESS_TOKEN_EXPIRE_MINUTES = getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 7 * 24 * 60)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against a hashed password."""

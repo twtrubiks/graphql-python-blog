@@ -16,6 +16,7 @@
 	let isSubscriptionActive = $state(false);
 	let lastPostId: string | null = null;
 	let storeUnsubscribe: (() => void) | null = null;
+	let tokenCheckInterval: ReturnType<typeof setInterval> | null = null;
 
 	async function handleLogout() {
 		await auth.logout();
@@ -69,11 +70,34 @@
 		// 啟動 subscription
 		subscribeToNewPosts();
 
+		// 設定定期檢查 token 過期
+		tokenCheckInterval = setInterval(() => {
+			if (auth.isAuthenticated) {
+				// 檢查 token 是否即將過期（1天內）
+				if (auth.isTokenExpiringSoon()) {
+					notifications.warning('您的登入將在 24 小時內過期，建議重新登入以保持登入狀態', {
+						duration: 10000
+					});
+				}
+
+				// 檢查 token 是否已過期（這會自動觸發登出）
+				const validToken = auth.validToken;
+				if (!validToken && auth.isAuthenticated) {
+					console.log('[Layout] Token expired during session');
+					notifications.error('登入已過期，請重新登入');
+				}
+			}
+		}, 3600000); // 每小時檢查一次（適合 7 天的 token 週期）
+
 		return () => {
 			// onMount cleanup
 			if (storeUnsubscribe) {
 				storeUnsubscribe();
 				storeUnsubscribe = null;
+			}
+			if (tokenCheckInterval) {
+				clearInterval(tokenCheckInterval);
+				tokenCheckInterval = null;
 			}
 		};
 	});
@@ -87,6 +111,11 @@
 		if (postPublishedStore && isSubscriptionActive) {
 			await postPublishedStore.unlisten();
 			isSubscriptionActive = false;
+		}
+		// 清理 token 檢查 interval
+		if (tokenCheckInterval) {
+			clearInterval(tokenCheckInterval);
+			tokenCheckInterval = null;
 		}
 	});
 
@@ -223,12 +252,14 @@
 		<div class="container mx-auto px-4 py-6">
 			<div class="flex flex-col items-center justify-between gap-4 md:flex-row">
 				<p class="text-sm text-gray-600">
-					© 2024 GraphQL Blog. All rights reserved.
+					© 2025 GraphQL Blog. All rights reserved.
 				</p>
+				<!-- 暫時註解：隱私政策和服務條款尚未實作
 				<div class="flex gap-4 text-sm">
 					<a href="/privacy" class="link">隱私政策</a>
 					<a href="/terms" class="link">服務條款</a>
 				</div>
+				-->
 			</div>
 		</div>
 	</footer>
