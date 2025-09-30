@@ -18,31 +18,18 @@
 npm install
 ```
 
-### 2. 設置環境變數
-複製 `.env.example` 為 `.env` 並設置：
-```env
-VITE_GRAPHQL_ENDPOINT=http://localhost:8000/graphql
-VITE_WS_ENDPOINT=ws://localhost:8000/graphql
-PUBLIC_APP_NAME=GraphQL Blog
-PUBLIC_APP_DESCRIPTION=A modern blog platform built with SvelteKit and GraphQL
-```
-
-主要環境變數：
-- `VITE_GRAPHQL_ENDPOINT` - GraphQL API 端點
-- `VITE_WS_ENDPOINT` - WebSocket 端點（用於 subscriptions）
-
-### 3. 啟動後端服務
+### 2. 啟動後端服務
 ```bash
 cd ../backend
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### 4. 生成 GraphQL 型別
+### 3. 生成 GraphQL 型別
 ```bash
 npm run codegen
 ```
 
-### 5. 啟動開發伺服器
+### 4. 啟動開發伺服器
 ```bash
 npm run dev
 ```

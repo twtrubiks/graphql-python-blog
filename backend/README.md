@@ -62,53 +62,6 @@ backend/
 - PostgreSQL 16
 - Docker (可選，用於資料庫)
 
-### 安裝步驟
-
-1. **建立虛擬環境**
-```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# 或
-venv\Scripts\activate  # Windows
-```
-
-2. **安裝依賴**
-```bash
-pip install -r requirements.txt
-pip install -r requirements-test.txt  # 開發測試依賴
-```
-
-3. **設置環境變數**
-創建 `.env` 檔案：
-```env
-DATABASE_URL=postgresql://blog_user:blog_password@localhost:5432/blog_db
-SECRET_KEY=your-secret-key-here
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-DEBUG=True
-```
-
-4. **啟動資料庫**
-使用 Docker Compose：
-```bash
-docker-compose up -d
-```
-
-5. **執行資料庫遷移**
-```bash
-alembic upgrade head
-```
-
-6. **啟動開發伺服器**
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-或使用 FastAPI CLI：
-```bash
-fastapi dev app/main.py
-```
-
 ## GraphQL API
 
 ### GraphQL Playground
@@ -152,11 +105,23 @@ http://localhost:8000/graphql
 Authorization: Bearer <your-token>
 ```
 
-受保護的操作會使用 `@auth` 指令：
-```graphql
-type Mutation {
-  createPost(input: PostInput!): Post! @auth(requires: USER)
-}
+受保護的操作有兩種實作方式：
+
+**方式一：在 Schema 定義時使用 permission_classes**
+```python
+# 在 schema.py 中定義
+create_post: PostType = strawberry.field(
+    resolver=create_post,
+    permission_classes=[IsAuthenticated]  # 需要認證的使用者
+)
+```
+
+**方式二：在 Resolver 內部檢查**
+```python
+# 在 resolver 函數中
+async def create_post(info: Info, input: PostInput) -> PostType:
+    current_user = await require_auth(info)  # 驗證並取得當前用戶
+    # ... 執行創建文章邏輯
 ```
 
 ## 測試
@@ -237,14 +202,12 @@ alembic downgrade -1
 | DATABASE_URL | PostgreSQL 連接字串 | - |
 | SECRET_KEY | JWT 密鑰 | - |
 | ALGORITHM | JWT 算法 | HS256 |
-| ACCESS_TOKEN_EXPIRE_MINUTES | Token 過期時間（分鐘） | 30 |
+| ACCESS_TOKEN_EXPIRE_MINUTES | Token 過期時間（分鐘，預設 7 天） | 10080 |
 | DEBUG | 除錯模式 | False |
-| CORS_ORIGINS | CORS 允許來源 | ["http://localhost:5173"] |
 
 ## 相關文件
 
 - [系統架構](../docs/architecture.md)
-- [測試策略](../docs/testing-strategy.md)
 - [GraphQL 專題文件](../docs/)
 - [API 文件](http://localhost:8000/docs) (FastAPI 自動生成)
 

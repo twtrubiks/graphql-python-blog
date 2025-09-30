@@ -1,8 +1,7 @@
 # Alembic 資料庫遷移指南
 
 ## 環境說明
-- **Python 執行檔**: `/home/twtrubiks/.pyenv/versions/graphql/bin/python3`
-- **Alembic 執行檔**: `/home/twtrubiks/.pyenv/versions/graphql/bin/alembic`
+
 - **工作目錄**: 必須在 `backend/` 目錄下執行指令
 
 ## 常用指令
@@ -10,76 +9,76 @@
 ### 1. 檢查當前資料庫版本
 ```bash
 cd backend
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic current
+alembic current
 ```
 
 ### 2. 查看遷移歷史
 ```bash
 cd backend
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic history --verbose
+alembic history --verbose
 ```
 
 ### 3. 自動生成遷移檔案（當修改 Model 後）
 ```bash
 cd backend
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic revision --autogenerate -m "描述這次的變更"
+alembic revision --autogenerate -m "描述這次的變更"
 ```
 
 例如：
 ```bash
 # 新增欄位
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic revision --autogenerate -m "Add avatar field to User model"
+alembic revision --autogenerate -m "Add avatar field to User model"
 
 # 新增資料表
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic revision --autogenerate -m "Add Tag model"
+alembic revision --autogenerate -m "Add Tag model"
 
 # 修改關聯
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic revision --autogenerate -m "Add relationship between Post and Tag"
+alembic revision --autogenerate -m "Add relationship between Post and Tag"
 ```
 
 ### 4. 執行遷移（升級到最新版本）
 ```bash
 cd backend
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic upgrade head
+alembic upgrade head
 ```
 
 ### 5. 升級到特定版本
 ```bash
 cd backend
 # 升級一個版本
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic upgrade +1
+alembic upgrade +1
 
 # 升級到特定版本號
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic upgrade 7adae7406530
+alembic upgrade 7adae7406530
 ```
 
 ### 6. 降級資料庫版本
 ```bash
 cd backend
 # 降級一個版本
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic downgrade -1
+alembic downgrade -1
 
 # 降級到特定版本
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic downgrade 7adae7406530
+alembic downgrade 7adae7406530
 
 # 降級到初始狀態（清空所有遷移）
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic downgrade base
+alembic downgrade base
 ```
 
 ### 7. 查看即將執行的 SQL（不實際執行）
 ```bash
 cd backend
 # 顯示升級的 SQL
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic upgrade head --sql
+alembic upgrade head --sql
 
 # 顯示降級的 SQL
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic downgrade -1 --sql
+alembic downgrade -1 --sql
 ```
 
 ### 8. 手動創建遷移檔案（不自動偵測）
 ```bash
 cd backend
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic revision -m "Manual migration for custom changes"
+alembic revision -m "Manual migration for custom changes"
 ```
 
 ## 工作流程範例
@@ -95,7 +94,7 @@ cd backend
 2. **生成遷移檔案**
    ```bash
    cd backend
-   /home/twtrubiks/.pyenv/versions/graphql/bin/alembic revision --autogenerate -m "Add avatar field to User"
+   alembic revision --autogenerate -m "Add avatar field to User"
    ```
 
 3. **檢查生成的遷移檔案**
@@ -104,12 +103,12 @@ cd backend
 
 4. **執行遷移**
    ```bash
-   /home/twtrubiks/.pyenv/versions/graphql/bin/alembic upgrade head
+   alembic upgrade head
    ```
 
 5. **驗證遷移結果**
    ```bash
-   /home/twtrubiks/.pyenv/versions/graphql/bin/alembic current
+   alembic current
    ```
 
 ## 重要注意事項
@@ -135,40 +134,61 @@ from app.models import user, post, comment, tag  # 新增的 model
 ```bash
 # 降級到初始狀態
 cd backend
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic downgrade base
+alembic downgrade base
 
 # 升級到最新
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic upgrade head
+alembic upgrade head
 ```
 
 ## 常見問題解決
 
 ### Q1: ModuleNotFoundError
-**問題**: 執行 alembic 時出現模組找不到錯誤
-**解決**: 確保在 backend 目錄下執行，並使用正確的 Python 環境
+
+**問題**:
+
+執行 alembic 時出現模組找不到錯誤
+
+**解決**:
+
+確保在 backend 目錄下執行，並使用正確的 Python 環境
 
 ### Q2: 資料庫連線失敗
-**問題**: 無法連接到資料庫
-**解決**: 
+
+**問題**:
+
+無法連接到資料庫
+
+**解決**:
+
 1. 確認 PostgreSQL 服務運行中: `docker-compose up -d`
 2. 檢查 `.env` 檔案的資料庫連線設定
 
 ### Q3: 自動偵測沒有找到變更
-**問題**: 明明修改了 Model 但 autogenerate 說沒有變更
+
+**問題**:
+
+明明修改了 Model 但 autogenerate 說沒有變更
+
 **解決**:
+
 1. 確認 Model 檔案有在 `alembic/env.py` 中 import
 2. 檢查是否有未提交的資料庫事務
 3. 確認 Model 的 `__tablename__` 設定正確
 
 ### Q4: 遷移衝突
-**問題**: 多個開發者同時創建遷移檔案導致衝突
+
+**問題**:
+
+多個開發者同時創建遷移檔案導致衝突
+
 **解決**:
+
 ```bash
 # 先降級到共同版本
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic downgrade [共同版本號]
+alembic downgrade [共同版本號]
 
 # 合併遷移檔案後重新升級
-/home/twtrubiks/.pyenv/versions/graphql/bin/alembic upgrade head
+alembic upgrade head
 ```
 
 ## 快速參考卡片

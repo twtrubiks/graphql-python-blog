@@ -40,7 +40,6 @@
   pydantic-settings
   python-jose[cryptography]
   passlib[bcrypt]
-  #python-multipart==0.0.9
   alembic
   python-slugify
   ```
@@ -49,10 +48,6 @@
   pytest
   pytest-asyncio
   pytest-cov
-
-  factory-boy==3.3.0
-  faker==26.0.0
-  freezegun==1.5.0
   ```
 
 ### 1.3 FastAPI + Strawberry 整合
@@ -360,7 +355,7 @@
   - 測試 Fragment 巢狀使用
   - 測試 Fragment 型別安全性
 - [x] 實作：Fragment 在查詢中的應用範例
-- [x] 📝 TDD 測試：Custom @auth directive 權限控制 ([詳細文檔](./auth-directive-guide.md))
+- [x] 📝 TDD 測試：Custom 權限控制機制 ([詳細文檔](./permissions-guide.md))
   - 測試未認證用戶存取限制
   - 測試認證用戶正常存取
   - 測試 field-level 權限控制

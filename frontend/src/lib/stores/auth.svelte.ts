@@ -1,5 +1,22 @@
-// Svelte 5: Store 使用 .svelte.ts 副檔名
-// 這樣可以在檔案中使用 runes
+/**
+ * 認證狀態管理 - Svelte 5 Runes 示範
+ *
+ * Svelte 5 引入了 Runes，這是一種新的響應式系統：
+ * - $state: 創建響應式狀態
+ * - $derived: 計算衍生值（類似 computed）
+ * - $effect: 響應式副作用（類似 watch）
+ *
+ * 檔案命名規則：
+ * - .svelte.ts: 可以使用 Runes 的 TypeScript 檔案
+ * - .ts: 純 TypeScript，不能使用 Runes
+ *
+ * 這個 Store 管理：
+ * 1. 用戶登入狀態
+ * 2. JWT Token 儲存和驗證
+ * 3. 自動登出（Token 過期）
+ * 4. 持久化（localStorage）
+ */
+
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { jwtDecode } from 'jwt-decode';
@@ -23,18 +40,28 @@ interface AuthState {
 }
 
 interface JWTPayload {
-	exp: number;
-	sub: string;
-	// 其他 payload 欄位
+	exp: number;  // Token 過期時間（Unix timestamp）
+	sub: string;  // Subject（通常是用戶 ID）
+	// 其他自定義欄位可在此擴展
 }
 
 function createAuthStore() {
-	// Svelte 5: 使用 $state rune 創建響應式狀態
+	/**
+	 * Svelte 5 Runes 使用方式：
+	 *
+	 * $state: 創建響應式狀態
+	 * - 自動追蹤變更
+	 * - 觸發相關元件重新渲染
+	 */
 	let user = $state<User | null>(null);
 	let token = $state<string | null>(null);
 	let isLoading = $state(false);
 
-	// Svelte 5: 使用 $derived rune 計算衍生狀態
+	/**
+	 * $derived: 計算衍生狀態
+	 * - 依賴的狀態變化時自動重新計算
+	 * - 類似 Vue 的 computed 或 React 的 useMemo
+	 */
 	let isAuthenticated = $derived(!!user && !!token);
 
 	// 檢查 token 是否過期

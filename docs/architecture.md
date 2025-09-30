@@ -318,10 +318,70 @@ sequenceDiagram
 
 ### 為什麼選擇 FastAPI + Strawberry？
 
-1. **現代 Python**: 充分利用 Type Hints
-2. **異步支援**: 原生異步處理提升效能
-3. **自動文件**: 自動生成 API 文件
-4. **開發體驗**: 優秀的開發者體驗
+#### Strawberry 的核心優勢
+
+1. **Python Type Hints 原生整合**
+   - 使用 Python 的型別註解自動生成 GraphQL Schema
+   - 編譯時期型別檢查，減少執行時錯誤
+   - 程式碼即文檔，維護更簡單
+   ```python
+   @strawberry.type
+   class UserType:
+       id: strawberry.ID
+       username: str
+       email: Optional[str] = None  # 自動轉換為 GraphQL nullable 欄位
+   ```
+
+2. **現代化的裝飾器語法**
+   - 比 Graphene 更簡潔、更 Pythonic
+   - 減少樣板程式碼
+   - 直觀的 API 設計
+   ```python
+   @strawberry.field
+   async def get_posts(self, info: Info) -> List[PostType]:
+       # 非同步查詢，自動處理
+       return await PostService.get_all()
+   ```
+
+3. **與 FastAPI 完美整合**
+   - 共享相同的依賴注入系統
+   - 統一的異步處理模型
+   - 整合的錯誤處理機制
+   - 單一應用程式，同時支援 REST 和 GraphQL
+
+4. **內建權限控制系統**
+   - 使用 `permission_classes` 實現細粒度權限控制
+   - 支援欄位級別的權限設定
+   - 與 FastAPI 的認證系統無縫整合
+   ```python
+   @strawberry.field(permission_classes=[IsAuthenticated])
+   async def protected_data(self) -> str:
+       return "只有認證用戶可見"
+   ```
+
+5. **優秀的開發者體驗**
+   - 自動生成 GraphiQL 測試介面
+   - 詳細的錯誤訊息和堆疊追蹤
+   - 支援熱重載
+   - 完整的 VS Code 智能提示支援
+
+#### 與其他 Python GraphQL 框架比較
+
+| 特性 | Strawberry | Graphene | Ariadne |
+|------|------------|----------|---------|
+| Type Hints | ✅ 原生支援 | ⚠️ 部分支援 | ❌ 字串 Schema |
+| 異步支援 | ✅ 原生 async/await | ⚠️ 需要額外配置 | ✅ 支援 |
+| 學習曲線 | 低（Pythonic） | 中等 | 高（Schema First） |
+| FastAPI 整合 | ✅ 官方支援 | ⚠️ 第三方套件 | ⚠️ 需要自行整合 |
+| 程式碼生成 | ✅ 自動 | ⚠️ 較多樣板 | ❌ 手動定義 |
+| 社群活躍度 | ✅ 快速成長 | ✅ 成熟穩定 | ⚠️ 相對較小 |
+
+#### 實際效益
+
+1. **開發速度提升**：減少樣板程式碼，專注業務邏輯
+2. **更少的錯誤**：型別安全在編譯時期捕捉錯誤
+3. **維護成本降低**：程式碼即文檔，自動同步更新
+4. **效能優異**：原生異步支援，適合高並發場景
 
 ### 為什麼選擇 PostgreSQL + pgvector？
 
@@ -425,7 +485,7 @@ sequenceDiagram
    - Field-level 授權：每個欄位可有獨立權限
    - Resolver 層級驗證：業務邏輯層的安全檢查
    - Context-based 權限：基於使用者身份動態控制
-   - **@auth Directive**：自定義權限指令實現（[詳細實作指南](./auth-directive-guide.md)）
+   - PermissionExtension：Strawberry 權限控制實現（[詳細實作指南](./permissions-guide.md)）
 
 4. **防護最佳實踐**
    ```python
@@ -457,7 +517,7 @@ sequenceDiagram
 2. **GraphQL 進階特性**
    - [Union Types 指南](./union-types-guide.md) - 多型查詢返回
    - [Fragment 指南](./fragment-guide.md) - 查詢片段重用
-   - [Auth Directive 指南](./auth-directive-guide.md) - 自定義權限控制指令
+   - [權限控制指南](./permissions-guide.md) - GraphQL 權限控制機制
    - **Subscription 即時通訊** - WebSocket 整合實現評論即時更新、用戶狀態追蹤
 
 3. **資料庫索引**

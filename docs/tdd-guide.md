@@ -462,8 +462,6 @@ class TestPostMutations:
 ## 相關文檔
 
 ### 本專案相關文檔
-- [測試策略](./testing-strategy.md) - 本專案的完整測試策略與 GraphQL-First TDD 說明
-- [測試範例](./tests-examples.md) - 完整的測試程式碼範例
 - [專案架構](./architecture.md) - 包含可測試性設計原則
 - [任務清單](./tasks.md) - 展示 TDD 開發流程的實際應用
 

@@ -1,7 +1,3 @@
 pytest
 pytest-asyncio
 pytest-cov
-
-# factory-boy==3.3.0
-# faker==26.0.0
-# freezegun==1.5.0

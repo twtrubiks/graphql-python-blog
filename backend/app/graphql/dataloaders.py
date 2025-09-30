@@ -1,5 +1,27 @@
 """
-DataLoader 實作用於解決 N+1 查詢問題
+DataLoader 實作 - 解決 GraphQL N+1 查詢問題的關鍵
+
+什麼是 N+1 問題？
+當查詢 N 篇文章的作者時，如果不使用 DataLoader：
+- 1 次查詢獲取 N 篇文章
+- N 次查詢獲取每篇文章的作者
+- 總共 N+1 次資料庫查詢
+
+使用 DataLoader 後：
+- 1 次查詢獲取 N 篇文章
+- 1 次批次查詢獲取所有作者
+- 總共只需要 2 次查詢！
+
+DataLoader 的核心機制：
+1. 收集（Batching）：在單個事件循環中收集所有查詢需求
+2. 去重（Deduplication）：自動去除重複的查詢
+3. 快取（Caching）：在請求週期內快取結果
+4. 批次執行：一次性執行所有查詢
+
+教學重點：
+- 每個 DataLoader 對應一種資源類型
+- load_fn 必須返回與輸入順序一致的結果
+- DataLoader 是請求級別的，每個請求創建新實例
 """
 
 from typing import List, Dict, Optional
@@ -17,24 +39,37 @@ from app.models.follow import Follow
 
 
 class UserLoader(DataLoader):
-    """批次載入用戶資料的 DataLoader"""
+    """
+    批次載入用戶資料的 DataLoader
+
+    範例場景：
+    當查詢 10 篇文章，每篇文章都需要作者資訊時，
+    GraphQL 會自動收集所有作者 ID，然後呼叫這個 loader 一次性載入。
+    """
 
     def __init__(self, session: AsyncSession):
         super().__init__(load_fn=self.batch_load_users)
         self.session = session
 
     async def batch_load_users(self, user_ids: List[int]) -> List[Optional[User]]:
-        """批次載入多個用戶"""
-        # 單一查詢獲取所有需要的用戶
+        """
+        批次載入多個用戶
+
+        關鍵點：
+        1. 接收多個 ID，執行單一查詢
+        2. 必須保持返回順序與輸入順序一致
+        3. 找不到的 ID 返回 None
+        """
+        # 單一查詢獲取所有需要的用戶（避免 N+1）
         result = await self.session.execute(
             select(User).where(User.id.in_(user_ids))
         )
         users = result.scalars().all()
 
-        # 建立 id -> user 的映射
+        # 建立 id -> user 的映射（快速查找）
         user_map: Dict[int, User] = {user.id: user for user in users}
 
-        # 按照請求的順序返回結果
+        # 關鍵：按照請求的順序返回結果，這是 DataLoader 的要求
         return [user_map.get(user_id) for user_id in user_ids]
 
 

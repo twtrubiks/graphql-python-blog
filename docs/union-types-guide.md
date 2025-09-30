@@ -98,7 +98,7 @@ if (searchType === 'posts') {
 
 // ✅ Union Types：自動返回所有相關類型
 const results = await search(keyword);
-// 結果可能包含：[Post, Post, User, Comment, User, ...]
+// 結果可能包含：[Post, User, Comment, ...]
 ```
 
 ### 3. 類型安全
@@ -231,6 +231,39 @@ async function getSearchResults(keyword) {
 
 ## 實作範例：搜尋功能
 
+### 🎨 實際應用場景
+
+在這個部落格專案中，Union Types 主要應用於以下場景：
+
+#### 1. 全站搜尋功能
+
+搜尋可能返回文章或用戶：
+
+```python
+SearchResult = Union[PostType, UserType]
+```
+
+**使用情境：**
+
+- 搜尋 "Python" 可能找到：
+  - 標題含 "Python" 的文章
+  - 用戶名含 "Python" 的用戶
+  - 內容提到 "Python" 的文章
+
+#### 2. 活動時間線（未來功能）
+
+顯示不同類型的活動：
+
+```python
+TimelineActivity = Union[PostPublishedActivity, CommentAddedActivity, UserFollowedActivity]
+```
+
+**使用情境：**
+
+- 發表文章活動
+- 新增評論活動
+- 追蹤用戶活動
+
 ### 1. 定義 Union Type (Python/Strawberry)
 
 ```python
@@ -241,7 +274,7 @@ from typing import Union, Annotated
 from app.graphql.types.post import PostType
 from app.graphql.types.user import UserType
 
-# 定義 Union Type
+# 定義 Union Type - 搜尋結果可以是文章或用戶
 SearchResult = Annotated[
     Union[PostType, UserType],
     strawberry.union("SearchResult")
@@ -337,8 +370,8 @@ class SearchQuery:
 ```graphql
 query SearchContent($term: String!) {
   search(term: $term) {
+    __typename  # 用於識別返回的類型
     ... on PostType {
-      __typename
       postId: id
       title
       excerpt
@@ -347,7 +380,6 @@ query SearchContent($term: String!) {
       }
     }
     ... on UserType {
-      __typename
       userId: id
       username
       bio
@@ -357,7 +389,22 @@ query SearchContent($term: String!) {
 }
 ```
 
-### 4. 處理查詢結果 (JavaScript/TypeScript)
+### 4. 客戶端使用說明
+
+#### GraphQL 查詢解析
+
+- **`__typename`**: 每個 Union Type 結果都包含此欄位，用於識別實際類型
+- **`... on TypeName`**: Inline Fragment 語法，根據類型選擇性查詢欄位
+- **別名（Alias）**: 如 `postId: id`，避免不同類型間的欄位名稱衝突
+
+#### 客戶端處理流程
+
+1. **發送查詢**: 使用 GraphQL 客戶端（如 Houdini）發送包含 inline fragments 的查詢
+2. **接收結果**: 獲得包含不同類型物件的陣列
+3. **類型判斷**: 根據 `__typename` 欄位判斷每個結果的實際類型
+4. **條件渲染**: 根據不同類型顯示不同的 UI 元件
+
+### 5. 處理查詢結果 (JavaScript/TypeScript)
 
 ```typescript
 interface SearchResult {
@@ -406,10 +453,12 @@ function handleSearchResults(results: SearchResult[]) {
 ## 最佳實踐
 
 ### 1. 命名規範
+
 - Union Type 名稱應該描述性強：`SearchResult`、`TimelineItem`
 - 使用 Type 後綴區分：`PostType`、`UserType`
 
 ### 2. 欄位衝突處理
+
 當不同類型有相同名稱但不同類型的欄位時，使用別名：
 
 ```graphql
@@ -428,6 +477,7 @@ query {
 ```
 
 ### 3. 類型判斷
+
 始終使用 `__typename` 來判斷返回的具體類型：
 
 ```graphql
@@ -445,6 +495,7 @@ query {
 ```
 
 ### 4. 錯誤處理
+
 考慮添加錯誤類型到 Union：
 
 ```python
@@ -455,6 +506,7 @@ SearchResult = Annotated[
 ```
 
 ### 5. 文檔化
+
 為 Union Type 和每個可能的類型提供清晰的文檔：
 
 ```python
@@ -485,26 +537,33 @@ class SearchQuery:
 ## 常見問題
 
 ### Q1: Union Type 可以包含標量類型嗎？
+
 **A**: 不行，Union Type 只能包含物件類型（Object Types），不能包含標量類型（Scalar Types）如 String、Int。
 
 ### Q2: Union Type 可以嵌套嗎？
+
 **A**: 不能直接嵌套，但可以在 Union Type 的成員類型中使用其他 Union Type。
 
 ### Q3: 如何處理空結果？
+
 **A**: 返回空陣列 `[]` 而不是 `null`，這樣客戶端處理更簡單。
 
 ### Q4: Union Type vs 多個查詢端點？
+
 **A**: Union Type 優點：
+
 - 減少網路請求
 - 統一的搜尋介面
 - 更好的快取策略
 
 多個端點優點：
+
 - 更簡單的客戶端邏輯
 - 可以針對性優化
 - 更細粒度的權限控制
 
 ### Q5: 如何測試 Union Type？
+
 **A**: 測試每種可能的返回類型：
 
 ```python

@@ -1,8 +1,8 @@
-# GraphQL Blog Platform 🚀
+# GraphQL Blog Platform
 
-一個現代化的部落格平台，使用 GraphQL API 和 Python 後端，展示 GraphQL-First TDD 開發方法的最佳實踐。
+本專案目標是透過 Claude 學習, GraphQL API 和 Python 後端,
 
-graphql-python-blog
+練習 GraphQL-First TDD 開發方法的最佳實.
 
 ## 🎯 專案目標
 
@@ -10,7 +10,7 @@ graphql-python-blog
 - GraphQL API 設計與實作
 - Test-Driven Development (TDD) 實踐
 - 現代化的前後端架構
-- 向量搜尋與 AI 功能整合
+- 向量搜尋與 AI 功能整合 (尚未實做)
 
 ## 🛠 技術棧
 
@@ -18,22 +18,23 @@ graphql-python-blog
 - **Python 3.13** - 最新版 Python
 - **FastAPI** - 現代化 Web 框架
 - **Strawberry** - Python GraphQL 函式庫
+  - 選擇理由：原生 Type Hints 支援、與 FastAPI 完美整合、簡潔的裝飾器語法
+  - 相比 Graphene 更現代化、更 Pythonic、開發效率更高
 - **SQLAlchemy 2.0** - ORM 與資料庫操作
 - **PostgreSQL 16** - 主要資料庫
-- **pgvector** - 向量搜尋擴充套件（進階功能）
+- **pgvector** - 向量搜尋擴充套件（進階功能）(尚未實做)
 
 ### 前端
 - **SvelteKit 2.41+** - 全端框架
 - **Svelte 5** - 使用最新的 Runes 系統
 - **Houdini v2.0.0-next.9** - GraphQL 客戶端（完整支援 Svelte 5）
 - **Tailwind CSS** - 樣式框架
-- **Vite 7** - 極速建置工具
+- **Vite 7** - 建置工具
 
 ### 測試
 - **pytest** - 測試框架
 - **pytest-asyncio** - 異步測試支援
 - **httpx** - API 測試客戶端
-- **factory-boy** - 測試資料工廠
 
 ## 📋 專案文件
 
@@ -48,8 +49,6 @@ graphql-python-blog
 | 文件 | 說明 | 用途 |
 |------|------|------|
 | [TDD 完整指南](./docs/tdd-guide.md) | 測試驅動開發實踐方法 | 學習 TDD 方法論 |
-| [測試策略](./docs/testing-strategy.md) | GraphQL-First TDD 方法論 | 了解如何測試 |
-| [測試範例](./docs/tests-examples.md) | 完整的測試程式碼範例 | 參考實作方式 |
 | [Alembic 指南](./docs/alembic-guide.md) | 資料庫遷移管理 | 管理資料庫版本 |
 
 ### GraphQL 專題
@@ -58,7 +57,7 @@ graphql-python-blog
 | [DataLoader 實作](./docs/dataloader-implementation.md) | N+1 查詢問題解決方案 | 效能優化指南 |
 | [Union Types 指南](./docs/union-types-guide.md) | GraphQL Union Types 完整說明 | 多型返回值處理 |
 | [Fragment 指南](./docs/fragment-guide.md) | GraphQL Fragment 重用機制 | 減少重複查詢 |
-| [Auth Directive 指南](./docs/auth-directive-guide.md) | GraphQL 權限控制指令 | 實作授權機制 |
+| [權限控制指南](./docs/permissions-guide.md) | GraphQL 權限控制機制 | 實作授權與權限管理 |
 | [Relay Connection Pattern](./docs/relay-connection-pattern.md) | 標準化分頁實作 | 實現游標分頁 |
 
 ### 參考資料
@@ -79,55 +78,106 @@ graphql-python-blog
 
 - Python 3.13+
 - Node.js 22+
-- Docker Compose (建立 PostgreSQL 16)
+- Docker 和 Docker Compose
 
-### 執行專案
+### 啟動
 
-**後端啟動**
+db `blog_db`
+
 ```bash
-# 開發模式
-fastapi dev app/main.py
-
+docker-compose up -d
 ```
 
-**前端啟動**
+後端
+
+```bash
+cd backend
+
+# 設定你的環境
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-test.txt # 如果要跑測試
+
+# migrate
+alembic upgrade head
+
+# 在 debug 中會自動 init_db()
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# 也可以使用 FastAPI CLI
+# fastapi dev app/main.py
+```
+
+後端 API [http://localhost:8000](http://localhost:8000)
+
+後端 API 文檔 [http://localhost:8000/docs](http://localhost:8000/docs)
+
+GraphQL [http://localhost:8000/graphql](http://localhost:8000/graphql)
+
+前端
+
 ```bash
 cd frontend
+
+npm install
+
+# 確保後端已經運行, 目的是要產生 schema.graphql
+npm run codegen:pull
+
 npm run dev
 ```
 
-**Docker Compose 一鍵啟動**
+前端入口 [http://localhost:5173](http://localhost:5173)
+
+### 生成資料
+
+會使用 db `blog_db`
+
 ```bash
-docker-compose up
+cd backend
+
+# 創建測試用戶和文章
+python3 ../scripts/seed-data.py
 ```
 
-訪問：
-- GraphQL Playground: http://localhost:8000/graphql
-- 前端應用: http://localhost:5173
+## 測試執行
 
-## 🧪 測試執行
+### 測試腳本
 
-### 執行所有測試
+會使用 db `test_blog`
+
 ```bash
+cd backend
+
+# 建立 pytest 跑得測試 db
+python3 ../scripts/setup-test-db.py
+
+# 執行所有測試
 pytest
-```
 
-### 執行特定測試
-```bash
-# GraphQL API 測試
+=========== 229 passed in 94.34s (0:01:34) =======================
+
+# 只執行 GraphQL 測試
 pytest tests/graphql/
 
-# 服務層測試
-pytest tests/services/
+# 執行特定測試檔案
+pytest tests/graphql/queries/test_post_queries.py
 
-# 整合測試
-pytest tests/integration/
+# 顯示覆蓋率
+pytest --cov=app --cov-report=html
+
+# 執行快速測試（跳過慢速測試）
+pytest -m "not slow"
 ```
 
-### 測試覆蓋率
-```bash
-pytest --cov=app --cov-report=html
-# 開啟 htmlcov/index.html 查看報告
+### 測試標記
+
+```python
+@pytest.mark.slow  # 慢速測試（如整合測試）
+@pytest.mark.unit  # 單元測試
+@pytest.mark.integration  # 整合測試
+@pytest.mark.graphql  # GraphQL API 測試
 ```
 
 ## 📁 專案結構
@@ -155,12 +205,10 @@ GraphQL/
 └── docs/                  # 專案文件
     ├── prd.md
     ├── architecture.md
-    ├── tasks.md
-    ├── testing-strategy.md
-    └── tests-examples.md
+    └── tasks.md
 ```
 
-## 🔄 開發流程
+## 開發流程
 
 本專案採用 **GraphQL-First TDD** 開發方法：
 
@@ -169,109 +217,94 @@ GraphQL/
 3. **重構**：優化程式碼保持測試綠燈
 4. **文件**：更新相關文件
 
-### 提交訊息規範
+## 核心功能
 
-使用 Conventional Commits：
-- `feat:` 新功能
-- `fix:` 錯誤修復
-- `docs:` 文件更新
-- `test:` 測試相關
-- `refactor:` 重構
-- `chore:` 維護任務
+### ✅ 已實現功能
 
-## 📊 專案進度
+**後端 (90%+ 完成)**
+- ✅ 完整的 GraphQL API (Query, Mutation, Subscription)
+- ✅ JWT 認證授權系統
+- ✅ 文章 CRUD 操作
+- ✅ 評論系統（即時推送）
+- ✅ 按讚和追蹤功能
+- ✅ 標籤和搜尋系統
+- ✅ DataLoader 優化（解決 N+1）
+- ✅ WebSocket 即時通訊
+- ✅ 完整的測試覆蓋
 
-查看 [tasks.md](./docs/tasks.md) 了解詳細進度：
+**前端 (60%+ 完成)**
+- ✅ SvelteKit + Houdini 整合
+- ✅ 用戶註冊和登入
+- ✅ 文章瀏覽和發布
+- ✅ 即時評論更新
+- ✅ Svelte 5 Runes 響應式系統
 
-- [ ] Sprint 1: 環境與基礎設置
-- [ ] Sprint 2: 認證 API 開發
-- [ ] Sprint 3: 文章查詢 API
-- [ ] Sprint 4: 文章變更 API
-- [ ] Sprint 5: 互動功能 API
-- [ ] Sprint 6: 進階功能與即時通訊
-- [ ] Sprint 7: 服務層實作
-- [ ] Sprint 8: 整合測試
-- [ ] Sprint 9: pgvector 整合
-- [ ] Sprint 10: 前端整合
+### GraphQL API 範例
 
-## 🤝 貢獻指南
+完整的 API 查詢範例請參考：[GraphQL 範例文檔](./docs/graphql-examples.md)
 
-歡迎貢獻！請遵循以下步驟：
+```graphql
+# 查詢文章列表
+query GetPosts {
+  posts(limit: 10, status: PUBLISHED) {
+    edges {
+      node {
+        id
+        title
+        author {
+          username
+        }
+        likesCount
+        commentsCount
+      }
+    }
+  }
+}
 
-1. Fork 專案
-2. 創建功能分支
-3. 提交變更（遵循提交規範）
-4. 推送到分支
-5. 開啟 Pull Request
-
-### 程式碼規範
-
-**Python**
-```bash
-# 格式化
-black .
-ruff check .
-
-# 型別檢查
-mypy app/
+# 即時訂閱評論
+subscription OnCommentAdded($postId: ID!) {
+  commentAdded(postId: $postId) {
+    id
+    content
+    author {
+      username
+    }
+  }
+}
 ```
 
-**JavaScript/TypeScript**
-```bash
-# 格式化
-npm run format
+## 系統畫面
 
-# Lint
-npm run lint
-```
+GraphQL Playground
 
-## 📈 效能指標
+![](https://cdn.imgpile.com/f/4HsNeyL_xl.png)
 
-目標效能指標：
-- GraphQL 查詢回應 < 200ms
-- 首頁載入時間 < 2s
-- Lighthouse 分數 > 90
-- 測試覆蓋率：
-  - GraphQL Resolvers > 95%
-  - Service Layer > 90%
-  - 整體測試覆蓋率 > 80%
+*互動式 GraphQL 查詢介面，支援即時文檔探索和查詢測試*
 
-## ⚙️ 環境變數設定
+前端頁面
 
-創建 `.env` 檔案並設定以下變數：
+![](https://cdn.imgpile.com/f/D4UXJKz_xl.png)
 
-```bash
-# 資料庫
-DATABASE_URL=postgresql://user:pass@localhost/blog_db
+![](https://cdn.imgpile.com/f/kpKS9CI_xl.png)
 
-# JWT
-SECRET_KEY=your-secret-key
-ACCESS_TOKEN_EXPIRE_MINUTES=15
+![](https://cdn.imgpile.com/f/geMcZOL_xl.png)
 
-# 快取層 (選用 - 可使用 Redis 或其他方案)
-# CACHE_URL=redis://localhost:6379
+## Donation
 
-# 前端
-PUBLIC_GRAPHQL_ENDPOINT=http://localhost:8000/graphql
-```
+文章都是我自己研究內化後原創，如果有幫助到您，也想鼓勵我的話，歡迎請我喝一杯咖啡 :laughing:
 
-## 📝 授權
+綠界科技ECPAY ( 不需註冊會員 )
 
-MIT License - 詳見 [LICENSE](./LICENSE) 檔案
+![alt tag](https://payment.ecpay.com.tw/Upload/QRCode/201906/QRCode_672351b8-5ab3-42dd-9c7c-c24c3e6a10a0.png)
 
-## 🙏 致謝
+[贊助者付款](http://bit.ly/2F7Jrha)
 
-- FastAPI 和 Strawberry 團隊
-- SvelteKit 和 Houdini 團隊
-- 所有貢獻者
+歐付寶 ( 需註冊會員 )
 
-## 📞 聯絡方式
+![alt tag](https://i.imgur.com/LRct9xa.png)
 
-- 專案 Issues: [GitHub Issues](https://github.com/yourusername/graphql-blog/issues)
-- Email: your-email@example.com
+[贊助者付款](https://payment.opay.tw/Broadcaster/Donate/9E47FDEF85ABE383A0F5FC6A218606F8)
 
----
+## 贊助名單
 
-**Happy Coding! 🎉**
-
-本專案是 GraphQL + Python 的完整教學範例，展示現代化 Web 開發的最佳實踐。
+[贊助名單](https://github.com/twtrubiks/Thank-you-for-donate)

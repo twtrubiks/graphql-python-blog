@@ -1,3 +1,19 @@
+/**
+ * GraphQL 客戶端配置 - Houdini + SvelteKit 整合
+ *
+ * Houdini 是一個強大的 GraphQL 客戶端，專為 SvelteKit 設計：
+ * - 編譯時優化：在構建時生成最優的查詢代碼
+ * - 自動型別生成：從 GraphQL Schema 生成 TypeScript 類型
+ * - 智能快取：自動管理查詢結果快取
+ * - 深度整合：與 SvelteKit 的路由和 SSR 完美配合
+ *
+ * 本檔案處理：
+ * 1. HTTP 請求配置（Query/Mutation）
+ * 2. WebSocket 連線（Subscription）
+ * 3. 認證 Token 管理
+ * 4. 錯誤處理和重試邏輯
+ */
+
 import { HoudiniClient, subscription } from '$houdini'
 import { browser } from '$app/environment'
 import { createClient } from 'graphql-ws'
@@ -8,15 +24,22 @@ import { goto } from '$app/navigation'
 // 取得有效 token 的函數
 function getToken(): string | null {
     if (!browser) return null
-    // 使用 auth.validToken 自動檢查過期
+    // 使用 auth.validToken 自動檢查過期並刷新
     return auth.validToken
 }
 
-// WebSocket 客戶端配置 (僅在瀏覽器端)
+/**
+ * WebSocket 客戶端配置 - 用於 GraphQL Subscriptions
+ *
+ * Subscription 允許客戶端訂閱服務器的即時更新：
+ * - 新評論通知
+ * - 文章發布提醒
+ * - 用戶狀態變更
+ */
 let wsClient: ReturnType<typeof createClient> | null = null
 
 if (browser) {
-    // 決定 WebSocket URL
+    // 智能決定 WebSocket URL（支援開發和生產環境）
     const wsUrl = import.meta.env.VITE_WS_ENDPOINT ||
                   (window.location.protocol === 'https:'
                     ? `wss://${window.location.host}/graphql`
@@ -24,20 +47,21 @@ if (browser) {
 
     wsClient = createClient({
         url: wsUrl,
-        // 連線參數，用於認證
+        // 連線參數：每次連線時提供認證 token
         connectionParams: () => {
             const token = getToken()
             return token ? { Authorization: `Bearer ${token}` } : {}
         },
-        // 自動重連設置
+        // 自動重連策略：網路不穩定時自動恢復連線
         shouldRetry: () => true,
         retryAttempts: 5,
         retryWait: async (retries) => {
-            // 指數退避：1s, 2s, 4s, 8s, 16s
+            // 指數退避算法：避免過度重試造成服務器壓力
+            // 重試間隔：1s, 2s, 4s, 8s, 16s
             const delay = Math.min(1000 * Math.pow(2, retries), 16000)
             await new Promise(resolve => setTimeout(resolve, delay))
         },
-        // 連線生命週期回調
+        // 連線生命週期回調：用於偵錯和狀態管理
         on: {
             connected: () => console.log('[WS] Connected to GraphQL WebSocket'),
             error: (error) => console.error('[WS] Connection error:', error),
