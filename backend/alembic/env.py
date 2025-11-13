@@ -21,11 +21,9 @@ from app.core.config import settings
 # access to the values within the .ini file in use.
 config = context.config
 
-# Override sqlalchemy.url with environment variable if available
-# Convert DATABASE_URL to use asyncpg for async operations
-database_url = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-if "5432" in database_url:
-    database_url = database_url.replace("5432", "5444")
+# 從環境變數構建資料庫 URL
+# 使用獨立的 DB 配置項，避免硬編碼
+database_url = f"postgresql+asyncpg://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
 config.set_main_option("sqlalchemy.url", database_url)
 
 # Interpret the config file for Python logging.

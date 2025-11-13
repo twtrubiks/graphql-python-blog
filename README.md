@@ -80,6 +80,9 @@
 - Node.js 22+
 - Docker 和 Docker Compose
 
+> **注意**：本專案為教學練習用途，`.env` 配置檔已包含在版本控制中，可直接使用。
+> 如果要用於生產環境，請務必修改敏感資訊並將 `.env` 加入 `.gitignore`。
+
 ### 啟動
 
 db `blog_db`
@@ -94,6 +97,7 @@ docker-compose up -d
 cd backend
 
 # 設定你的環境
+# 注意：.env 已包含在專案中（教學用途），可直接使用預設配置
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -145,15 +149,12 @@ python3 ../scripts/seed-data.py
 
 ### 測試腳本
 
-會使用 db `test_blog`
+會使用 db `test_blog` (測試時會自動創建)
 
 ```bash
 cd backend
 
-# 建立 pytest 跑得測試 db
-python3 ../scripts/setup-test-db.py
-
-# 執行所有測試
+# 執行所有測試（資料庫會自動創建）
 pytest
 
 =========== 229 passed in 94.34s (0:01:34) =======================
@@ -170,6 +171,10 @@ pytest --cov=app --cov-report=html
 # 執行快速測試（跳過慢速測試）
 pytest -m "not slow"
 ```
+
+### 測試資料庫說明
+
+測試資料庫 `test_blog` 會在執行 pytest 時自動創建和清理，無需手動設置。
 
 ### 測試標記
 

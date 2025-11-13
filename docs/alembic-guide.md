@@ -123,7 +123,7 @@ from app.models import user, post, comment, tag  # 新增的 model
 ### 2. 資料庫連線設定
 - 開發環境使用 `.env` 檔案設定
 - Alembic 會自動轉換連線字串為 asyncpg 格式
-- 預設連接到 `localhost:5444`
+- 預設連接到 `localhost:5432`
 
 ### 3. 遷移檔案版本控制
 - 所有 `alembic/versions/*.py` 檔案都應該加入 git

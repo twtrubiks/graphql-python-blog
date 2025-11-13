@@ -13,7 +13,7 @@ __pycache__/
 .Python
 env/
 venv/
-.env
+# .env - 教學專案，直接納入版控方便學習
 *.egg-info/
 dist/
 build/

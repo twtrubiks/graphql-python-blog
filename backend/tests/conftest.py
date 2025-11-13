@@ -8,6 +8,7 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import NullPool
 from slugify import slugify
+import asyncpg
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -16,9 +17,16 @@ from app.main import app
 from app.models.user import User
 from app.models.post import Post, PostStatus
 from app.core.security import get_password_hash, create_access_token
+from app.core.config import settings
 from tests.factories import UserFactory
 
-TEST_DATABASE_URL = "postgresql+asyncpg://blog_user:blog_password@localhost:5444/test_blog"
+# 從環境變數讀取資料庫配置
+DB_HOST = settings.DB_HOST
+DB_PORT = settings.DB_PORT
+DB_USER = settings.DB_USER
+DB_PASSWORD = settings.DB_PASSWORD
+TEST_DB_NAME = settings.TEST_DB_NAME
+TEST_DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{TEST_DB_NAME}"
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator:
@@ -26,6 +34,50 @@ def event_loop() -> Generator:
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def setup_test_database():
+    """自動創建測試資料庫，在所有測試開始前執行"""
+    conn = None
+    try:
+        # 連接到 postgres 資料庫（默認資料庫）
+        conn = await asyncpg.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database="postgres"
+        )
+
+        # 檢查測試資料庫是否存在
+        exists = await conn.fetchval(
+            "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)",
+            TEST_DB_NAME
+        )
+
+        if exists:
+            # 終止所有連接到測試資料庫的會話
+            await conn.execute(f"""
+                SELECT pg_terminate_backend(pid)
+                FROM pg_stat_activity
+                WHERE datname = '{TEST_DB_NAME}'
+                AND pid <> pg_backend_pid()
+            """)
+
+            # 刪除現有的測試資料庫
+            await conn.execute(f'DROP DATABASE IF EXISTS {TEST_DB_NAME}')
+
+        # 創建新的測試資料庫
+        await conn.execute(f'CREATE DATABASE {TEST_DB_NAME}')
+
+        print(f"\n✅ 測試資料庫 '{TEST_DB_NAME}' 已自動創建")
+
+    except Exception as e:
+        pytest.exit(f"❌ 無法創建測試資料庫：{e}", returncode=1)
+
+    finally:
+        if conn:
+            await conn.close()
 
 @pytest_asyncio.fixture(scope="session")
 async def test_engine():
