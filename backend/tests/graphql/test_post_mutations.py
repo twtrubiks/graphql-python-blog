@@ -1,3 +1,23 @@
+"""
+🎓 教學重點：TDD (Test-Driven Development) 實踐範例
+
+這個測試檔案展示如何使用 TDD 方法開發 GraphQL Mutation：
+
+## TDD 三步驟循環（紅燈-綠燈-重構）
+1. 🔴 Red: 先寫測試（會失敗）
+2. 🟢 Green: 實作最簡單的程式碼讓測試通過
+3. 🔵 Refactor: 重構程式碼保持品質
+
+## 學習建議
+1. 從 test_create_post_success 開始，了解基本的 Mutation 測試
+2. 觀察如何測試錯誤情況（authentication, validation）
+3. 注意權限控制的測試（owner vs non-owner）
+4. 軟刪除機制的測試設計
+
+## 相關文件
+- docs/tdd-guide.md - 完整 TDD 指南
+- docs/graphql-examples.md - GraphQL 查詢範例
+"""
 import pytest
 from sqlalchemy import select
 
@@ -5,13 +25,50 @@ from app.models.post import Post
 
 
 class TestCreatePostMutation:
-    """測試 createPost mutation"""
+    """
+    測試 createPost mutation
+
+    🎯 TDD 開發流程示範：
+    假設我們要開發「建立文章」功能，TDD 步驟如下：
+
+    第一步（🔴 Red）：
+        1. 寫這個測試 test_create_post_success（會失敗）
+        2. 執行：pytest tests/graphql/test_post_mutations.py::TestCreatePostMutation::test_create_post_success
+        3. 看到錯誤：createPost mutation 不存在
+
+    第二步（🟢 Green）：
+        1. 實作 app/graphql/mutations/post.py 中的 createPost
+        2. 實作最簡單的版本（只要能通過測試）
+        3. 執行測試，確認通過
+
+    第三步（🔵 Refactor）：
+        1. 重構程式碼（改善結構、效能）
+        2. 確保測試仍然通過
+        3. 完成！
+    """
 
     @pytest.mark.asyncio
     async def test_create_post_success(self, authenticated_client, test_session):
-        """測試：成功建立文章（需要認證）"""
+        """
+        測試：成功建立文章（需要認證）
 
-        # GraphQL mutation 查詢
+        📝 測試設計說明：
+        - 使用 authenticated_client（已登入的使用者）
+        - 測試完整的 GraphQL Mutation 流程
+        - 驗證返回資料的完整性
+        - 檢查自動生成的欄位（如 slug, timestamps）
+
+        💡 TDD 提示：
+        這是最基本的「Happy Path」測試，應該最先實作。
+        通過這個測試後，再逐步加上錯誤處理的測試。
+        """
+
+        # ==================== Arrange（準備）====================
+        # 📝 定義 GraphQL mutation 查詢
+        # 注意事項：
+        # 1. 使用變數 ($input) 而不是硬編碼值（安全性 + 重用性）
+        # 2. 明確指定需要的欄位（GraphQL 特色：按需取得）
+        # 3. 包含 author 子查詢（測試關聯資料）
         mutation = """
         mutation CreatePost($input: PostInput!) {
             createPost(input: $input) {
@@ -31,7 +88,8 @@ class TestCreatePostMutation:
         }
         """
 
-        # 準備測試資料
+        # 📝 準備測試資料
+        # TDD 提示：使用有意義的測試資料，方便 debug
         variables = {
             "input": {
                 "title": "My First Blog Post",
@@ -41,19 +99,23 @@ class TestCreatePostMutation:
             }
         }
 
-        # 發送請求（使用已認證的客戶端）
+        # ==================== Act（執行）====================
+        # 📝 發送 GraphQL 請求
+        # 注意：使用 authenticated_client（模擬已登入使用者）
         response = await authenticated_client.post(
             "/graphql",
             json={"query": mutation, "variables": variables}
         )
 
-        # 驗證回應
+        # ==================== Assert（驗證）====================
+        # 📝 Step 1: 驗證 HTTP 狀態碼
         assert response.status_code == 200
         data = response.json()
 
-        # 確認沒有錯誤
+        # 📝 Step 2: 確認沒有 GraphQL 錯誤
         assert "errors" not in data
-        # 驗證返回的資料
+
+        # 📝 Step 3: 驗證返回的業務資料
         assert data["data"]["createPost"]["title"] == "My First Blog Post"
         assert data["data"]["createPost"]["content"] == "This is the content of my first blog post. It's quite interesting!"
         assert data["data"]["createPost"]["excerpt"] == "A brief excerpt of my post"
