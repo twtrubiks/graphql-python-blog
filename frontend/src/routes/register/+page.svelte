@@ -36,6 +36,21 @@
 		return message;
 	}
 
+	// 密碼強度檢查
+	let passwordChecks = $derived({
+		minLength: password.length >= 8,
+		hasUppercase: /[A-Z]/.test(password),
+		hasLowercase: /[a-z]/.test(password),
+		hasNumber: /[0-9]/.test(password)
+	});
+
+	let isPasswordValid = $derived(
+		passwordChecks.minLength &&
+		passwordChecks.hasUppercase &&
+		passwordChecks.hasLowercase &&
+		passwordChecks.hasNumber
+	);
+
 	let passwordMismatch = $derived(
 		password && confirmPassword && password !== confirmPassword
 	);
@@ -46,7 +61,7 @@
 		password &&
 		confirmPassword &&
 		password === confirmPassword &&
-		password.length >= 8
+		isPasswordValid
 	);
 
 	function validateField(field: string, value: string) {
@@ -75,6 +90,12 @@
 					errors.password = '密碼為必填';
 				} else if (value.length < 8) {
 					errors.password = '密碼至少需要 8 個字元';
+				} else if (!/[A-Z]/.test(value)) {
+					errors.password = '密碼必須包含至少一個大寫字母';
+				} else if (!/[a-z]/.test(value)) {
+					errors.password = '密碼必須包含至少一個小寫字母';
+				} else if (!/[0-9]/.test(value)) {
+					errors.password = '密碼必須包含至少一個數字';
 				}
 				break;
 			case 'confirmPassword':
@@ -245,7 +266,22 @@
 				{#if errors.password}
 					<p class="mt-1 text-sm text-red-600">{errors.password}</p>
 				{/if}
-				<p class="mt-1 text-xs text-gray-500">至少需要 8 個字元</p>
+				<!-- 密碼要求清單 -->
+				<div class="mt-2 text-xs space-y-1">
+					<p class="text-gray-600 font-medium">密碼必須包含：</p>
+					<p class={passwordChecks.minLength ? 'text-green-600' : 'text-gray-500'}>
+						{passwordChecks.minLength ? '✓' : '○'} 至少 8 個字元
+					</p>
+					<p class={passwordChecks.hasUppercase ? 'text-green-600' : 'text-gray-500'}>
+						{passwordChecks.hasUppercase ? '✓' : '○'} 至少一個大寫字母 (A-Z)
+					</p>
+					<p class={passwordChecks.hasLowercase ? 'text-green-600' : 'text-gray-500'}>
+						{passwordChecks.hasLowercase ? '✓' : '○'} 至少一個小寫字母 (a-z)
+					</p>
+					<p class={passwordChecks.hasNumber ? 'text-green-600' : 'text-gray-500'}>
+						{passwordChecks.hasNumber ? '✓' : '○'} 至少一個數字 (0-9)
+					</p>
+				</div>
 			</div>
 
 			<div class="mb-6">
