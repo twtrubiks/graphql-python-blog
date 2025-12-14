@@ -1,0 +1,35 @@
+query GetPostsByTags($tagSlugs: [String!]!, $requireAll: Boolean = false, $page: Int = 1, $limit: Int = 10) {
+  postsByTags(tagSlugs: $tagSlugs, requireAll: $requireAll, page: $page, limit: $limit) {
+    edges {
+      node {
+        id
+        title
+        slug
+        excerpt
+        status
+        createdAt
+        publishedAt
+        author {
+          id
+          username
+          avatarUrl
+        }
+        tags {
+          id
+          name
+          slug
+        }
+        totalComments
+        likesCount
+        isLiked
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      totalCount
+      currentPage
+      totalPages
+    }
+  }
+}

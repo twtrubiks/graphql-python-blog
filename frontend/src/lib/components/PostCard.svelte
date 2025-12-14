@@ -55,9 +55,13 @@
 	{#if tags && tags.length > 0}
 		<div class="flex flex-wrap gap-2 mb-4">
 			{#each tags as tag}
-				<span class="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
+				<a
+					href="/posts/tag/{tag.slug}"
+					class="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full hover:bg-primary-100 hover:text-primary-600 transition-colors"
+					onclick={(e) => e.stopPropagation()}
+				>
 					#{tag.name}
-				</span>
+				</a>
 			{/each}
 		</div>
 	{/if}

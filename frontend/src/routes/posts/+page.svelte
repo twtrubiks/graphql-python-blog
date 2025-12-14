@@ -1,39 +1,94 @@
 <script lang="ts">
-	import { GetPostsStore } from '$houdini';
+	import { GetPostsStore, GetPostsByTagsStore } from '$houdini';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { untrack } from 'svelte';
+	import TagFilter from '$lib/components/TagFilter.svelte';
 
-	const store = new GetPostsStore();
+	const postsStore = new GetPostsStore();
+	const taggedPostsStore = new GetPostsByTagsStore();
 
 	let currentPage = $state(1);
 	let limit = $state(10);
 	let isLoading = $state(false);
 
 	let searchQuery = $state('');
-	let selectedTag = $state('');
+
+	// 標籤篩選狀態
+	let selectedTags = $state<string[]>([]);
+	let requireAll = $state(false);
+
+	// 收集所有出現過的標籤（用於篩選器）
+	let availableTags = $state<Array<{ id: string; name: string; slug: string }>>([]);
 
 	let postsData = $state<any>(null);
 
+	// 追蹤上一次的 URL，避免重複載入
+	let lastUrl = $state('');
+
 	$effect(() => {
-		// In Svelte 5, page is a state object, not a store
+		// 只依賴 page.url.href
+		const currentUrl = page.url.href;
+
+		// 避免重複處理相同的 URL
+		if (currentUrl === lastUrl) return;
+
+		// 從 URL 讀取篩選狀態
 		const urlPage = parseInt(page.url.searchParams.get('page') || '1');
 		const urlLimit = parseInt(page.url.searchParams.get('limit') || '10');
-		currentPage = urlPage;
-		limit = urlLimit;
-		loadPosts();
+		const urlTags = page.url.searchParams.get('tags');
+		const urlRequireAll = page.url.searchParams.get('requireAll') === 'true';
+		const urlSearch = page.url.searchParams.get('search') || '';
+
+		// 使用 untrack 避免循環依賴
+		untrack(() => {
+			lastUrl = currentUrl;
+			currentPage = urlPage;
+			limit = urlLimit;
+			selectedTags = urlTags ? urlTags.split(',').filter(Boolean) : [];
+			requireAll = urlRequireAll;
+			searchQuery = urlSearch;
+		});
+
+		loadPosts(urlTags ? urlTags.split(',').filter(Boolean) : [], urlRequireAll, urlPage, urlLimit, urlSearch);
 	});
 
-	async function loadPosts() {
+	async function loadPosts(
+		tags: string[] = selectedTags,
+		reqAll: boolean = requireAll,
+		pg: number = currentPage,
+		lim: number = limit,
+		search: string = searchQuery
+	) {
 		isLoading = true;
 		try {
-			const result = await store.fetch({
-				variables: {
-					page: currentPage,
-					limit: limit,
-					search: searchQuery || null
-				}
-			});
-			postsData = result.data?.posts;
+			let result;
+
+			if (tags.length > 0) {
+				// 使用標籤篩選查詢
+				result = await taggedPostsStore.fetch({
+					variables: {
+						tagSlugs: tags,
+						requireAll: reqAll,
+						page: pg,
+						limit: lim
+					}
+				});
+				postsData = result.data?.postsByTags;
+			} else {
+				// 使用一般文章查詢
+				result = await postsStore.fetch({
+					variables: {
+						page: pg,
+						limit: lim,
+						search: search || null
+					}
+				});
+				postsData = result.data?.posts;
+			}
+
+			// 更新可用標籤列表
+			updateAvailableTags();
 		} catch (error) {
 			console.error('Failed to load posts:', error);
 		} finally {
@@ -41,16 +96,95 @@
 		}
 	}
 
+	function updateAvailableTags() {
+		if (!postsData?.edges) return;
+
+		const tagsMap = new Map();
+		for (const { node } of postsData.edges) {
+			for (const tag of node.tags || []) {
+				if (!tagsMap.has(tag.slug)) {
+					tagsMap.set(tag.slug, tag);
+				}
+			}
+		}
+
+		// 收集新標籤
+		const newTags: Array<{ id: string; name: string; slug: string }> = [];
+		for (const tag of tagsMap.values()) {
+			if (!availableTags.find((t) => t.slug === tag.slug)) {
+				newTags.push(tag);
+			}
+		}
+
+		// 只有有新標籤時才更新
+		if (newTags.length > 0) {
+			availableTags = [...availableTags, ...newTags];
+		}
+	}
+
+	// 更新 URL 參數
+	async function updateURL() {
+		const url = new URL(page.url);
+
+		// 設定標籤參數
+		if (selectedTags.length > 0) {
+			url.searchParams.set('tags', selectedTags.join(','));
+			if (requireAll) {
+				url.searchParams.set('requireAll', 'true');
+			} else {
+				url.searchParams.delete('requireAll');
+			}
+			// 清除搜尋（標籤篩選和搜尋互斥）
+			url.searchParams.delete('search');
+		} else {
+			url.searchParams.delete('tags');
+			url.searchParams.delete('requireAll');
+			// 設定搜尋參數
+			if (searchQuery) {
+				url.searchParams.set('search', searchQuery);
+			} else {
+				url.searchParams.delete('search');
+			}
+		}
+
+		// 重設頁碼
+		url.searchParams.set('page', '1');
+
+		await goto(url.toString(), { keepFocus: true, replaceState: false });
+	}
+
+	function handleTagToggle(slug: string) {
+		if (selectedTags.includes(slug)) {
+			selectedTags = selectedTags.filter((t) => t !== slug);
+		} else {
+			selectedTags = [...selectedTags, slug];
+		}
+		updateURL();
+	}
+
+	function handleRequireAllToggle() {
+		requireAll = !requireAll;
+		updateURL();
+	}
+
+	function handleClearTags() {
+		selectedTags = [];
+		requireAll = false;
+		updateURL();
+	}
+
 	async function handlePageChange(newPage: number) {
-		// In Svelte 5, page is a state object, not a store
 		const url = new URL(page.url);
 		url.searchParams.set('page', newPage.toString());
 		await goto(url.toString(), { keepFocus: true, replaceState: false });
 	}
 
 	async function handleSearch() {
+		// 清除標籤篩選（搜尋和標籤篩選互斥）
+		selectedTags = [];
+		requireAll = false;
 		currentPage = 1;
-		await loadPosts();
+		await updateURL();
 	}
 
 	function handleSearchKeydown(event: KeyboardEvent) {
@@ -80,8 +214,8 @@
 		<p class="text-gray-600">探索社群分享的精彩文章</p>
 	</div>
 
-	<!-- Search and Filter Bar -->
-	<div class="card mb-6">
+	<!-- Search Bar -->
+	<div class="card mb-4">
 		<div class="flex flex-col md:flex-row gap-4">
 			<div class="flex-1">
 				<input
@@ -90,17 +224,39 @@
 					onkeydown={handleSearchKeydown}
 					placeholder="搜尋文章..."
 					class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+					disabled={selectedTags.length > 0}
 				/>
 			</div>
-			<button
-				onclick={handleSearch}
-				class="btn btn-primary"
-				disabled={isLoading}
-			>
+			<button onclick={handleSearch} class="btn btn-primary" disabled={isLoading || selectedTags.length > 0}>
 				搜尋
 			</button>
 		</div>
+		{#if selectedTags.length > 0}
+			<p class="text-xs text-gray-500 mt-2">提示：標籤篩選時無法使用搜尋功能</p>
+		{/if}
 	</div>
+
+	<!-- Tag Filter -->
+	<TagFilter
+		{availableTags}
+		{selectedTags}
+		{requireAll}
+		onTagToggle={handleTagToggle}
+		onRequireAllToggle={handleRequireAllToggle}
+		onClear={handleClearTags}
+	/>
+
+	<!-- 顯示目前篩選狀態 -->
+	{#if selectedTags.length > 0}
+		<div class="mb-4 p-3 bg-blue-50 rounded-lg text-sm">
+			<span class="text-blue-700">
+				目前篩選：{selectedTags.map((s) => `#${s}`).join(requireAll ? ' AND ' : ' OR ')}
+				{#if postsData?.pageInfo}
+					（找到 {postsData.pageInfo.totalCount} 篇文章）
+				{/if}
+			</span>
+		</div>
+	{/if}
 
 	<!-- Posts Grid -->
 	{#if isLoading}
@@ -123,17 +279,16 @@
 				<article class="card hover:shadow-lg transition-shadow">
 					<!-- Post Status Badge -->
 					{#if post.status === 'DRAFT'}
-						<span class="inline-block px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full mb-2">
+						<span
+							class="inline-block px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full mb-2"
+						>
 							草稿
 						</span>
 					{/if}
 
 					<!-- Post Title -->
 					<h2 class="text-xl font-semibold mb-2">
-						<a
-							href="/posts/{post.slug || post.id}"
-							class="hover:text-primary-600 transition-colors"
-						>
+						<a href="/posts/{post.slug || post.id}" class="hover:text-primary-600 transition-colors">
 							{post.title}
 						</a>
 					</h2>
@@ -147,9 +302,15 @@
 					{#if post.tags?.length > 0}
 						<div class="flex flex-wrap gap-2 mb-4">
 							{#each post.tags as tag}
-								<span class="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
+								<a
+									href="/posts/tag/{tag.slug}"
+									class="text-xs px-2 py-1 rounded-full transition-colors
+									{selectedTags.includes(tag.slug)
+										? 'bg-primary-500 text-white'
+										: 'bg-gray-100 text-gray-600 hover:bg-primary-100 hover:text-primary-600'}"
+								>
 									#{tag.name}
-								</span>
+								</a>
 							{/each}
 						</div>
 					{/if}
@@ -158,11 +319,7 @@
 					<div class="flex items-center justify-between text-sm text-gray-500">
 						<div class="flex items-center gap-2">
 							{#if post.author.avatarUrl}
-								<img
-									src={post.author.avatarUrl}
-									alt={post.author.username}
-									class="w-6 h-6 rounded-full"
-								/>
+								<img src={post.author.avatarUrl} alt={post.author.username} class="w-6 h-6 rounded-full" />
 							{:else}
 								<div class="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center">
 									<span class="text-xs font-medium text-primary-600">
@@ -187,10 +344,7 @@
 							<span>{post.isLiked ? '❤️' : '🤍'}</span>
 							<span>{post.likesCount}</span>
 						</span>
-						<a
-							href="/posts/{post.slug || post.id}"
-							class="ml-auto link text-primary-600"
-						>
+						<a href="/posts/{post.slug || post.id}" class="ml-auto link text-primary-600">
 							閱讀更多 →
 						</a>
 					</div>
@@ -216,14 +370,11 @@
 								<span class="px-3 py-1 bg-primary-600 text-white rounded">
 									{pageNum + 1}
 								</span>
-							{:else if Math.abs((pageNum + 1) - currentPage) <= 2 || pageNum === 0 || pageNum === postsData.pageInfo.totalPages - 1}
-								<button
-									onclick={() => handlePageChange(pageNum + 1)}
-									class="px-3 py-1 hover:bg-gray-100 rounded"
-								>
+							{:else if Math.abs(pageNum + 1 - currentPage) <= 2 || pageNum === 0 || pageNum === postsData.pageInfo.totalPages - 1}
+								<button onclick={() => handlePageChange(pageNum + 1)} class="px-3 py-1 hover:bg-gray-100 rounded">
 									{pageNum + 1}
 								</button>
-							{:else if Math.abs((pageNum + 1) - currentPage) === 3}
+							{:else if Math.abs(pageNum + 1 - currentPage) === 3}
 								<span class="px-2">...</span>
 							{/if}
 						{/each}
@@ -246,16 +397,25 @@
 		{/if}
 	{:else}
 		<div class="card text-center py-12">
-			{#if searchQuery}
+			{#if selectedTags.length > 0}
+				<p class="text-gray-600 mb-4">
+					找不到符合 {selectedTags.map((s) => `#${s}`).join(requireAll ? ' AND ' : ' OR ')} 的文章
+				</p>
+				<button onclick={handleClearTags} class="btn btn-secondary"> 清除篩選 </button>
+			{:else if searchQuery}
 				<p class="text-gray-600 mb-4">找不到符合「{searchQuery}」的文章</p>
-				<button onclick={() => { searchQuery = ''; handleSearch(); }} class="btn btn-secondary">
+				<button
+					onclick={() => {
+						searchQuery = '';
+						handleSearch();
+					}}
+					class="btn btn-secondary"
+				>
 					清除搜尋
 				</button>
 			{:else}
 				<p class="text-gray-600 mb-4">目前還沒有文章</p>
-				<a href="/posts/new" class="btn btn-primary">
-					撰寫第一篇文章
-				</a>
+				<a href="/posts/new" class="btn btn-primary"> 撰寫第一篇文章 </a>
 			{/if}
 		</div>
 	{/if}
