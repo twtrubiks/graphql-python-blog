@@ -27,6 +27,10 @@
 	let storeUnsubscribe: (() => void) | null = null;
 	let currentPostId = $state<string | null>(null);
 
+	// 重連機制
+	const MAX_RECONNECT_ATTEMPTS = 3;
+	let reconnectAttempts = $state(0);
+
 	// 載入文章資料
 	$effect(() => {
 		loadPost();
