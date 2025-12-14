@@ -1,21 +1,103 @@
 <script lang="ts">
 	import { PUBLIC_APP_NAME, PUBLIC_APP_DESCRIPTION } from '$env/static/public';
-	import { GetPostsStore } from '$houdini';
+	import { GetPostsStore, PostPublishedStore } from '$houdini';
+	import { notifications } from '$lib/stores/notifications.svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import type { PageData } from './$types';
 
 	// Svelte 5: 使用 $props 接收資料
 	let { data }: { data: PageData } = $props();
 
-	// 建立 Houdini store
+	// 建立 Houdini stores
 	const postsStore = new GetPostsStore();
+	const postPublishedStore = new PostPublishedStore();
 
 	// Svelte 5: 使用 $state rune
 	let isLoading = $state(true);
 	let postsData = $state<any>(null);
 
+	// Subscription 狀態管理
+	let subscriptionStatus = $state<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+	let isSubscriptionActive = $state(false);
+	let lastPostId = $state<string | null>(null);
+	let storeUnsubscribe: (() => void) | null = null;
+
 	// 載入文章資料
 	$effect(() => {
 		loadPosts();
+	});
+
+	// 啟動 subscription
+	$effect(() => {
+		// 等待首次載入完成才啟動 subscription
+		if (isLoading) return;
+
+		// 避免重複建立 subscription
+		if (isSubscriptionActive) return;
+
+		console.log('[PostPublished] Starting subscription...');
+		subscriptionStatus = 'connecting';
+		isSubscriptionActive = true;
+
+		try {
+			postPublishedStore.listen().then(() => {
+				subscriptionStatus = 'connected';
+				console.log('[PostPublished] Successfully connected');
+			}).catch((error) => {
+				console.error('[PostPublished] Failed to connect:', error);
+				subscriptionStatus = 'error';
+				isSubscriptionActive = false;
+			});
+		} catch (error) {
+			console.error('[PostPublished] Error starting subscription:', error);
+			subscriptionStatus = 'error';
+			isSubscriptionActive = false;
+		}
+	});
+
+	// 監聽 subscription store 資料變化
+	onMount(() => {
+		storeUnsubscribe = postPublishedStore.subscribe((value: any) => {
+			if (!value) return;
+
+			// 檢查是否有新文章
+			if (value.data?.postPublished) {
+				const newPost = value.data.postPublished;
+
+				// 避免重複處理同一篇文章
+				if (newPost.id !== lastPostId) {
+					lastPostId = newPost.id;
+					console.log('[PostPublished] New post received:', newPost.title);
+					handleNewPost(newPost);
+				}
+			}
+
+			// 處理錯誤
+			if (value.error) {
+				console.error('[PostPublished] Error:', value.error);
+				subscriptionStatus = 'error';
+			}
+		});
+
+		return () => {
+			if (storeUnsubscribe) {
+				storeUnsubscribe();
+				storeUnsubscribe = null;
+			}
+		};
+	});
+
+	onDestroy(async () => {
+		// 元件銷毀時停止訂閱
+		if (storeUnsubscribe) {
+			storeUnsubscribe();
+			storeUnsubscribe = null;
+		}
+		if (isSubscriptionActive && postPublishedStore.unlisten) {
+			await postPublishedStore.unlisten();
+			isSubscriptionActive = false;
+			subscriptionStatus = 'idle';
+		}
 	});
 
 	async function loadPosts() {
@@ -35,16 +117,46 @@
 		}
 	}
 
+	// 處理新發布的文章
+	function handleNewPost(newPost: any) {
+		console.log('[PostPublished] Processing new post:', newPost);
+
+		// 檢查文章是否已存在於列表中
+		const exists = postsData?.edges?.some((edge: any) => edge.node.id === newPost.id);
+		if (exists) {
+			console.log('[PostPublished] Post already exists, skipping');
+			return;
+		}
+
+		// 將新文章加入列表頂部（保持 6 篇）
+		postsData = {
+			...postsData,
+			edges: [
+				{ node: newPost },
+				...(postsData?.edges || []).slice(0, 5)
+			]
+		};
+
+		// 顯示通知
+		notifications.info(
+			`${newPost.author?.username || '某人'} 發布了新文章：${newPost.title}`,
+			{
+				duration: 6000,
+				link: `/posts/${newPost.slug}`
+			}
+		);
+	}
+
 	// Svelte 5: 使用 $derived 處理衍生狀態
 	let featuredPosts = $derived(
-		postsData?.edges?.map(edge => ({
+		postsData?.edges?.map((edge: any) => ({
 			id: edge.node.id,
 			title: edge.node.title,
 			slug: edge.node.slug,
 			excerpt: edge.node.excerpt || '',
-			author: edge.node.author.username,
-			totalComments: edge.node.totalComments,
-			likesCount: edge.node.likesCount
+			author: edge.node.author?.username || '未知作者',
+			totalComments: edge.node.totalComments || 0,
+			likesCount: edge.node.likesCount || 0
 		})) || []
 	);
 </script>
@@ -75,7 +187,31 @@
 
 	<!-- Featured Posts -->
 	<section>
-		<h2 class="text-3xl font-bold mb-6">精選文章</h2>
+		<div class="flex items-center justify-between mb-6">
+			<h2 class="text-3xl font-bold">精選文章</h2>
+
+			<!-- Subscription 狀態指示器 -->
+			<div class="flex items-center gap-2 text-sm">
+				{#if subscriptionStatus === 'connecting'}
+					<div class="flex items-center gap-2 text-gray-500">
+						<div class="animate-spin w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full"></div>
+						<span>即時更新連線中...</span>
+					</div>
+				{:else if subscriptionStatus === 'connected'}
+					<div class="flex items-center gap-2 text-green-600">
+						<div class="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+						<span>即時更新已連線</span>
+					</div>
+				{:else if subscriptionStatus === 'error'}
+					<div class="flex items-center gap-2 text-red-500">
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+						</svg>
+						<span>即時更新暫時無法使用</span>
+					</div>
+				{/if}
+			</div>
+		</div>
 		{#if isLoading}
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 				{#each [1, 2, 3] as _}
