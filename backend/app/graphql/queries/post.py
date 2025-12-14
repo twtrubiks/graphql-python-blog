@@ -92,18 +92,26 @@ class PostQuery:
         self,
         info: Info,
         page: int = 1,
-        limit: int = 10
+        limit: int = 10,
+        search: Optional[str] = None
     ) -> PostConnection:
-        """Get paginated list of published posts"""
+        """Get paginated list of published posts
+
+        Args:
+            page: Page number (1-indexed)
+            limit: Number of posts per page
+            search: Search term to filter posts by title or content
+        """
         session = info.context["db_session"]
-        
+
         # Get posts (only published ones for public access)
         posts, total_count = await PostService.get_posts(
             session,
             page=page,
-            limit=limit
+            limit=limit,
+            search=search
         )
-        
+
         return PostQuery._create_connection(posts, total_count, page, limit)
     
     @strawberry.field

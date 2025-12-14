@@ -139,46 +139,60 @@ class PostService:
         page: int = 1,
         limit: int = 10,
         status_filter: Optional[PostStatus] = PostStatus.PUBLISHED,
-        include_author: bool = True
+        include_author: bool = True,
+        search: Optional[str] = None
     ) -> Tuple[List[Post], int]:
         """Get paginated list of posts
-        
+
+        Args:
+            session: Database session
+            page: Page number (1-indexed)
+            limit: Number of posts per page
+            status_filter: Filter by post status
+            include_author: Include author relation
+            search: Search term to filter posts by title or content
+
         Returns:
             Tuple of (posts, total_count)
         """
         # Build base query - exclude soft-deleted posts
         query = select(Post).where(Post.deleted_at.is_(None))
-        
+        count_query = select(func.count()).select_from(Post).where(Post.deleted_at.is_(None))
+
         # Apply status filter
         if status_filter is not None:
             query = query.where(Post.status == status_filter)
-        
+            count_query = count_query.where(Post.status == status_filter)
+
+        # Apply search filter
+        if search and search.strip():
+            search_term = f"%{search.strip()}%"
+            search_condition = Post.title.ilike(search_term) | Post.content.ilike(search_term)
+            query = query.where(search_condition)
+            count_query = count_query.where(search_condition)
+
         # Include author and tags relations to avoid N+1 queries
         if include_author:
             query = query.options(joinedload(Post.author))
-        
+
         # Always include tags
         query = query.options(selectinload(Post.tags))
-        
+
         # Order by created_at descending (newest first)
         query = query.order_by(desc(Post.created_at))
-        
-        # Get total count - exclude soft-deleted posts
-        count_query = select(func.count()).select_from(Post).where(Post.deleted_at.is_(None))
-        if status_filter is not None:
-            count_query = count_query.where(Post.status == status_filter)
-        
+
+        # Get total count
         total_count_result = await session.execute(count_query)
         total_count = total_count_result.scalar() or 0
-        
+
         # Apply pagination
         offset = (page - 1) * limit
         query = query.offset(offset).limit(limit)
-        
+
         # Execute query
         result = await session.execute(query)
         posts = result.scalars().unique().all()
-        
+
         return posts, total_count
     
     @staticmethod

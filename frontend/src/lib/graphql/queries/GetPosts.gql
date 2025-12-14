@@ -1,5 +1,5 @@
-query GetPosts($page: Int = 1, $limit: Int = 10) {
-  posts(page: $page, limit: $limit) {
+query GetPosts($page: Int = 1, $limit: Int = 10, $search: String) {
+  posts(page: $page, limit: $limit, search: $search) {
     edges {
       node {
         id

@@ -29,7 +29,8 @@
 			const result = await store.fetch({
 				variables: {
 					page: currentPage,
-					limit: limit
+					limit: limit,
+					search: searchQuery || null
 				}
 			});
 			postsData = result.data?.posts;
@@ -45,6 +46,17 @@
 		const url = new URL(page.url);
 		url.searchParams.set('page', newPage.toString());
 		await goto(url.toString(), { keepFocus: true, replaceState: false });
+	}
+
+	async function handleSearch() {
+		currentPage = 1;
+		await loadPosts();
+	}
+
+	function handleSearchKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			handleSearch();
+		}
 	}
 
 	function formatDate(dateString: string) {
@@ -75,12 +87,13 @@
 				<input
 					type="text"
 					bind:value={searchQuery}
+					onkeydown={handleSearchKeydown}
 					placeholder="搜尋文章..."
 					class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
 				/>
 			</div>
 			<button
-				onclick={() => loadPosts()}
+				onclick={handleSearch}
 				class="btn btn-primary"
 				disabled={isLoading}
 			>
@@ -233,10 +246,17 @@
 		{/if}
 	{:else}
 		<div class="card text-center py-12">
-			<p class="text-gray-600 mb-4">目前還沒有文章</p>
-			<a href="/posts/new" class="btn btn-primary">
-				撰寫第一篇文章
-			</a>
+			{#if searchQuery}
+				<p class="text-gray-600 mb-4">找不到符合「{searchQuery}」的文章</p>
+				<button onclick={() => { searchQuery = ''; handleSearch(); }} class="btn btn-secondary">
+					清除搜尋
+				</button>
+			{:else}
+				<p class="text-gray-600 mb-4">目前還沒有文章</p>
+				<a href="/posts/new" class="btn btn-primary">
+					撰寫第一篇文章
+				</a>
+			{/if}
 		</div>
 	{/if}
 </div>
