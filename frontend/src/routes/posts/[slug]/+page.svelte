@@ -161,6 +161,7 @@
 
 	async function handleAddComment() {
 		if (!auth.isAuthenticated) {
+			notifications.warning('請先登入才能留言', { duration: 3000 });
 			await goto('/login');
 			return;
 		}
@@ -192,6 +193,7 @@
 
 	async function handleLike() {
 		if (!auth.isAuthenticated) {
+			notifications.warning('請先登入才能按讚', { duration: 3000 });
 			await goto('/login');
 			return;
 		}
