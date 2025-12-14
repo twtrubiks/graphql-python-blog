@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { CreatePostStore } from '$houdini';
 	import { auth } from '$lib/stores/auth.svelte';
+	import { notifications } from '$lib/stores/notifications.svelte';
 	import { goto } from '$app/navigation';
 
 	const createPostStore = new CreatePostStore();
@@ -14,11 +15,14 @@
 	let errors = $state<Record<string, string>>({});
 
 	let preview = $state(false);
+	let hasRedirected = $state(false);
 
 	let renderedContent = $derived(renderMarkdown(content));
 
 	$effect(() => {
-		if (!auth.isAuthenticated) {
+		if (!auth.isAuthenticated && !hasRedirected) {
+			hasRedirected = true;
+			notifications.warning('請先登入才能撰寫文章');
 			goto('/login');
 		}
 	});
