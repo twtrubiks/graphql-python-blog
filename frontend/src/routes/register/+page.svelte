@@ -12,6 +12,30 @@
 
 	const registerStore = new RegisterStore();
 
+	// 將 GraphQL 錯誤訊息轉換為中文
+	function translateError(message: string): string {
+		const errorMap: Record<string, string> = {
+			'Password must contain at least one uppercase letter': '密碼必須包含至少一個大寫字母',
+			'Password must contain at least one lowercase letter': '密碼必須包含至少一個小寫字母',
+			'Password must contain at least one digit': '密碼必須包含至少一個數字',
+			'Password must be at least 8 characters': '密碼至少需要 8 個字元',
+			'Email already registered': '此電子郵件已被註冊',
+			'Username already taken': '此使用者名稱已被使用',
+			'Invalid email format': '電子郵件格式不正確',
+			'Username must be at least 3 characters': '使用者名稱至少需要 3 個字元'
+		};
+
+		// 檢查是否有對應的翻譯
+		for (const [key, value] of Object.entries(errorMap)) {
+			if (message.toLowerCase().includes(key.toLowerCase())) {
+				return value;
+			}
+		}
+
+		// 如果沒有對應翻譯，返回原始訊息
+		return message;
+	}
+
 	let passwordMismatch = $derived(
 		password && confirmPassword && password !== confirmPassword
 	);
@@ -131,15 +155,17 @@
 
 			if (err instanceof Error) {
 				const errorMessage = err.message;
+				const translatedMessage = translateError(errorMessage);
 
-				if (errorMessage.includes('email') || errorMessage.includes('Email')) {
-					errors.email = '此電子郵件已被註冊';
-				} else if (errorMessage.includes('username') || errorMessage.includes('Username')) {
-					errors.username = '此使用者名稱已被使用';
-				} else if (errorMessage.includes('password')) {
-					errors.password = '密碼不符合要求';
+				// 根據錯誤內容分類到對應欄位
+				if (errorMessage.toLowerCase().includes('email')) {
+					errors.email = translatedMessage;
+				} else if (errorMessage.toLowerCase().includes('username')) {
+					errors.username = translatedMessage;
+				} else if (errorMessage.toLowerCase().includes('password')) {
+					errors.password = translatedMessage;
 				} else {
-					errors.general = errorMessage || '註冊失敗，請稍後再試';
+					errors.general = translatedMessage;
 				}
 			} else {
 				errors.general = '註冊失敗，請稍後再試';

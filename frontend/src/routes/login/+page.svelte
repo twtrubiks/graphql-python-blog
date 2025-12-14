@@ -12,6 +12,27 @@
 	// 建立 Houdini mutation store
 	const loginStore = new LoginStore();
 
+	// 將 GraphQL 錯誤訊息轉換為中文
+	function translateError(message: string): string {
+		const errorMap: Record<string, string> = {
+			'Invalid credentials': '電子郵件或密碼錯誤',
+			'User not found': '找不到此使用者',
+			'Invalid password': '密碼錯誤',
+			'Account is disabled': '帳號已被停用',
+			'User is not active': '帳號尚未啟用'
+		};
+
+		// 檢查是否有對應的翻譯
+		for (const [key, value] of Object.entries(errorMap)) {
+			if (message.toLowerCase().includes(key.toLowerCase())) {
+				return value;
+			}
+		}
+
+		// 如果沒有對應翻譯，返回原始訊息
+		return message;
+	}
+
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
 		error = '';
@@ -29,9 +50,18 @@
 				await auth.login(result.data.login.user, result.data.login.token);
 				// 導向首頁
 				await goto('/');
+			} else if (result.errors && result.errors.length > 0) {
+				// 處理 GraphQL 錯誤，顯示具體錯誤訊息
+				const errorMessage = result.errors[0]?.message || '登入失敗';
+				error = translateError(errorMessage);
 			}
 		} catch (err) {
-			error = err instanceof Error ? err.message : '登入失敗，請稍後再試';
+			// 捕獲異常時也顯示具體錯誤訊息
+			if (err instanceof Error) {
+				error = translateError(err.message);
+			} else {
+				error = '登入失敗，請稍後再試';
+			}
 		} finally {
 			isLoading = false;
 		}
