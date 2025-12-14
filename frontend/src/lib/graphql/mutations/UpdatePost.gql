@@ -1,0 +1,26 @@
+mutation UpdatePost($id: ID!, $input: UpdatePostInput!) {
+  updatePost(id: $id, input: $input) {
+    id
+    title
+    slug
+    content
+    excerpt
+    status
+    createdAt
+    updatedAt
+    publishedAt
+    author {
+      id
+      username
+      avatarUrl
+    }
+    tags {
+      id
+      name
+      slug
+    }
+    totalComments
+    likesCount
+    isLiked
+  }
+}

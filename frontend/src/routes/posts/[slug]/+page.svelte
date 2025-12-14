@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { GetPostStore, AddCommentStore, LikePostStore, UnlikePostStore, CommentAddedStore, DeleteCommentStore } from '$houdini';
+	import { GetPostStore, AddCommentStore, LikePostStore, UnlikePostStore, CommentAddedStore, DeleteCommentStore, DeletePostStore } from '$houdini';
 	import { page } from '$app/state';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
@@ -12,6 +12,7 @@
 	const unlikePostStore = new UnlikePostStore();
 	const commentAddedStore = new CommentAddedStore();
 	const deleteCommentStore = new DeleteCommentStore();
+	const deletePostStore = new DeletePostStore();
 
 	let post = $state<any>(null);
 	let isLoading = $state(true);
@@ -21,6 +22,18 @@
 	let isSubmittingComment = $state(false);
 	let isLiking = $state(false);
 	let deletingCommentId = $state<string | null>(null);
+
+	// 文章刪除狀態
+	let isDeleting = $state(false);
+	let showDeleteConfirm = $state(false);
+
+	// 檢查是否為文章作者
+	let isAuthor = $derived(
+		auth.isAuthenticated &&
+		auth.user &&
+		post &&
+		String(auth.user.id) === String(post.author?.id)
+	);
 
 	// Subscription 狀態管理
 	let subscriptionStatus = $state<'idle' | 'connecting' | 'connected' | 'error'>('idle');
@@ -337,6 +350,31 @@
 		}
 	}
 
+	// 刪除文章
+	async function handleDeletePost() {
+		if (!post?.id) return;
+
+		isDeleting = true;
+		try {
+			const result = await deletePostStore.mutate({
+				id: post.id
+			});
+
+			if (result.data?.deletePost?.success) {
+				notifications.success('文章已刪除');
+				goto('/posts');
+			} else {
+				notifications.error(result.data?.deletePost?.message || '刪除文章失敗');
+			}
+		} catch (err: any) {
+			console.error('刪除文章失敗:', err);
+			notifications.error(err.message || '刪除文章失敗');
+		} finally {
+			isDeleting = false;
+			showDeleteConfirm = false;
+		}
+	}
+
 	function renderMarkdown(content: string) {
 		// 簡單的 markdown 轉換，實際專案應使用 markdown 函式庫
 		return content
@@ -381,7 +419,36 @@
 		<article>
 			<!-- Article Header -->
 			<header class="mb-8">
-				<h1 class="text-4xl font-bold mb-4">{post.title}</h1>
+				<div class="flex items-start justify-between gap-4 mb-4">
+					<h1 class="text-4xl font-bold">{post.title}</h1>
+
+					<!-- 作者操作按鈕 -->
+					{#if isAuthor}
+						<div class="flex items-center gap-2 shrink-0">
+							<a
+								href="/posts/{post.slug}/edit"
+								class="btn btn-secondary btn-sm flex items-center gap-1"
+							>
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+										d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+								</svg>
+								編輯
+							</a>
+							<button
+								onclick={() => showDeleteConfirm = true}
+								disabled={isDeleting}
+								class="btn btn-outline btn-sm text-red-600 border-red-300 hover:bg-red-50 flex items-center gap-1"
+							>
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+										d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+								</svg>
+								刪除
+							</button>
+						</div>
+					{/if}
+				</div>
 
 				<div class="flex items-center gap-4 text-gray-600">
 					<div class="flex items-center gap-2">
@@ -601,3 +668,31 @@
 		</article>
 	{/if}
 </div>
+
+<!-- 刪除確認 Modal -->
+{#if showDeleteConfirm}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+		<div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+			<h3 class="text-xl font-semibold mb-2">確認刪除</h3>
+			<p class="text-gray-600 mb-6">
+				確定要刪除文章「{post?.title}」嗎？此操作無法復原。
+			</p>
+			<div class="flex justify-end gap-3">
+				<button
+					onclick={() => showDeleteConfirm = false}
+					class="btn btn-secondary"
+					disabled={isDeleting}
+				>
+					取消
+				</button>
+				<button
+					onclick={handleDeletePost}
+					class="btn bg-red-600 text-white hover:bg-red-700"
+					disabled={isDeleting}
+				>
+					{isDeleting ? '刪除中...' : '確認刪除'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
