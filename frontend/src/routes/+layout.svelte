@@ -160,6 +160,13 @@
 					>
 						文章
 					</a>
+					<a
+						href="/search"
+						class="transition-colors hover:text-primary-600 {page.url.pathname === '/search' ? 'text-primary-600 font-medium' : 'text-gray-600'}"
+						title="搜尋文章與用戶"
+					>
+						🔍 搜尋
+					</a>
 					<!-- 關於頁面 - 不在實作範圍內
 					<a
 						href="/about"

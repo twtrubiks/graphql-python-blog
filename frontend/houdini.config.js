@@ -26,6 +26,22 @@ const config = {
             marshal: (val) => val.toISOString(),
             unmarshal: (val) => new Date(val)
         }
+    },
+
+    // 配置類型的 key 欄位，避免 Union Type 中的 id 類型衝突
+    types: {
+        // 禁用 SearchResult union 的自動 key 添加
+        SearchResult: {
+            keys: []
+        },
+        // 使用 slug 作為 PostType 的 key（在搜尋結果中）
+        PostType: {
+            keys: ['slug']
+        },
+        // 使用 username 作為 UserType 的 key（在搜尋結果中）
+        UserType: {
+            keys: ['username']
+        }
     }
 }
 
