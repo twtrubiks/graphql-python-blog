@@ -221,6 +221,7 @@
 					bind:value={email}
 					onblur={() => validateField('email', email)}
 					required
+					autocomplete="email"
 					class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 {errors.email ? 'border-red-500' : 'border-gray-300'}"
 					disabled={isLoading}
 				/>
@@ -236,6 +237,7 @@
 				<input
 					type="text"
 					id="username"
+					autocomplete="username"
 					name="username"
 					bind:value={username}
 					onblur={() => validateField('username', username)}
@@ -256,6 +258,7 @@
 				<input
 					type="password"
 					id="password"
+					autocomplete="new-password"
 					name="password"
 					bind:value={password}
 					onblur={() => validateField('password', password)}
@@ -291,6 +294,7 @@
 				<input
 					type="password"
 					id="confirmPassword"
+					autocomplete="new-password"
 					bind:value={confirmPassword}
 					onblur={() => validateField('confirmPassword', confirmPassword)}
 					required
