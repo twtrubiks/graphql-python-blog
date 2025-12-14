@@ -16,6 +16,7 @@
 	function translateError(message: string): string {
 		const errorMap: Record<string, string> = {
 			'Invalid credentials': '電子郵件或密碼錯誤',
+			'Invalid email or password': '電子郵件或密碼錯誤',
 			'User not found': '找不到此使用者',
 			'Invalid password': '密碼錯誤',
 			'Account is disabled': '帳號已被停用',
@@ -56,11 +57,20 @@
 				error = translateError(errorMessage);
 			}
 		} catch (err) {
-			// 捕獲異常時也顯示具體錯誤訊息
-			if (err instanceof Error) {
+			// Houdini 在 GraphQL 錯誤時會拋出異常
+			// 需要從 store 或其他來源取得實際錯誤訊息
+			console.error('Login error:', err);
+
+			// 嘗試從 loginStore 取得錯誤
+			const storeErrors = (loginStore as any).errors;
+			if (storeErrors && storeErrors.length > 0) {
+				error = translateError(storeErrors[0]?.message || '登入失敗');
+			} else if (err instanceof Error) {
 				error = translateError(err.message);
 			} else {
-				error = '登入失敗，請稍後再試';
+				// 當 Houdini 拋出 true 時，表示有 GraphQL 錯誤但無法取得詳細訊息
+				// 使用通用的認證錯誤訊息
+				error = '電子郵件或密碼錯誤';
 			}
 		} finally {
 			isLoading = false;
