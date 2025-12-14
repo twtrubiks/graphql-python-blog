@@ -149,9 +149,15 @@
 		hasDraft = false;
 	}
 
-	// 自動儲存
+	// 自動儲存 - 讀取響應式變數以追蹤依賴
 	let autoSaveTimer: ReturnType<typeof setTimeout>;
 	$effect(() => {
+		// 讀取響應式狀態以觸發依賴追蹤
+		const _title = title;
+		const _content = content;
+		const _excerpt = excerpt;
+		const _tags = tags;
+
 		clearTimeout(autoSaveTimer);
 		autoSaveTimer = setTimeout(handleAutoSave, 2000);
 		return () => clearTimeout(autoSaveTimer);
