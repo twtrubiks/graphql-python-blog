@@ -28,6 +28,7 @@ query SearchContent($term: String!) {
       avatarUrl
       followersCount
       followingCount
+      isFollowedByMe
     }
   }
 }

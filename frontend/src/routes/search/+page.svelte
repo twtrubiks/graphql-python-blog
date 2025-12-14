@@ -209,6 +209,7 @@
 								avatarUrl={user.avatarUrl}
 								followersCount={user.followersCount}
 								followingCount={user.followingCount}
+								isFollowedByMe={user.isFollowedByMe}
 							/>
 						{/each}
 					</div>
