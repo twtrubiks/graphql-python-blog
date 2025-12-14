@@ -281,6 +281,8 @@ classDiagram
 
 ### Subscription 即時通訊架構
 
+> 詳細實作請參考 [Subscription 即時通訊指南](./subscription-guide.md)
+
 GraphQL Subscription 透過 WebSocket 提供即時雙向通訊能力：
 
 ```mermaid
@@ -518,7 +520,7 @@ sequenceDiagram
    - [Union Types 指南](./union-types-guide.md) - 多型查詢返回
    - [Fragment 指南](./fragment-guide.md) - 查詢片段重用
    - [權限控制指南](./permissions-guide.md) - GraphQL 權限控制機制
-   - **Subscription 即時通訊** - WebSocket 整合實現評論即時更新、用戶狀態追蹤
+   - [Subscription 即時通訊指南](./subscription-guide.md) - WebSocket 整合實現評論即時更新
 
 3. **資料庫索引**
 
