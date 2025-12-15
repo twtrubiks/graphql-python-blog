@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { LoginStore } from '$houdini';
 	import { auth } from '$lib/stores/auth.svelte';
+	import { translateError } from '$lib/utils/errorTranslation';
 	import { goto } from '$app/navigation';
 
 	// Svelte 5: 使用 $state rune
@@ -11,28 +12,6 @@
 
 	// 建立 Houdini mutation store
 	const loginStore = new LoginStore();
-
-	// 將 GraphQL 錯誤訊息轉換為中文
-	function translateError(message: string): string {
-		const errorMap: Record<string, string> = {
-			'Invalid credentials': '電子郵件或密碼錯誤',
-			'Invalid email or password': '電子郵件或密碼錯誤',
-			'User not found': '找不到此使用者',
-			'Invalid password': '密碼錯誤',
-			'Account is disabled': '帳號已被停用',
-			'User is not active': '帳號尚未啟用'
-		};
-
-		// 檢查是否有對應的翻譯
-		for (const [key, value] of Object.entries(errorMap)) {
-			if (message.toLowerCase().includes(key.toLowerCase())) {
-				return value;
-			}
-		}
-
-		// 如果沒有對應翻譯，返回原始訊息
-		return message;
-	}
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
