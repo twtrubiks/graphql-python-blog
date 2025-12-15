@@ -66,7 +66,8 @@ async def create_post(
         author_id=current_user.id,
         excerpt=input.excerpt,
         slug=input.slug,
-        status=status_value
+        status=status_value,
+        tag_names=input.tags
     )
 
     post_type = PostType.from_orm(post)
@@ -95,7 +96,8 @@ async def update_post(
         content=input.content,
         excerpt=input.excerpt,
         status=input.status.value if input.status else None,
-        slug=input.slug
+        slug=input.slug,
+        tag_names=input.tags
     )
 
     return PostType.from_orm(post)

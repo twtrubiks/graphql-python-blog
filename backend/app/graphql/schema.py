@@ -36,6 +36,7 @@ from app.graphql.queries.auth import me, protected_data, ProtectedData
 from app.graphql.queries.user import get_user, get_users
 from app.graphql.queries.post import PostQuery
 from app.graphql.queries.search import SearchQuery
+from app.graphql.queries.tag import TagQuery
 from app.graphql.types.user import UserType
 from app.graphql.types.post import PostType
 from app.graphql.subscriptions.comment import CommentSubscription
@@ -47,11 +48,11 @@ from app.graphql.permissions import IsAuthenticated
 
 
 @strawberry.type
-class Query(PostQuery, SearchQuery):
+class Query(PostQuery, SearchQuery, TagQuery):
     """
     Query Type - 定義所有查詢操作
 
-    透過繼承 PostQuery 和 SearchQuery 來組織複雜的查詢，
+    透過繼承 PostQuery、SearchQuery 和 TagQuery 來組織複雜的查詢，
     保持程式碼模組化和可維護性。
     """
 

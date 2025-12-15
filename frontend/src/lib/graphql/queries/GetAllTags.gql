@@ -1,0 +1,7 @@
+query GetAllTags {
+  tags {
+    id
+    name
+    slug
+  }
+}

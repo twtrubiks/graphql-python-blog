@@ -230,6 +230,7 @@ class PostInput:
     excerpt: Optional[str] = None
     slug: Optional[str] = None
     status: Optional[PostStatus] = PostStatus.DRAFT
+    tags: Optional[List[str]] = None
 
 
 @strawberry.input
@@ -239,3 +240,4 @@ class UpdatePostInput:
     excerpt: Optional[str] = None
     slug: Optional[str] = None
     status: Optional[PostStatus] = None
+    tags: Optional[List[str]] = None

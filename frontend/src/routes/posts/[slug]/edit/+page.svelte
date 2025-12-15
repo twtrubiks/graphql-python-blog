@@ -4,6 +4,7 @@
 	import { notifications } from '$lib/stores/notifications.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import TagInput from '$lib/components/TagInput.svelte';
 
 	const updatePostStore = new UpdatePostStore();
 	const getPostStore = new GetPostStore();
@@ -12,10 +13,15 @@
 	let title = $state('');
 	let content = $state('');
 	let excerpt = $state('');
+	let selectedTags = $state<string[]>([]);
 	let status = $state<'DRAFT' | 'PUBLISHED'>('DRAFT');
 	let isSubmitting = $state(false);
 	let isLoading = $state(true);
 	let errors = $state<Record<string, string>>({});
+
+	function handleTagsChange(tags: string[]) {
+		selectedTags = tags;
+	}
 
 	// 原始文章資料
 	let postId = $state('');
@@ -70,6 +76,8 @@
 				content = post.content;
 				excerpt = post.excerpt || '';
 				status = post.status as 'DRAFT' | 'PUBLISHED';
+				// 載入現有標籤
+				selectedTags = post.tags?.map((t: { name: string }) => t.name) || [];
 			} else {
 				notifications.error('文章不存在');
 				goto('/posts');
@@ -136,7 +144,8 @@
 					title,
 					content,
 					excerpt,
-					status: publishStatus
+					status: publishStatus,
+					tags: selectedTags.length > 0 ? selectedTags : null
 				}
 			});
 
@@ -251,6 +260,12 @@
 					></textarea>
 				</div>
 
+				<TagInput
+					selectedTags={selectedTags}
+					onTagsChange={handleTagsChange}
+					disabled={isSubmitting}
+				/>
+
 				<div>
 					<label for="content" class="block text-sm font-medium text-gray-700 mb-2">
 						內容 <span class="text-red-500">*</span>
@@ -291,6 +306,16 @@
 					<h1 class="text-3xl font-bold mb-4">{title}</h1>
 				{:else}
 					<p class="text-gray-400 mb-4">文章標題將顯示在這裡</p>
+				{/if}
+
+				{#if selectedTags.length > 0}
+					<div class="flex flex-wrap gap-2 mb-4">
+						{#each selectedTags as tag}
+							<span class="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+								#{tag}
+							</span>
+						{/each}
+					</div>
 				{/if}
 
 				<div class="prose max-w-none">

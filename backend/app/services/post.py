@@ -6,6 +6,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from app.models.post import Post, PostStatus
 from app.models.tag import Tag, post_tags
 from app.models.follow import Follow
+from app.services.tag import TagService
 from slugify import slugify
 
 
@@ -39,19 +40,19 @@ class PostService:
         author_id: int,
         excerpt: Optional[str] = None,
         slug: Optional[str] = None,
-        status: PostStatus = PostStatus.DRAFT
+        status: PostStatus = PostStatus.DRAFT,
+        tag_names: Optional[List[str]] = None
     ) -> Post:
         """Create a new post"""
-        
         # Generate slug if not provided
         if not slug:
             base_slug = slugify(title)
         else:
             base_slug = slugify(slug)
-        
+
         # Ensure slug is unique with optimized query
         slug = await PostService._ensure_unique_slug(session, base_slug)
-        
+
         # Create the post
         post = Post(
             title=title,
@@ -61,11 +62,16 @@ class PostService:
             status=status,
             author_id=author_id
         )
-        
+
         # Set published_at if status is published
         if status == PostStatus.PUBLISHED:
             post.published_at = datetime.now(timezone.utc)
-        
+
+        # Handle tags
+        if tag_names:
+            tags = await TagService.get_or_create_tags(session, tag_names)
+            post.tags = tags
+
         session.add(post)
         await session.commit()
         
@@ -452,7 +458,9 @@ class PostService:
     ) -> Post:
         """獲取 post 並驗證權限"""
         result = await session.execute(
-            select(Post).where(Post.id == post_id, Post.deleted_at.is_(None))
+            select(Post)
+            .options(selectinload(Post.tags))
+            .where(Post.id == post_id, Post.deleted_at.is_(None))
         )
         post = result.scalar_one_or_none()
         if not post:
@@ -521,12 +529,19 @@ class PostService:
         content: Optional[str] = None,
         excerpt: Optional[str] = None,
         status: Optional[str] = None,
-        slug: Optional[str] = None
+        slug: Optional[str] = None,
+        tag_names: Optional[List[str]] = None
     ) -> Post:
         """更新文章"""
         post = await PostService._get_post_for_update(session, post_id, author_id)
         PostService._apply_field_updates(post, title, content, excerpt, status)
         await PostService._apply_slug_update(session, post, slug)
+
+        # Handle tags update (if provided, replace all tags)
+        if tag_names is not None:
+            tags = await TagService.get_or_create_tags(session, tag_names)
+            post.tags = tags
+
         post.updated_at = datetime.now(timezone.utc)
         await session.commit()
         return await PostService._reload_post_with_relations(session, post.id)

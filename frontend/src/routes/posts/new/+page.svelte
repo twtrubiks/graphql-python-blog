@@ -3,16 +3,21 @@
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
 	import { goto } from '$app/navigation';
+	import TagInput from '$lib/components/TagInput.svelte';
 
 	const createPostStore = new CreatePostStore();
 
 	let title = $state('');
 	let content = $state('');
 	let excerpt = $state('');
-	let tags = $state('');
+	let selectedTags = $state<string[]>([]);
 	let status = $state<'DRAFT' | 'PUBLISHED'>('DRAFT');
 	let isSubmitting = $state(false);
 	let errors = $state<Record<string, string>>({});
+
+	function handleTagsChange(tags: string[]) {
+		selectedTags = tags;
+	}
 
 	let preview = $state(false);
 	let hasRedirected = $state(false);
@@ -76,20 +81,14 @@
 		isSubmitting = true;
 
 		try {
-			// Tags will be implemented in the future
-			// const tagsArray = tags
-			//	.split(',')
-			//	.map(t => t.trim())
-			//	.filter(t => t);
-
 			// Houdini expects variables directly, not wrapped in a variables object
 			const result = await createPostStore.mutate({
 				input: {
 					title,
 					content,
 					excerpt,
-					status
-					// tags: tagsArray // Tags not yet supported in backend
+					status,
+					tags: selectedTags.length > 0 ? selectedTags : null
 				}
 			});
 
@@ -109,7 +108,7 @@
 	function handleAutoSave() {
 		// 這裡可以實作自動儲存到 localStorage
 		if (title || content) {
-			const draft = { title, content, excerpt, tags };
+			const draft = { title, content, excerpt, tags: selectedTags };
 			localStorage.setItem('post_draft', JSON.stringify(draft));
 		}
 	}
@@ -130,7 +129,12 @@
 						title = parsed.title || '';
 						content = parsed.content || '';
 						excerpt = parsed.excerpt || '';
-						tags = parsed.tags || '';
+						// Handle both old string format and new array format
+						if (Array.isArray(parsed.tags)) {
+							selectedTags = parsed.tags;
+						} else if (typeof parsed.tags === 'string' && parsed.tags) {
+							selectedTags = parsed.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t);
+						}
 					}
 				} catch (e) {
 					console.error('Failed to load draft:', e);
@@ -145,7 +149,7 @@
 		title = '';
 		content = '';
 		excerpt = '';
-		tags = '';
+		selectedTags = [];
 		hasDraft = false;
 	}
 
@@ -156,7 +160,7 @@
 		const _title = title;
 		const _content = content;
 		const _excerpt = excerpt;
-		const _tags = tags;
+		const _tags = selectedTags;
 
 		clearTimeout(autoSaveTimer);
 		autoSaveTimer = setTimeout(handleAutoSave, 2000);
@@ -254,21 +258,11 @@
 					></textarea>
 				</div>
 
-				<div>
-					<label for="tags" class="block text-sm font-medium text-gray-700 mb-2">
-						標籤 <span class="text-xs text-gray-500">（功能開發中）</span>
-					</label>
-					<input
-						type="text"
-						id="tags"
-						bind:value={tags}
-						placeholder="輸入標籤，以逗號分隔（例如：JavaScript, React, 教學）"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 opacity-50"
-						disabled={true}
-						title="標籤功能即將推出"
-					/>
-					<p class="mt-1 text-xs text-gray-500">標籤功能即將推出，敬請期待</p>
-				</div>
+				<TagInput
+					selectedTags={selectedTags}
+					onTagsChange={handleTagsChange}
+					disabled={isSubmitting}
+				/>
 
 				<div>
 					<label for="content" class="block text-sm font-medium text-gray-700 mb-2">
@@ -312,11 +306,11 @@
 					<p class="text-gray-400 mb-4">文章標題將顯示在這裡</p>
 				{/if}
 
-				{#if tags}
+				{#if selectedTags.length > 0}
 					<div class="flex flex-wrap gap-2 mb-4">
-						{#each tags.split(',').filter(t => t.trim()) as tag}
+						{#each selectedTags as tag}
 							<span class="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
-								#{tag.trim()}
+								#{tag}
 							</span>
 						{/each}
 					</div>
