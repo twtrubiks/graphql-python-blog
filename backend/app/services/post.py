@@ -5,6 +5,7 @@ from sqlalchemy import select, desc, func, and_
 from sqlalchemy.orm import joinedload, selectinload
 from app.models.post import Post, PostStatus
 from app.models.tag import Tag, post_tags
+from app.models.follow import Follow
 from slugify import slugify
 
 
@@ -529,3 +530,63 @@ class PostService:
         post.updated_at = datetime.now(timezone.utc)
         await session.commit()
         return await PostService._reload_post_with_relations(session, post.id)
+
+    @staticmethod
+    async def get_posts_by_followed_users(
+        session: AsyncSession,
+        user_id: int,
+        page: int = 1,
+        limit: int = 10
+    ) -> Tuple[List[Post], int]:
+        """
+        獲取用戶追蹤的所有人的已發布文章（分頁）
+
+        Args:
+            session: 資料庫 session
+            user_id: 當前用戶 ID（追蹤者）
+            page: 頁碼（從 1 開始）
+            limit: 每頁數量
+
+        Returns:
+            Tuple[List[Post], int]: (文章列表, 總數)
+        """
+        # 獲取用戶追蹤的所有人的 ID
+        following_ids_subquery = (
+            select(Follow.followed_id)
+            .where(Follow.follower_id == user_id)
+            .subquery()
+        )
+
+        # 建立基本查詢條件
+        base_condition = and_(
+            Post.author_id.in_(select(following_ids_subquery)),
+            Post.status == PostStatus.PUBLISHED,
+            Post.deleted_at.is_(None)
+        )
+
+        # 計算總數
+        count_query = select(func.count()).select_from(Post).where(base_condition)
+        count_result = await session.execute(count_query)
+        total_count = count_result.scalar() or 0
+
+        # 如果沒有追蹤任何人，直接返回空列表
+        if total_count == 0:
+            return [], 0
+
+        # 查詢文章
+        query = (
+            select(Post)
+            .where(base_condition)
+            .options(
+                joinedload(Post.author),
+                selectinload(Post.tags)
+            )
+            .order_by(desc(Post.created_at))
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+
+        result = await session.execute(query)
+        posts = result.scalars().unique().all()
+
+        return list(posts), total_count

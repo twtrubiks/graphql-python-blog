@@ -4,7 +4,7 @@
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
 	import RealtimeNotification from '$lib/components/RealtimeNotification.svelte';
-	import { PostPublishedStore } from '$houdini';
+	import { PostPublishedStore, FollowedUserPostedStore } from '$houdini';
 	import { onMount, onDestroy } from 'svelte';
 	import type { LayoutProps } from './$types';
 
@@ -19,10 +19,36 @@
 	let storeUnsubscribe: (() => void) | null = null;
 	let tokenCheckInterval: ReturnType<typeof setInterval> | null = null;
 
+	// 追蹤用戶發文訂閱狀態
+	let followedPostsStore: FollowedUserPostedStore | null = null;
+	let isFollowedSubscriptionActive = $state(false);
+	let lastFollowedPostId: string | null = null;
+	let followedStoreUnsubscribe: (() => void) | null = null;
+
 	async function handleLogout() {
 		await auth.logout();
 		showUserMenu = false;
 	}
+
+	// 當用戶登入狀態改變時，啟動或停止追蹤訂閱
+	$effect(() => {
+		if (auth.isAuthenticated && auth.user?.id && !isFollowedSubscriptionActive) {
+			// 用戶剛登入，啟動訂閱
+			initFollowedUserSubscription();
+		} else if (!auth.isAuthenticated && isFollowedSubscriptionActive) {
+			// 用戶登出，停止訂閱
+			if (followedStoreUnsubscribe) {
+				followedStoreUnsubscribe();
+				followedStoreUnsubscribe = null;
+			}
+			if (followedPostsStore) {
+				followedPostsStore.unlisten();
+				followedPostsStore = null;
+			}
+			isFollowedSubscriptionActive = false;
+			lastFollowedPostId = null;
+		}
+	});
 
 	// 點擊外部關閉選單
 	$effect(() => {
@@ -85,6 +111,11 @@
 		// 啟動 subscription
 		subscribeToNewPosts();
 
+		// 初始化追蹤用戶發文訂閱（僅限已登入用戶）
+		if (auth.isAuthenticated && auth.user?.id) {
+			initFollowedUserSubscription();
+		}
+
 		// 設定定期檢查 token 過期
 		tokenCheckInterval = setInterval(() => {
 			if (auth.isAuthenticated) {
@@ -110,6 +141,10 @@
 				storeUnsubscribe();
 				storeUnsubscribe = null;
 			}
+			if (followedStoreUnsubscribe) {
+				followedStoreUnsubscribe();
+				followedStoreUnsubscribe = null;
+			}
 			if (tokenCheckInterval) {
 				clearInterval(tokenCheckInterval);
 				tokenCheckInterval = null;
@@ -126,6 +161,15 @@
 		if (postPublishedStore && isSubscriptionActive) {
 			await postPublishedStore.unlisten();
 			isSubscriptionActive = false;
+		}
+		// 清理追蹤用戶發文訂閱
+		if (followedStoreUnsubscribe) {
+			followedStoreUnsubscribe();
+			followedStoreUnsubscribe = null;
+		}
+		if (followedPostsStore && isFollowedSubscriptionActive) {
+			await followedPostsStore.unlisten();
+			isFollowedSubscriptionActive = false;
 		}
 		// 清理 token 檢查 interval
 		if (tokenCheckInterval) {
@@ -148,6 +192,75 @@
 			console.error('[Subscription] Failed to start subscription:', error);
 			isSubscriptionActive = false;
 		}
+	}
+
+	function initFollowedUserSubscription() {
+		if (!auth.user?.id) return;
+
+		followedPostsStore = new FollowedUserPostedStore();
+
+		// 監聽訂閱資料
+		followedStoreUnsubscribe = followedPostsStore.subscribe((value: any) => {
+			if (!value || !isFollowedSubscriptionActive) return;
+
+			if (value.data?.followedUserPosted) {
+				const newPost = value.data.followedUserPosted;
+
+				// 避免重複處理
+				if (newPost.id !== lastFollowedPostId) {
+					lastFollowedPostId = newPost.id;
+					handleFollowedUserPost(newPost);
+				}
+			}
+
+			if (value.error) {
+				console.error('[FollowedUserPosted] Error:', value.error);
+			}
+		});
+
+		// 啟動訂閱
+		startFollowedUserSubscription();
+	}
+
+	async function startFollowedUserSubscription() {
+		if (!followedPostsStore || isFollowedSubscriptionActive || !auth.user?.id) return;
+
+		console.log('[FollowedUserPosted] Starting subscription for user:', auth.user.id);
+		isFollowedSubscriptionActive = true;
+
+		try {
+			await followedPostsStore.listen({
+				userId: auth.user.id
+			});
+			console.log('[FollowedUserPosted] Subscription connected');
+		} catch (error) {
+			console.error('[FollowedUserPosted] Failed to connect:', error);
+			isFollowedSubscriptionActive = false;
+		}
+	}
+
+	function handleFollowedUserPost(post: any) {
+		// 如果當前在追蹤動態頁面，不顯示通知（頁面會自動更新）
+		if (page.url.pathname === '/following') {
+			console.log('[FollowedUserPosted] On following page, skipping notification');
+			return;
+		}
+
+		const authorName = post.author?.fullName || post.author?.username || '某用戶';
+
+		console.log('[FollowedUserPosted] New post from followed user:', post);
+
+		// 顯示特別的追蹤通知
+		notifications.info(
+			`您追蹤的 ${authorName} 發布了新文章：${post.title}`,
+			{
+				duration: 8000,
+				link: {
+					text: '立即查看',
+					href: `/posts/${post.slug || post.id}`
+				}
+			}
+		);
 	}
 
 </script>
@@ -182,6 +295,15 @@
 					>
 						🔍 搜尋
 					</a>
+					{#if auth.isAuthenticated}
+						<a
+							href="/following"
+							class="transition-colors hover:text-primary-600 {page.url.pathname === '/following' ? 'text-primary-600 font-medium' : 'text-gray-600'}"
+							title="查看追蹤用戶的文章"
+						>
+							👥 追蹤動態
+						</a>
+					{/if}
 					<!-- 關於頁面 - 不在實作範圍內
 					<a
 						href="/about"

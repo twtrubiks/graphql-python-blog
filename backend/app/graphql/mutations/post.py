@@ -8,8 +8,10 @@ import asyncio
 from app.models.post import Post
 from app.graphql.types.post import PostType, PostInput, UpdatePostInput, PostStatus
 from app.services.post import PostService
+from app.services.follow import FollowService
 from app.core.auth import require_auth
 from app.graphql.subscriptions.post import PostEvent
+from app.graphql.subscriptions.followed_user_post import FollowedUserPostEvent
 
 
 async def create_post(
@@ -178,8 +180,17 @@ async def publish_post(
     # 轉換為 PostType
     post_type = PostType.from_orm(post)
 
-    # 觸發 subscription 事件 (非同步執行，不等待)
+    # 觸發全域 subscription 事件 (非同步執行，不等待)
     asyncio.create_task(PostEvent.publish_post(post_type))
+
+    # 觸發追蹤用戶發文通知 (非同步執行，不等待)
+    async def notify_followers():
+        # 查詢作者的所有追蹤者
+        follower_ids = await FollowService.get_follower_ids(session, post.author_id)
+        if follower_ids:
+            await FollowedUserPostEvent.publish_to_followers(follower_ids, post_type)
+
+    asyncio.create_task(notify_followers())
 
     return post_type
 

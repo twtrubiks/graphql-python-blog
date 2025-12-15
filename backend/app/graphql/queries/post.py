@@ -6,7 +6,8 @@ from strawberry.types import Info
 
 from app.graphql.types.post import PostType, PostConnection, PostEdge, PageInfo
 from app.services.post import PostService
-from app.core.auth import get_current_user_optional
+from app.core.auth import get_current_user_optional, require_auth
+from app.graphql.permissions import IsAuthenticated
 
 
 @strawberry.type
@@ -146,7 +147,7 @@ class PostQuery:
     ) -> PostConnection:
         """Get posts filtered by multiple tags"""
         session = info.context["db_session"]
-        
+
         # Get posts with the specified tags
         posts, total_count = await PostService.get_posts_by_tags(
             session,
@@ -155,5 +156,40 @@ class PostQuery:
             page=page,
             limit=limit
         )
-        
+
+        return PostQuery._create_connection(posts, total_count, page, limit)
+
+    @strawberry.field(permission_classes=[IsAuthenticated])
+    async def following_posts(
+        self,
+        info: Info,
+        page: int = 1,
+        limit: int = 10
+    ) -> PostConnection:
+        """
+        Get posts from users that the current user follows
+
+        Only shows published posts from followed users.
+        Requires authentication.
+
+        Args:
+            page: Page number (1-indexed)
+            limit: Number of posts per page
+
+        Returns:
+            PostConnection with paginated posts from followed users
+        """
+        session = info.context["db_session"]
+
+        # Get current user
+        current_user = await require_auth(info)
+
+        # Get posts from followed users
+        posts, total_count = await PostService.get_posts_by_followed_users(
+            session,
+            user_id=current_user.id,
+            page=page,
+            limit=limit
+        )
+
         return PostQuery._create_connection(posts, total_count, page, limit)

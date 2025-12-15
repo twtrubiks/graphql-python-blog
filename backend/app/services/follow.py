@@ -1,5 +1,5 @@
 """追蹤功能服務層"""
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy import select, and_, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -141,3 +141,37 @@ class FollowService:
             select(func.count(Follow.id)).where(Follow.follower_id == user_id)
         )
         return result.scalar() or 0
+
+    @staticmethod
+    async def get_follower_ids(session: AsyncSession, user_id: int) -> List[int]:
+        """
+        獲取某用戶的所有追蹤者 ID 列表
+
+        Args:
+            session: 資料庫 session
+            user_id: 被追蹤的用戶 ID
+
+        Returns:
+            追蹤者的 ID 列表
+        """
+        result = await session.execute(
+            select(Follow.follower_id).where(Follow.followed_id == user_id)
+        )
+        return [row[0] for row in result]
+
+    @staticmethod
+    async def get_following_ids(session: AsyncSession, user_id: int) -> List[int]:
+        """
+        獲取某用戶追蹤的所有人的 ID 列表
+
+        Args:
+            session: 資料庫 session
+            user_id: 追蹤者的用戶 ID
+
+        Returns:
+            被追蹤者的 ID 列表
+        """
+        result = await session.execute(
+            select(Follow.followed_id).where(Follow.follower_id == user_id)
+        )
+        return [row[0] for row in result]

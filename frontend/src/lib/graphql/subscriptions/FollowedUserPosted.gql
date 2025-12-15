@@ -1,0 +1,22 @@
+subscription FollowedUserPosted($userId: ID!) {
+  followedUserPosted(userId: $userId) {
+    id
+    title
+    slug
+    excerpt
+    status
+    publishedAt
+    createdAt
+    author {
+      id
+      username
+      fullName
+      avatarUrl
+    }
+    tags {
+      id
+      name
+      slug
+    }
+  }
+}
