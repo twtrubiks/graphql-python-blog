@@ -1,15 +1,6 @@
 subscription CommentAdded($postId: ID!) {
   commentAdded(postId: $postId) {
-    id
-    content
-    createdAt
-    updatedAt
-    isDeleted
-    author {
-      id
-      username
-      avatarUrl
-    }
+    ...CommentInfo @mask_disable
     post {
       id
       totalComments

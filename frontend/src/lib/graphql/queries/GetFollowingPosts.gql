@@ -2,35 +2,11 @@ query GetFollowingPosts($page: Int = 1, $limit: Int = 10) {
   followingPosts(page: $page, limit: $limit) {
     edges {
       node {
-        id
-        title
-        slug
-        excerpt
-        status
-        createdAt
-        publishedAt
-        author {
-          id
-          username
-          fullName
-          avatarUrl
-        }
-        tags {
-          id
-          name
-          slug
-        }
-        totalComments
-        likesCount
-        isLiked
+        ...PostCard @mask_disable
       }
     }
     pageInfo {
-      hasNextPage
-      hasPreviousPage
-      totalCount
-      currentPage
-      totalPages
+      ...PageInfoFields @mask_disable
     }
   }
 }

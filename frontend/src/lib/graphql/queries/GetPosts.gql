@@ -2,34 +2,11 @@ query GetPosts($page: Int = 1, $limit: Int = 10, $search: String) {
   posts(page: $page, limit: $limit, search: $search) {
     edges {
       node {
-        id
-        title
-        slug
-        excerpt
-        status
-        createdAt
-        publishedAt
-        author {
-          id
-          username
-          avatarUrl
-        }
-        tags {
-          id
-          name
-          slug
-        }
-        totalComments
-        likesCount
-        isLiked
+        ...PostCard @mask_disable
       }
     }
     pageInfo {
-      hasNextPage
-      hasPreviousPage
-      totalCount
-      currentPage
-      totalPages
+      ...PageInfoFields @mask_disable
     }
   }
 }

@@ -1,0 +1,5 @@
+fragment AuthorBasic on UserType {
+  id
+  username
+  avatarUrl
+}

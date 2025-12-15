@@ -8,14 +8,11 @@ subscription PostPublished {
     publishedAt
     createdAt
     author {
-      id
-      username
+      ...AuthorBasic @mask_disable
       fullName
-      avatarUrl
     }
     tags {
-      id
-      name
+      ...TagInfo @mask_disable
     }
   }
 }

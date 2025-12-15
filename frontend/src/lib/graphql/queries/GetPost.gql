@@ -10,31 +10,13 @@ query GetPost($id: ID, $slug: String) {
     updatedAt
     publishedAt
     author {
-      id
-      username
-      fullName
-      bio
-      avatarUrl
-      followersCount
-      followingCount
-      isFollowedByMe
+      ...AuthorDetailed @mask_disable
     }
     tags {
-      id
-      name
-      slug
+      ...TagInfo @mask_disable
     }
     comments(limit: 50) {
-      id
-      content
-      createdAt
-      updatedAt
-      isDeleted
-      author {
-        id
-        username
-        avatarUrl
-      }
+      ...CommentInfo @mask_disable
     }
     totalComments
     likesCount

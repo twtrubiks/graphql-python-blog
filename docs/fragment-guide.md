@@ -718,9 +718,66 @@ Fragment 是 GraphQL 中提升程式碼品質的重要工具：
 
 正確使用 Fragment 可以讓你的 GraphQL 查詢更加優雅、易維護和高效。
 
+## 本專案 Fragment 實作
+
+本專案前端使用 Houdini GraphQL 客戶端，已實作以下 Fragments：
+
+### Fragment 文件結構
+
+```
+frontend/src/lib/graphql/fragments/
+├── AuthorBasic.gql      # 作者基本資訊（id, username, avatarUrl）
+├── AuthorDetailed.gql   # 作者詳細資訊（含 bio, followersCount 等）
+├── TagInfo.gql          # 標籤資訊（id, name, slug）
+├── PageInfoFields.gql   # 分頁資訊（Relay Connection Pattern）
+├── PostCard.gql         # 文章卡片（列表頁用）
+└── CommentInfo.gql      # 評論資訊
+```
+
+### 使用範例
+
+```graphql
+# GetPosts.gql - 使用 Fragment 簡化查詢
+query GetPosts($page: Int = 1, $limit: Int = 10, $search: String) {
+  posts(page: $page, limit: $limit, search: $search) {
+    edges {
+      node {
+        ...PostCard @mask_disable
+      }
+    }
+    pageInfo {
+      ...PageInfoFields @mask_disable
+    }
+  }
+}
+```
+
+### Houdini Fragment Masking
+
+Houdini 預設啟用 **Fragment Masking**，這是一種安全機制：
+
+- **啟用 Masking**：組件只能訪問自己聲明的 Fragment 字段
+- **禁用 Masking**：可以直接訪問所有字段
+
+本專案使用 `@mask_disable` 指令禁用 masking，讓數據可以直接訪問：
+
+```graphql
+# 使用 @mask_disable 讓 Fragment 內的字段可直接訪問
+query GetPost($slug: String) {
+  post(slug: $slug) {
+    author {
+      ...AuthorDetailed @mask_disable
+    }
+  }
+}
+```
+
+> **注意**：生產環境中大型團隊協作時，建議啟用 Masking 以獲得更好的類型安全和組件隔離。
+
 ## 相關資源
 
 - [GraphQL 官方文檔 - Fragments](https://graphql.org/learn/queries/#fragments)
+- [Houdini Fragment 文檔](https://houdinigraphql.com/api/fragment)
 - [本專案測試範例](../backend/tests/graphql/test_fragment_reuse.py)
 - [Union Types 指南](./union-types-guide.md)
 - [架構設計文檔](./architecture.md)

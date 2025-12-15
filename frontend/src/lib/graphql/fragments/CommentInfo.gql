@@ -1,0 +1,10 @@
+fragment CommentInfo on Comment {
+  id
+  content
+  createdAt
+  updatedAt
+  isDeleted
+  author {
+    ...AuthorBasic
+  }
+}

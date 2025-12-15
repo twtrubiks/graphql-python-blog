@@ -1,0 +1,5 @@
+fragment TagInfo on TagType {
+  id
+  name
+  slug
+}

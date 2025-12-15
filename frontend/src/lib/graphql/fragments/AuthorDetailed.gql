@@ -1,0 +1,10 @@
+fragment AuthorDetailed on UserType {
+  id
+  username
+  fullName
+  bio
+  avatarUrl
+  followersCount
+  followingCount
+  isFollowedByMe
+}

@@ -1,0 +1,18 @@
+fragment PostCard on PostType {
+  id
+  title
+  slug
+  excerpt
+  status
+  createdAt
+  publishedAt
+  author {
+    ...AuthorBasic
+  }
+  tags {
+    ...TagInfo
+  }
+  totalComments
+  likesCount
+  isLiked
+}
