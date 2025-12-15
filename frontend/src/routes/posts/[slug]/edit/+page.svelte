@@ -32,7 +32,6 @@
 	let hasRedirected = $state(false);
 
 	// 預覽
-	let preview = $state(false);
 	let renderedContent = $derived(renderMarkdown(content));
 
 	// 登入檢查
@@ -196,12 +195,6 @@
 					disabled={isSubmitting}
 				>
 					取消
-				</button>
-				<button
-					onclick={() => preview = !preview}
-					class="btn btn-secondary"
-				>
-					{preview ? '編輯' : '預覽'}
 				</button>
 				<button
 					onclick={() => handleSubmit('DRAFT')}

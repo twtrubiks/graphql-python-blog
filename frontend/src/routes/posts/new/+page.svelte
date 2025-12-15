@@ -19,7 +19,6 @@
 		selectedTags = tags;
 	}
 
-	let preview = $state(false);
 	let hasRedirected = $state(false);
 
 	let renderedContent = $derived(renderMarkdown(content));
@@ -186,12 +185,6 @@
 						清除草稿
 					</button>
 				{/if}
-				<button
-					onclick={() => preview = !preview}
-					class="btn btn-secondary"
-				>
-					{preview ? '編輯' : '預覽'}
-				</button>
 				<button
 					onclick={() => handleSubmit('DRAFT')}
 					disabled={isSubmitting}
