@@ -13,6 +13,9 @@
 	let hasSearched = $state(false);
 	let error = $state<string | null>(null);
 
+	// 追蹤上一次的 URL，避免重複處理
+	let lastUrl = $state('');
+
 	// 區分文章與用戶結果
 	let postResults = $derived(
 		searchResults.filter(r => r.__typename === 'PostType')
@@ -24,6 +27,12 @@
 
 	// 從 URL 讀取搜尋詞
 	$effect(() => {
+		const currentUrl = page.url.href;
+
+		// 避免重複處理相同的 URL
+		if (currentUrl === lastUrl) return;
+		lastUrl = currentUrl;
+
 		const q = page.url.searchParams.get('q');
 		if (q) {
 			searchTerm = q;
@@ -185,6 +194,7 @@
 								tags={post.tags}
 								totalComments={post.totalComments}
 								likesCount={post.likesCount}
+								searchQuery={searchTerm}
 							/>
 						{/each}
 					</div>

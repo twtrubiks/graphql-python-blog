@@ -201,6 +201,24 @@
 			day: 'numeric'
 		}).format(date);
 	}
+
+	// 高亮搜尋結果工具函數
+	function escapeHtml(str: string): string {
+		const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+		return str.replace(/[&<>"']/g, (m) => map[m]);
+	}
+
+	function escapeRegex(str: string): string {
+		return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	}
+
+	function highlightText(text: string, query: string): string {
+		if (!text) return '';
+		if (!query?.trim()) return escapeHtml(text);
+		const escaped = escapeHtml(text);
+		const regex = new RegExp(`(${escapeRegex(query.trim())})`, 'gi');
+		return escaped.replace(regex, '<mark class="bg-yellow-200 px-0.5 rounded">$1</mark>');
+	}
 </script>
 
 <svelte:head>
@@ -289,13 +307,13 @@
 					<!-- Post Title -->
 					<h2 class="text-xl font-semibold mb-2">
 						<a href="/posts/{post.slug || post.id}" class="hover:text-primary-600 transition-colors">
-							{post.title}
+							{@html highlightText(post.title, searchQuery)}
 						</a>
 					</h2>
 
 					<!-- Post Excerpt -->
 					<p class="text-gray-600 mb-4 line-clamp-3">
-						{post.excerpt || '暫無摘要'}
+						{@html highlightText(post.excerpt || '暫無摘要', searchQuery)}
 					</p>
 
 					<!-- Post Tags -->
