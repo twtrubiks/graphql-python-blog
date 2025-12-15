@@ -15,9 +15,11 @@
 	let excerpt = $state('');
 	let selectedTags = $state<string[]>([]);
 	let status = $state<'DRAFT' | 'PUBLISHED'>('DRAFT');
+	let originalStatus = $state<'DRAFT' | 'PUBLISHED'>('DRAFT');
 	let isSubmitting = $state(false);
 	let isLoading = $state(true);
 	let errors = $state<Record<string, string>>({});
+	let showUnpublishConfirm = $state(false);
 
 	function handleTagsChange(tags: string[]) {
 		selectedTags = tags;
@@ -75,6 +77,7 @@
 				content = post.content;
 				excerpt = post.excerpt || '';
 				status = post.status as 'DRAFT' | 'PUBLISHED';
+				originalStatus = post.status as 'DRAFT' | 'PUBLISHED';
 				// 載入現有標籤
 				selectedTags = post.tags?.map((t: { name: string }) => t.name) || [];
 			} else {
@@ -134,6 +137,16 @@
 			return;
 		}
 
+		// 如果是已發布文章要改為草稿，顯示確認對話框
+		if (originalStatus === 'PUBLISHED' && publishStatus === 'DRAFT') {
+			showUnpublishConfirm = true;
+			return;
+		}
+
+		await submitPost(publishStatus);
+	}
+
+	async function submitPost(publishStatus: 'DRAFT' | 'PUBLISHED') {
 		isSubmitting = true;
 
 		try {
@@ -159,6 +172,11 @@
 		} finally {
 			isSubmitting = false;
 		}
+	}
+
+	async function confirmUnpublish() {
+		showUnpublishConfirm = false;
+		await submitPost('DRAFT');
 	}
 
 	function handleCancel() {
@@ -187,7 +205,18 @@
 {:else if hasPermission}
 	<div class="max-w-6xl mx-auto">
 		<div class="flex items-center justify-between mb-6">
-			<h1 class="text-3xl font-bold">編輯文章</h1>
+			<div class="flex items-center gap-3">
+				<h1 class="text-3xl font-bold">編輯文章</h1>
+				{#if originalStatus === 'PUBLISHED'}
+					<span class="px-3 py-1 text-sm font-medium bg-green-100 text-green-800 rounded-full">
+						已發布
+					</span>
+				{:else}
+					<span class="px-3 py-1 text-sm font-medium bg-yellow-100 text-yellow-800 rounded-full">
+						草稿
+					</span>
+				{/if}
+			</div>
 			<div class="flex items-center gap-3">
 				<button
 					onclick={handleCancel}
@@ -201,14 +230,14 @@
 					disabled={isSubmitting}
 					class="btn btn-secondary"
 				>
-					儲存為草稿
+					{originalStatus === 'PUBLISHED' ? '取消發布' : '儲存為草稿'}
 				</button>
 				<button
 					onclick={() => handleSubmit('PUBLISHED')}
 					disabled={isSubmitting}
 					class="btn btn-primary"
 				>
-					{isSubmitting ? '更新中...' : '更新文章'}
+					{isSubmitting ? '更新中...' : (originalStatus === 'PUBLISHED' ? '更新文章' : '發布文章')}
 				</button>
 			</div>
 		</div>
@@ -326,6 +355,32 @@
 		<div class="card text-center">
 			<p class="text-gray-600 mb-4">請先登入才能編輯文章</p>
 			<a href="/login" class="btn btn-primary">前往登入</a>
+		</div>
+	</div>
+{/if}
+
+<!-- 取消發布確認對話框 -->
+{#if showUnpublishConfirm}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+		<div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+			<h3 class="text-xl font-semibold mb-2">確認取消發布？</h3>
+			<p class="text-gray-600 mb-6">
+				將已發布的文章改為草稿會使其從公開列表中移除，讀者將無法再看到這篇文章。
+			</p>
+			<div class="flex justify-end gap-3">
+				<button
+					onclick={() => showUnpublishConfirm = false}
+					class="btn btn-secondary"
+				>
+					取消
+				</button>
+				<button
+					onclick={confirmUnpublish}
+					class="btn bg-amber-600 text-white hover:bg-amber-700"
+				>
+					確認取消發布
+				</button>
+			</div>
 		</div>
 	</div>
 {/if}
