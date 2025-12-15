@@ -42,6 +42,7 @@ from app.graphql.subscriptions.comment import CommentSubscription
 from app.graphql.subscriptions.user_status import UserStatusSubscription
 from app.graphql.subscriptions.post import PostSubscription
 from app.graphql.subscriptions.followed_user_post import FollowedUserPostSubscription
+from app.graphql.subscriptions.post_deleted import PostDeletedSubscription
 from app.graphql.permissions import IsAuthenticated
 
 
@@ -122,7 +123,7 @@ class Mutation(CommentMutation, LikeMutation, FollowMutation):
 
 
 @strawberry.type
-class Subscription(CommentSubscription, UserStatusSubscription, PostSubscription, FollowedUserPostSubscription):
+class Subscription(CommentSubscription, UserStatusSubscription, PostSubscription, FollowedUserPostSubscription, PostDeletedSubscription):
     """
     Subscription Type - 定義即時訂閱操作
 
@@ -133,6 +134,7 @@ class Subscription(CommentSubscription, UserStatusSubscription, PostSubscription
     - 即時聊天訊息
     - 新文章發布通知（全域）
     - 追蹤用戶發文通知（個人化）
+    - 文章刪除通知（追蹤者）
     - 用戶狀態變更
     - 即時協作編輯
 

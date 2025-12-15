@@ -1,0 +1,3 @@
+subscription PostDeleted($userId: ID!) {
+  postDeleted(userId: $userId)
+}

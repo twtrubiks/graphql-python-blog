@@ -12,6 +12,7 @@ from app.services.follow import FollowService
 from app.core.auth import require_auth
 from app.graphql.subscriptions.post import PostEvent
 from app.graphql.subscriptions.followed_user_post import FollowedUserPostEvent
+from app.graphql.subscriptions.post_deleted import PostDeletedEvent
 
 
 async def _notify_post_published(session, post: Post, post_type: PostType):
@@ -134,6 +135,10 @@ async def delete_post(
     if post.author_id != current_user.id:
         raise ValueError("You don't have permission to delete this post")
 
+    # 保存刪除前的資訊（commit 後可能無法存取）
+    author_id = post.author_id
+    post_id = post.id
+
     # Implement soft delete
     # Check if Post model has soft delete fields
     if hasattr(Post, 'deleted_at'):
@@ -145,6 +150,14 @@ async def delete_post(
         await session.delete(post)
 
     await session.commit()
+
+    # 刪除成功後，通知追蹤者
+    async def notify_followers():
+        follower_ids = await FollowService.get_follower_ids(session, author_id)
+        if follower_ids:
+            await PostDeletedEvent.publish_to_followers(follower_ids, post_id)
+
+    asyncio.create_task(notify_followers())
 
     return DeletePostResult(
         success=True,

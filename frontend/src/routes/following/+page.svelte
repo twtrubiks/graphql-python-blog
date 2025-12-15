@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { GetFollowingPostsStore, FollowedUserPostedStore } from '$houdini';
+	import { GetFollowingPostsStore, FollowedUserPostedStore, PostDeletedStore } from '$houdini';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
@@ -12,12 +12,17 @@
 	let isLoading = $state(true);
 	let postsData = $state<any>(null);
 
-	// Subscription 狀態
+	// Subscription 狀態 - 新文章
 	let followedPostsStore: FollowedUserPostedStore | null = null;
 	let isSubscriptionActive = $state(false);
 	let subscriptionStatus = $state<'idle' | 'connecting' | 'connected' | 'error'>('idle');
 	let lastPostId: string | null = null;
 	let storeUnsubscribe: (() => void) | null = null;
+
+	// Subscription 狀態 - 文章刪除
+	let postDeletedStore: PostDeletedStore | null = null;
+	let isDeleteSubscriptionActive = $state(false);
+	let deleteStoreUnsubscribe: (() => void) | null = null;
 
 	// 檢查登入狀態
 	$effect(() => {
@@ -63,10 +68,30 @@
 		// 啟動 subscription
 		startSubscription();
 
+		// 初始化文章刪除 subscription
+		postDeletedStore = new PostDeletedStore();
+		deleteStoreUnsubscribe = postDeletedStore.subscribe((value: any) => {
+			if (!value || !isDeleteSubscriptionActive) return;
+
+			if (value.data?.postDeleted) {
+				const deletedPostId = value.data.postDeleted;
+				handlePostDeleted(deletedPostId);
+			}
+
+			if (value.error) {
+				console.error('[PostDeleted] Error:', value.error);
+			}
+		});
+		startDeleteSubscription();
+
 		return () => {
 			if (storeUnsubscribe) {
 				storeUnsubscribe();
 				storeUnsubscribe = null;
+			}
+			if (deleteStoreUnsubscribe) {
+				deleteStoreUnsubscribe();
+				deleteStoreUnsubscribe = null;
 			}
 		};
 	});
@@ -76,10 +101,18 @@
 			storeUnsubscribe();
 			storeUnsubscribe = null;
 		}
+		if (deleteStoreUnsubscribe) {
+			deleteStoreUnsubscribe();
+			deleteStoreUnsubscribe = null;
+		}
 		if (followedPostsStore && isSubscriptionActive) {
 			await followedPostsStore.unlisten();
 			isSubscriptionActive = false;
 			subscriptionStatus = 'idle';
+		}
+		if (postDeletedStore && isDeleteSubscriptionActive) {
+			await postDeletedStore.unlisten();
+			isDeleteSubscriptionActive = false;
 		}
 	});
 
@@ -129,6 +162,45 @@
 				href: `/posts/${newPost.slug || newPost.id}`
 			}
 		});
+	}
+
+	async function startDeleteSubscription() {
+		if (!postDeletedStore || isDeleteSubscriptionActive || !auth.user?.id) return;
+
+		console.log('[PostDeleted] Starting subscription...');
+		isDeleteSubscriptionActive = true;
+
+		try {
+			await postDeletedStore.listen({
+				userId: auth.user.id
+			});
+			console.log('[PostDeleted] Successfully connected');
+		} catch (error) {
+			console.error('[PostDeleted] Failed to connect:', error);
+			isDeleteSubscriptionActive = false;
+		}
+	}
+
+	function handlePostDeleted(postId: string) {
+		console.log('[PostDeleted] Post deleted:', postId);
+
+		// 從列表中移除被刪除的文章
+		const postIdStr = String(postId);
+		const exists = postsData?.edges?.some((edge: any) => String(edge.node.id) === postIdStr);
+
+		if (!exists) return;
+
+		postsData = {
+			...postsData,
+			edges: postsData.edges.filter((edge: any) => String(edge.node.id) !== postIdStr),
+			pageInfo: {
+				...postsData?.pageInfo,
+				totalCount: Math.max(0, (postsData?.pageInfo?.totalCount || 0) - 1)
+			}
+		};
+
+		// 顯示通知
+		notifications.info('有一篇追蹤的文章已被作者刪除');
 	}
 
 	async function loadPosts(page: number = currentPage) {
