@@ -172,10 +172,10 @@
 
 		try {
 			// In Svelte 5, page is a state object, not a store
-			const postId = page.params.slug;
+			const postSlug = page.params.slug;
 			const result = await postStore.fetch({
 				variables: {
-					id: postId
+					slug: postSlug
 				}
 			});
 

@@ -79,6 +79,13 @@
 				// 避免重複處理
 				if (post.id !== lastPostId) {
 					lastPostId = post.id;
+
+					// 排除自己發的文章（不通知作者本人）
+					if (auth.user?.id && post.author?.id === auth.user.id) {
+						console.log('[Subscription] Skipping notification for own post');
+						return;
+					}
+
 					const authorName = post.author?.fullName || post.author?.username || '某用戶';
 
 					console.log('[Subscription] New post published:', post);
@@ -96,7 +103,7 @@
 					);
 
 					// 如果在文章列表頁，可以考慮重新載入
-					if ($page.url.pathname === '/posts' || $page.url.pathname === '/') {
+					if (page.url.pathname === '/posts' || page.url.pathname === '/') {
 						console.log('[Info] New post available. Consider refreshing the list.');
 					}
 				}
@@ -240,6 +247,12 @@
 	}
 
 	function handleFollowedUserPost(post: any) {
+		// 排除自己發的文章（不通知作者本人）
+		if (auth.user?.id && post.author?.id === auth.user.id) {
+			console.log('[FollowedUserPosted] Skipping notification for own post');
+			return;
+		}
+
 		// 如果當前在追蹤動態頁面，不顯示通知（頁面會自動更新）
 		if (page.url.pathname === '/following') {
 			console.log('[FollowedUserPosted] On following page, skipping notification');

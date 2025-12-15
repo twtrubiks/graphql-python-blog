@@ -14,6 +14,27 @@ from app.graphql.subscriptions.post import PostEvent
 from app.graphql.subscriptions.followed_user_post import FollowedUserPostEvent
 
 
+async def _notify_post_published(session, post: Post, post_type: PostType):
+    """
+    發布文章後觸發通知
+
+    Args:
+        session: 資料庫 session（用於查詢追蹤者）
+        post: Post ORM 模型（用於取得 author_id）
+        post_type: PostType GraphQL 型別（用於推送給訂閱者）
+    """
+    # 觸發全域 subscription 事件
+    asyncio.create_task(PostEvent.publish_post(post_type))
+
+    # 觸發追蹤用戶發文通知
+    async def notify_followers():
+        follower_ids = await FollowService.get_follower_ids(session, post.author_id)
+        if follower_ids:
+            await FollowedUserPostEvent.publish_to_followers(follower_ids, post_type)
+
+    asyncio.create_task(notify_followers())
+
+
 async def create_post(
     info: Info,
     input: PostInput
@@ -47,8 +68,13 @@ async def create_post(
         status=status_value
     )
 
-    # Post is already loaded with relationships from PostService
-    return PostType.from_orm(post)
+    post_type = PostType.from_orm(post)
+
+    # 如果直接發布，觸發通知
+    if status_value == PostStatus.PUBLISHED.value:
+        await _notify_post_published(session, post, post_type)
+
+    return post_type
 
 
 async def update_post(
@@ -180,17 +206,8 @@ async def publish_post(
     # 轉換為 PostType
     post_type = PostType.from_orm(post)
 
-    # 觸發全域 subscription 事件 (非同步執行，不等待)
-    asyncio.create_task(PostEvent.publish_post(post_type))
-
-    # 觸發追蹤用戶發文通知 (非同步執行，不等待)
-    async def notify_followers():
-        # 查詢作者的所有追蹤者
-        follower_ids = await FollowService.get_follower_ids(session, post.author_id)
-        if follower_ids:
-            await FollowedUserPostEvent.publish_to_followers(follower_ids, post_type)
-
-    asyncio.create_task(notify_followers())
+    # 觸發通知
+    await _notify_post_published(session, post, post_type)
 
     return post_type
 
