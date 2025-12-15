@@ -1,6 +1,7 @@
 """追蹤功能 GraphQL queries 測試"""
 import pytest
 from httpx import AsyncClient
+from app.core.security import create_access_token
 
 
 USER_WITH_FOLLOWERS_QUERY = """
@@ -60,7 +61,6 @@ class TestFollowQueries:
         )
 
         # 切換到 user3 登入
-        from app.core.security import create_access_token
         access_token = create_access_token(data={"sub": str(user3.id)})
         client3 = authenticated_client
         client3.headers.update({"Authorization": f"Bearer {access_token}"})

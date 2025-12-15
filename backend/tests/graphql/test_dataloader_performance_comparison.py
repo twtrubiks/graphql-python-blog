@@ -5,7 +5,6 @@ DataLoader 效能對比測試與報告生成
 import pytest
 import pytest_asyncio
 import time
-import asyncio
 from typing import Dict, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User

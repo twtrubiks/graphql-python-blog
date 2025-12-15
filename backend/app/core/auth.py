@@ -1,14 +1,10 @@
 from typing import Optional
-from fastapi import HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.types import Info
 
 from app.models.user import User
 from app.services.auth import AuthService
-
-security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(

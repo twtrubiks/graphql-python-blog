@@ -17,8 +17,8 @@ GraphQL Blog Platform - 主應用程式入口
 """
 
 from contextlib import asynccontextmanager
-from typing import Optional, Dict, Any, Union
-from fastapi import FastAPI, Depends, Request, WebSocket
+from typing import Optional, Any
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from strawberry.fastapi import GraphQLRouter, BaseContext
 from strawberry.subscriptions import GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL

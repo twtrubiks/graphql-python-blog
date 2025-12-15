@@ -1,11 +1,14 @@
 import pytest
 import asyncio
-import json
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.graphql.subscriptions.comment import CommentEvent
 from app.graphql.subscriptions.user_status import UserStatusEvent, UserStatus
 from app.models.user import User
+from app.models.post import Post
+from app.models.comment import Comment as CommentModel
+from app.graphql.types.comment import Comment as CommentType
+from app.graphql.utils import convert_model_to_graphql
 from app.core.security import get_password_hash
 
 
@@ -132,8 +135,7 @@ class TestSubscriptionIntegration:
         test_session.add(user)
         await test_session.commit()
         await test_session.refresh(user)
-        
-        from app.models.post import Post
+
         post = Post(
             title="Test Post",
             content="Test content",
@@ -149,7 +151,6 @@ class TestSubscriptionIntegration:
         queue = CommentEvent.subscribe(post_id_str)
         
         # 創建評論
-        from app.models.comment import Comment as CommentModel
         comment = CommentModel(
             content="Test comment",
             post_id=post.id,
@@ -160,9 +161,6 @@ class TestSubscriptionIntegration:
         await test_session.refresh(comment)
         
         # 發布評論事件
-        from app.graphql.types.comment import Comment as CommentType
-        from app.graphql.utils import convert_model_to_graphql
-        
         comment_type = convert_model_to_graphql(comment, CommentType)
         await CommentEvent.publish(post_id_str, comment_type)
         

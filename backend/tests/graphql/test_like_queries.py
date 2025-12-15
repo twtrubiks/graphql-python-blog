@@ -1,6 +1,7 @@
 import pytest
 from httpx import AsyncClient
 from app.models.like import Like
+from app.models.post import Post, PostStatus
 from app.models.user import User
 from app.core.security import get_password_hash
 
@@ -138,8 +139,6 @@ class TestPostLikesQuery:
     async def test_multiple_posts_likes_status(self, authenticated_client: AsyncClient, test_session, test_user):
         """測試查詢多篇文章的按讚狀態"""
         # 創建多篇文章
-        from app.models.post import Post, PostStatus
-        
         posts = []
         for i in range(3):
             post = Post(

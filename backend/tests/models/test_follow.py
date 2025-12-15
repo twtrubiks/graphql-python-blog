@@ -1,6 +1,7 @@
 """Follow 模型測試"""
 import pytest
 from datetime import datetime
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.models.follow import Follow
@@ -88,8 +89,6 @@ class TestFollowModel:
         await test_session.commit()
 
         # 查詢驗證
-        from sqlalchemy import select
-
         # user1 的追蹤
         result = await test_session.execute(
             select(Follow).where(Follow.follower_id == user1.id)
@@ -120,7 +119,6 @@ class TestFollowModel:
         await test_session.commit()
 
         # 驗證追蹤關係也被刪除
-        from sqlalchemy import select
         result = await test_session.execute(
             select(Follow).where(
                 (Follow.follower_id == user1.id) |

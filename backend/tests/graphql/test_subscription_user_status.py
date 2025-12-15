@@ -2,10 +2,9 @@ import pytest
 import asyncio
 from datetime import datetime
 from app.graphql.subscriptions.user_status import (
-    UserStatusEvent, 
-    UserStatusSubscription, 
+    UserStatusEvent,
+    UserStatusSubscription,
     UserStatus,
-    UserStatusChange
 )
 
 

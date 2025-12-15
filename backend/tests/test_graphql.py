@@ -1,5 +1,4 @@
 import pytest
-import json
 
 GRAPHQL_ENDPOINT = "/graphql"
 

@@ -1,11 +1,8 @@
 import re
 import strawberry
-from typing import Optional
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.services.auth import AuthService
-from app.core.database import get_async_session
 from app.graphql.types.user import UserType
 
 

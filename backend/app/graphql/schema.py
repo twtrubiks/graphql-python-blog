@@ -41,11 +41,7 @@ from app.graphql.types.post import PostType
 from app.graphql.subscriptions.comment import CommentSubscription
 from app.graphql.subscriptions.user_status import UserStatusSubscription
 from app.graphql.subscriptions.post import PostSubscription
-from app.graphql.permissions import (
-    IsAuthenticated,
-    IsSuperuser,
-    IsOwner,
-)
+from app.graphql.permissions import IsAuthenticated
 
 
 @strawberry.type

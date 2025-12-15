@@ -1,7 +1,6 @@
 import strawberry
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator
 import asyncio
-from datetime import datetime
 
 from app.graphql.types.comment import Comment
 

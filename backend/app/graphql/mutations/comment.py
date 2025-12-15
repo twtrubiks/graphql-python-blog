@@ -1,8 +1,6 @@
 import strawberry
-from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_user_id
-from app.core.database import get_async_session
 from app.services.comment import CommentService
 from app.graphql.types.comment import Comment as CommentType, CommentMutationResponse
 from app.graphql.utils import convert_model_to_graphql

@@ -1,8 +1,6 @@
 import pytest
 import asyncio
 from httpx import AsyncClient, ASGITransport
-from websockets import connect, ConnectionClosed
-import json
 from app.main import app
 
 

@@ -1,6 +1,4 @@
 import pytest
-from datetime import datetime
-from typing import List, Dict, Any
 from slugify import slugify
 
 from app.models.user import User

@@ -1,5 +1,5 @@
 import pytest
-from sqlalchemy import text
+from sqlalchemy import text, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from app.models.user import User
@@ -145,7 +145,6 @@ class TestForeignKeyConstraints:
         await test_session.commit()
         
         # 驗證所有關聯文章都被刪除
-        from sqlalchemy import select
         for post_id in post_ids:
             result = await test_session.execute(select(Post).filter(Post.id == post_id))
             deleted_post = result.scalar_one_or_none()
