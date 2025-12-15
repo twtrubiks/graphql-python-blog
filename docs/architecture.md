@@ -308,6 +308,9 @@ sequenceDiagram
 **實作的 Subscription 功能：**
 - `commentAdded(postId: ID!)` - 文章新評論即時通知
 - `userStatusChanged(userId: ID!)` - 用戶上線/離線狀態追蹤
+- `postPublished` - 新文章發布通知
+- `followedUserPosted` - 追蹤用戶發文通知
+- `postDeleted` - 文章刪除即時更新
 
 ## 技術決策
 

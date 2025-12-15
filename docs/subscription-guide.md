@@ -245,6 +245,51 @@ frontend/
 
 ---
 
+## 其他 Subscription 實作
+
+本專案還實作了以下 subscription，皆遵循相同的事件管理器模式：
+
+### postPublished - 新文章發布通知
+
+```graphql
+subscription PostPublished {
+  postPublished {
+    id
+    title
+    slug
+    author { username }
+  }
+}
+```
+
+**檔案位置**：`backend/app/graphql/subscriptions/post.py`
+
+### followedUserPosted - 追蹤用戶發文通知
+
+```graphql
+subscription FollowedUserPosted {
+  followedUserPosted {
+    id
+    title
+    author { username }
+  }
+}
+```
+
+**檔案位置**：`backend/app/graphql/subscriptions/followed_user_post.py`
+
+### postDeleted - 文章刪除通知
+
+```graphql
+subscription PostDeleted {
+  postDeleted
+}
+```
+
+**檔案位置**：`backend/app/graphql/subscriptions/post_deleted.py`
+
+---
+
 ## 延伸閱讀
 
 - [Strawberry GraphQL Subscriptions](https://strawberry.rocks/docs/general/subscriptions)
