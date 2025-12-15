@@ -30,6 +30,9 @@ from app.graphql.schema import schema
 from app.graphql.dataloaders import DataLoaderContext
 from app.core.security import decode_access_token
 
+# 哨兵值，用於區分「未初始化」和「None」
+_UNSET = object()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -80,7 +83,7 @@ class GraphQLContext(BaseContext):
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
         self._dataloaders = None  # 延遲初始化，提升效能
-        self._user_id = None
+        self._user_id: Any = _UNSET  # 使用哨兵值區分「未初始化」和「None」
 
     def __getitem__(self, key: str) -> Any:
         """Support dictionary-style access for backward compatibility"""
@@ -105,40 +108,43 @@ class GraphQLContext(BaseContext):
             self._dataloaders = DataLoaderContext(self.db_session, self.user_id)
         return self._dataloaders
 
+    def _decode_user_id_from_authorization(self, authorization: Optional[str]) -> Optional[int]:
+        """從 Authorization header 解碼用戶 ID"""
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization[7:]
+            try:
+                payload = decode_access_token(token)
+                if payload:
+                    user_id = payload.get("sub")
+                    if user_id:
+                        return int(user_id)
+            except Exception:
+                pass
+        return None
+
     @property
     def user_id(self) -> Optional[int]:
-        """Get current user ID from request or websocket headers"""
+        """Get current user ID from request or websocket headers (cached)"""
+        # 如果已解碼過，直接返回快取結果
+        if self._user_id is not _UNSET:
+            return self._user_id
+
+        result: Optional[int] = None
+
         # Try HTTP request first
         if self.request:
             authorization = self.request.headers.get("Authorization")
-            if authorization and authorization.startswith("Bearer "):
-                token = authorization[7:]
-                try:
-                    payload = decode_access_token(token)
-                    if payload:
-                        user_id = payload.get("sub")
-                        if user_id:
-                            return int(user_id)
-                except Exception:
-                    pass
-
+            result = self._decode_user_id_from_authorization(authorization)
         # Try WebSocket connection
         elif self.websocket:
             if hasattr(self.websocket, "headers"):
                 headers = dict(self.websocket.headers) if hasattr(self.websocket.headers, "__iter__") else {}
                 authorization = headers.get("authorization") or headers.get("Authorization")
-                if authorization and authorization.startswith("Bearer "):
-                    token = authorization[7:]
-                    try:
-                        payload = decode_access_token(token)
-                        if payload:
-                            user_id = payload.get("sub")
-                            if user_id:
-                                return int(user_id)
-                    except Exception:
-                        pass
+                result = self._decode_user_id_from_authorization(authorization)
 
-        return None
+        # 快取結果
+        self._user_id = result
+        return result
 
 async def get_context(
     db_session: AsyncSession = Depends(get_async_session),
