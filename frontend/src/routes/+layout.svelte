@@ -12,6 +12,7 @@
 	let { children }: LayoutProps = $props();
 
 	let showUserMenu = $state(false);
+	let menuContainer: HTMLDivElement | null = $state(null);
 	let postPublishedStore: any = null;
 	let isSubscriptionActive = $state(false);
 	let lastPostId: string | null = null;
@@ -22,6 +23,20 @@
 		await auth.logout();
 		showUserMenu = false;
 	}
+
+	// 點擊外部關閉選單
+	$effect(() => {
+		if (!showUserMenu) return;
+
+		function handleClickOutside(event: MouseEvent) {
+			if (menuContainer && !menuContainer.contains(event.target as Node)) {
+				showUserMenu = false;
+			}
+		}
+
+		document.addEventListener('click', handleClickOutside);
+		return () => document.removeEventListener('click', handleClickOutside);
+	});
 
 	onMount(async () => {
 		// 初始化 postPublished subscription
@@ -183,7 +198,7 @@
 					<a href="/posts/new" class="btn btn-ghost">
 						撰寫文章
 					</a>
-					<div class="relative">
+					<div class="relative" bind:this={menuContainer}>
 						<button
 							onclick={() => showUserMenu = !showUserMenu}
 							class="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors"
