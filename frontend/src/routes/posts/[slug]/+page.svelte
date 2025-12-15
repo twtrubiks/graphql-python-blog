@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { GetPostStore, AddCommentStore, LikePostStore, UnlikePostStore, CommentAddedStore, DeleteCommentStore, DeletePostStore } from '$houdini';
+	import { GetPostStore, AddCommentStore, LikePostStore, UnlikePostStore, CommentAddedStore, DeleteCommentStore, DeletePostStore, FollowUserStore, UnfollowUserStore } from '$houdini';
 	import { page } from '$app/state';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
@@ -27,6 +27,13 @@
 	let isDeleting = $state(false);
 	let showDeleteConfirm = $state(false);
 
+	// 追蹤作者功能狀態
+	let localFollowersCount = $state(0);
+	let localIsFollowedByMe = $state(false);
+	let isFollowing = $state(false);
+	const followStore = new FollowUserStore();
+	const unfollowStore = new UnfollowUserStore();
+
 	// 檢查是否為文章作者
 	let isAuthor = $derived(
 		auth.isAuthenticated &&
@@ -49,6 +56,14 @@
 	// 載入文章資料
 	$effect(() => {
 		loadPost();
+	});
+
+	// 同步追蹤狀態
+	$effect(() => {
+		if (post?.author) {
+			localFollowersCount = post.author.followersCount;
+			localIsFollowedByMe = post.author.isFollowedByMe ?? false;
+		}
 	});
 
 	// 當 post ID 變化時建立 subscription
@@ -175,6 +190,48 @@
 			console.error('Failed to load post:', err);
 		} finally {
 			isLoading = false;
+		}
+	}
+
+	// 追蹤/取消追蹤作者
+	async function handleFollowAuthor() {
+		if (!auth.isAuthenticated) {
+			notifications.warning('請先登入才能追蹤用戶', { duration: 3000 });
+			await goto('/login');
+			return;
+		}
+
+		// 不能追蹤自己
+		if (auth.user?.id === post.author.id) return;
+
+		isFollowing = true;
+		try {
+			if (localIsFollowedByMe) {
+				// 取消追蹤
+				const result = await unfollowStore.mutate({ userId: post.author.id });
+				if (result.data?.unfollowUser?.success) {
+					localIsFollowedByMe = false;
+					localFollowersCount -= 1;
+					notifications.success('已取消追蹤');
+				} else {
+					notifications.error(result.data?.unfollowUser?.message || '取消追蹤失敗');
+				}
+			} else {
+				// 追蹤
+				const result = await followStore.mutate({ userId: post.author.id });
+				if (result.data?.followUser?.success) {
+					localIsFollowedByMe = true;
+					localFollowersCount += 1;
+					notifications.success('追蹤成功');
+				} else {
+					notifications.error(result.data?.followUser?.message || '追蹤失敗');
+				}
+			}
+		} catch (err) {
+			console.error('Follow toggle failed:', err);
+			notifications.error('操作失敗，請稍後再試');
+		} finally {
+			isFollowing = false;
 		}
 	}
 
@@ -510,8 +567,8 @@
 				</div>
 			</div>
 
-			<!-- Author Info Card -->
-			{#if post.author.bio}
+			<!-- Author Info Card (不再依賴 bio 存在，改為非自己的文章才顯示) -->
+			{#if !isAuthor}
 				<div class="card bg-gray-50 mb-8">
 					<h3 class="font-semibold mb-2">關於作者</h3>
 					<div class="flex items-start gap-4">
@@ -529,11 +586,34 @@
 							</div>
 						{/if}
 						<div class="flex-1">
-							<p class="font-medium">{post.author.fullName || post.author.username}</p>
-							<p class="text-sm text-gray-600 mb-2">@{post.author.username}</p>
-							<p class="text-gray-700">{post.author.bio}</p>
+							<div class="flex items-center justify-between">
+								<div>
+									<p class="font-medium">{post.author.fullName || post.author.username}</p>
+									<p class="text-sm text-gray-600">@{post.author.username}</p>
+								</div>
+
+								<!-- 追蹤按鈕 -->
+								<button
+									onclick={handleFollowAuthor}
+									disabled={isFollowing}
+									class="px-4 py-1.5 text-sm font-medium rounded-full transition-colors {localIsFollowedByMe
+										? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+										: 'bg-primary-600 text-white hover:bg-primary-700'}"
+								>
+									{#if isFollowing}
+										<span class="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+									{:else if localIsFollowedByMe}
+										追蹤中
+									{:else}
+										追蹤
+									{/if}
+								</button>
+							</div>
+							{#if post.author.bio}
+								<p class="text-gray-700 mt-2">{post.author.bio}</p>
+							{/if}
 							<div class="flex gap-4 mt-3 text-sm text-gray-600">
-								<span>{post.author.followersCount} 個粉絲</span>
+								<span>{localFollowersCount} 個粉絲</span>
 								<span>{post.author.followingCount} 個追蹤</span>
 							</div>
 						</div>
