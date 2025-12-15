@@ -415,7 +415,7 @@ class PostService:
         limit: int = 10
     ) -> Tuple[List[Post], int]:
         """Get posts filtered by multiple tags
-        
+
         Args:
             tag_slugs: List of tag slugs to filter by
             require_all: If True, posts must have ALL tags. If False, posts with ANY tag match
@@ -424,7 +424,7 @@ class PostService:
         tag_ids = await PostService._get_tag_ids_by_slugs(session, tag_slugs)
         if not tag_ids:
             return [], 0
-        
+
         # Build query based on require_all flag
         if require_all:
             query = PostService._build_posts_with_all_tags_query(tag_ids)
@@ -432,13 +432,100 @@ class PostService:
         else:
             query = PostService._build_posts_with_any_tags_query(tag_ids)
             total_count = await PostService._count_posts_with_any_tags(session, tag_ids)
-        
+
         # Apply pagination
         offset = (page - 1) * limit
         query = query.offset(offset).limit(limit)
-        
+
         # Execute and return results
         result = await session.execute(query)
         posts = result.scalars().unique().all()
-        
+
         return posts, total_count
+
+    # ========== Update Post Methods ==========
+
+    @staticmethod
+    async def _get_post_for_update(
+        session: AsyncSession, post_id: int, author_id: int
+    ) -> Post:
+        """獲取 post 並驗證權限"""
+        result = await session.execute(
+            select(Post).where(Post.id == post_id, Post.deleted_at.is_(None))
+        )
+        post = result.scalar_one_or_none()
+        if not post:
+            raise ValueError("Post not found")
+        if post.author_id != author_id:
+            raise ValueError("You don't have permission to edit this post")
+        return post
+
+    @staticmethod
+    def _apply_field_updates(
+        post: Post,
+        title: Optional[str],
+        content: Optional[str],
+        excerpt: Optional[str],
+        status: Optional[str]
+    ) -> None:
+        """套用欄位更新"""
+        if title is not None:
+            if not title.strip():
+                raise ValueError("Title cannot be empty")
+            post.title = title.strip()
+
+        if content is not None:
+            if not content.strip():
+                raise ValueError("Content cannot be empty")
+            post.content = content
+
+        if excerpt is not None:
+            post.excerpt = excerpt
+
+        if status is not None:
+            post.status = status
+            if status == PostStatus.PUBLISHED.value and not post.published_at:
+                post.published_at = datetime.now(timezone.utc)
+
+    @staticmethod
+    async def _apply_slug_update(
+        session: AsyncSession, post: Post, slug: Optional[str]
+    ) -> None:
+        """套用 slug 更新（含唯一性檢查）"""
+        if slug is None:
+            return
+        existing = await session.execute(
+            select(Post).where(Post.slug == slug, Post.id != post.id)
+        )
+        if existing.scalar_one_or_none():
+            raise ValueError("Slug already exists")
+        post.slug = slug
+
+    @staticmethod
+    async def _reload_post_with_relations(session: AsyncSession, post_id: int) -> Post:
+        """重新載入 post 及其關聯"""
+        result = await session.execute(
+            select(Post)
+            .options(selectinload(Post.tags), joinedload(Post.author))
+            .where(Post.id == post_id)
+        )
+        return result.scalar_one()
+
+    @staticmethod
+    async def update_post(
+        session: AsyncSession,
+        post_id: int,
+        author_id: int,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+        excerpt: Optional[str] = None,
+        status: Optional[str] = None,
+        slug: Optional[str] = None
+    ) -> Post:
+        """更新文章"""
+        post = await PostService._get_post_for_update(session, post_id, author_id)
+        PostService._apply_field_updates(post, title, content, excerpt, status)
+        await PostService._apply_slug_update(session, post, slug)
+        post.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+        return await PostService._reload_post_with_relations(session, post.id)

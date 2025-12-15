@@ -55,77 +55,19 @@ async def update_post(
     input: UpdatePostInput
 ) -> PostType:
     """Update an existing post (author only)"""
-
-    # Check authentication
     current_user = await require_auth(info)
-
-    # Get database session
     session = info.context["db_session"]
 
-    # Get the post (exclude soft-deleted)
-    result = await session.execute(
-        select(Post).where(
-            Post.id == int(id),
-            Post.deleted_at.is_(None)
-        )
+    post = await PostService.update_post(
+        session=session,
+        post_id=int(id),
+        author_id=current_user.id,
+        title=input.title,
+        content=input.content,
+        excerpt=input.excerpt,
+        status=input.status.value if input.status else None,
+        slug=input.slug
     )
-    post = result.scalar_one_or_none()
-
-    if not post:
-        raise ValueError("Post not found")
-
-    # Check if current user is the author
-    if post.author_id != current_user.id:
-        raise ValueError("You don't have permission to edit this post")
-
-    # Update fields that are provided
-    if input.title is not None:
-        if not input.title.strip():
-            raise ValueError("Title cannot be empty")
-        post.title = input.title.strip()
-
-    if input.content is not None:
-        if not input.content.strip():
-            raise ValueError("Content cannot be empty")
-        post.content = input.content
-
-    if input.excerpt is not None:
-        post.excerpt = input.excerpt
-
-    if input.status is not None:
-        post.status = input.status.value
-        # If changing to PUBLISHED and no published_at, set it
-        if input.status == PostStatus.PUBLISHED and not post.published_at:
-            post.published_at = datetime.now(timezone.utc)
-
-    if input.slug is not None:
-        # Check if new slug is unique
-        existing = await session.execute(
-            select(Post).where(
-                Post.slug == input.slug,
-                Post.id != post.id
-            )
-        )
-        if existing.scalar_one_or_none():
-            raise ValueError("Slug already exists")
-        post.slug = input.slug
-
-    # Update the updatedAt timestamp
-    post.updated_at = datetime.now(timezone.utc)
-
-    # Save changes
-    await session.commit()
-
-    # Reload with relationships to avoid lazy loading issues
-    result = await session.execute(
-        select(Post)
-        .options(
-            selectinload(Post.tags),
-            joinedload(Post.author)
-        )
-        .where(Post.id == post.id)
-    )
-    post = result.scalar_one()
 
     return PostType.from_orm(post)
 
