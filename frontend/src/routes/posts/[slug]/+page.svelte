@@ -710,7 +710,7 @@
 													<time class="text-xs text-gray-500">
 														{formatDate(comment.createdAt)}
 													</time>
-													{#if comment.updatedAt !== comment.createdAt}
+													{#if Math.abs(new Date(comment.updatedAt).getTime() - new Date(comment.createdAt).getTime()) > 1000}
 														<span class="text-xs text-gray-500">(已編輯)</span>
 													{/if}
 												</div>
