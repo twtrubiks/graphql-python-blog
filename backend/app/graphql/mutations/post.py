@@ -141,6 +141,9 @@ async def delete_post(
     author_id = post.author_id
     post_id = post.id
 
+    # 在 commit 前獲取追蹤者 ID（session 仍然有效）
+    follower_ids = await FollowService.get_follower_ids(session, author_id)
+
     # Implement soft delete
     # Check if Post model has soft delete fields
     if hasattr(Post, 'deleted_at'):
@@ -153,13 +156,16 @@ async def delete_post(
 
     await session.commit()
 
-    # 刪除成功後，通知追蹤者
-    async def notify_followers():
-        follower_ids = await FollowService.get_follower_ids(session, author_id)
-        if follower_ids:
-            await PostDeletedEvent.publish_to_followers(follower_ids, post_id)
+    # 後台發送通知（純記憶體操作，不需要 session）
+    if follower_ids:
+        async def safe_notify():
+            try:
+                await PostDeletedEvent.publish_to_followers(follower_ids, post_id)
+            except Exception as e:
+                import logging
+                logging.error(f"Failed to notify followers about deleted post {post_id}: {e}")
 
-    asyncio.create_task(notify_followers())
+        asyncio.create_task(safe_notify())
 
     return DeletePostResult(
         success=True,
