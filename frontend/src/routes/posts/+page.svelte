@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { GetPostsStore, GetPostsByTagsStore } from '$houdini';
+	import { GetPostsStore, GetPostsByTagsStore, GetAllTagsStore } from '$houdini';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
@@ -7,6 +7,7 @@
 
 	const postsStore = new GetPostsStore();
 	const taggedPostsStore = new GetPostsByTagsStore();
+	const allTagsStore = new GetAllTagsStore();
 
 	let currentPage = $state(1);
 	let limit = $state(10);
@@ -18,10 +19,26 @@
 	let selectedTags = $state<string[]>([]);
 	let requireAll = $state(false);
 
-	// 收集所有出現過的標籤（用於篩選器）
+	// 所有可用標籤（從 GetAllTags 查詢取得）
 	let availableTags = $state<Array<{ id: string; name: string; slug: string }>>([]);
 
 	let postsData = $state<any>(null);
+
+	// 載入所有標籤
+	$effect(() => {
+		loadAllTags();
+	});
+
+	async function loadAllTags() {
+		try {
+			const result = await allTagsStore.fetch();
+			if (result.data?.tags) {
+				availableTags = result.data.tags;
+			}
+		} catch (error) {
+			console.error('Failed to load tags:', error);
+		}
+	}
 
 	// 追蹤上一次的 URL，避免重複載入
 	let lastUrl = $state('');
@@ -86,39 +103,10 @@
 				});
 				postsData = result.data?.posts;
 			}
-
-			// 更新可用標籤列表
-			updateAvailableTags();
 		} catch (error) {
 			console.error('Failed to load posts:', error);
 		} finally {
 			isLoading = false;
-		}
-	}
-
-	function updateAvailableTags() {
-		if (!postsData?.edges) return;
-
-		const tagsMap = new Map();
-		for (const { node } of postsData.edges) {
-			for (const tag of node.tags || []) {
-				if (!tagsMap.has(tag.slug)) {
-					tagsMap.set(tag.slug, tag);
-				}
-			}
-		}
-
-		// 收集新標籤
-		const newTags: Array<{ id: string; name: string; slug: string }> = [];
-		for (const tag of tagsMap.values()) {
-			if (!availableTags.find((t) => t.slug === tag.slug)) {
-				newTags.push(tag);
-			}
-		}
-
-		// 只有有新標籤時才更新
-		if (newTags.length > 0) {
-			availableTags = [...availableTags, ...newTags];
 		}
 	}
 
