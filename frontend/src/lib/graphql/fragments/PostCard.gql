@@ -7,10 +7,10 @@ fragment PostCard on PostType {
   createdAt
   publishedAt
   author {
-    ...AuthorBasic
+    ...AuthorBasic @mask_disable
   }
   tags {
-    ...TagInfo
+    ...TagInfo @mask_disable
   }
   totalComments
   likesCount
