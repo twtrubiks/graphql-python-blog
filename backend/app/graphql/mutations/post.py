@@ -13,25 +13,26 @@ from app.core.auth import require_auth
 from app.graphql.subscriptions.post import PostEvent
 from app.graphql.subscriptions.followed_user_post import FollowedUserPostEvent
 from app.graphql.subscriptions.post_deleted import PostDeletedEvent
+from app.core.database import AsyncSessionLocal
 
 
-async def _notify_post_published(session, post: Post, post_type: PostType):
+async def _notify_post_published(author_id: int, post_type: PostType):
     """
-    發布文章後觸發通知
+    發布文章後觸發通知（使用獨立 session 避免狀態衝突）
 
     Args:
-        session: 資料庫 session（用於查詢追蹤者）
-        post: Post ORM 模型（用於取得 author_id）
+        author_id: 文章作者 ID（用於查詢追蹤者）
         post_type: PostType GraphQL 型別（用於推送給訂閱者）
     """
     # 觸發全域 subscription 事件
     asyncio.create_task(PostEvent.publish_post(post_type))
 
-    # 觸發追蹤用戶發文通知
+    # 觸發追蹤用戶發文通知（使用獨立 session）
     async def notify_followers():
-        follower_ids = await FollowService.get_follower_ids(session, post.author_id)
-        if follower_ids:
-            await FollowedUserPostEvent.publish_to_followers(follower_ids, post_type)
+        async with AsyncSessionLocal() as session:
+            follower_ids = await FollowService.get_follower_ids(session, author_id)
+            if follower_ids:
+                await FollowedUserPostEvent.publish_to_followers(follower_ids, post_type)
 
     asyncio.create_task(notify_followers())
 
@@ -74,7 +75,7 @@ async def create_post(
 
     # 如果直接發布，觸發通知
     if status_value == PostStatus.PUBLISHED.value:
-        await _notify_post_published(session, post, post_type)
+        await _notify_post_published(post.author_id, post_type)
 
     return post_type
 
@@ -227,8 +228,12 @@ async def publish_post(
     # 轉換為 PostType
     post_type = PostType.from_orm(post)
 
-    # 觸發通知
-    await _notify_post_published(session, post, post_type)
+    # 觸發通知（失敗不影響主流程）
+    try:
+        await _notify_post_published(post.author_id, post_type)
+    except Exception as e:
+        # 通知失敗不應該影響發布操作
+        print(f"Warning: Failed to send publish notification: {e}")
 
     return post_type
 

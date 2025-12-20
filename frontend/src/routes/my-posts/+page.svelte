@@ -1,16 +1,19 @@
 <script lang="ts">
-	import { GetMyPostsStore, DeletePostStore } from '$houdini';
+	import { GetMyPostsStore, DeletePostStore, PublishPostStore, UnpublishPostStore } from '$houdini';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
 
 	const postsStore = new GetMyPostsStore();
 	const deleteStore = new DeletePostStore();
+	const publishStore = new PublishPostStore();
+	const unpublishStore = new UnpublishPostStore();
 
 	let currentPage = $state(1);
 	let limit = $state(10);
 	let isLoading = $state(true);
 	let postsData = $state<any>(null);
+	let publishingPostId = $state<string | null>(null);
 
 	// 狀態篩選: 'all' | 'PUBLISHED' | 'DRAFT'
 	let statusFilter = $state<string>('all');
@@ -63,6 +66,40 @@
 			}
 		} catch (error) {
 			notifications.error('刪除文章時發生錯誤');
+		}
+	}
+
+	async function handlePublish(postId: string, postTitle: string) {
+		publishingPostId = postId;
+		try {
+			const result = await publishStore.mutate({ id: postId });
+			if (result.data?.publishPost) {
+				notifications.success(`「${postTitle}」已發布`);
+				loadPosts();
+			} else {
+				notifications.error('發布失敗');
+			}
+		} catch (error) {
+			notifications.error('發布文章時發生錯誤');
+		} finally {
+			publishingPostId = null;
+		}
+	}
+
+	async function handleUnpublish(postId: string, postTitle: string) {
+		publishingPostId = postId;
+		try {
+			const result = await unpublishStore.mutate({ id: postId });
+			if (result.data?.unpublishPost) {
+				notifications.success(`「${postTitle}」已取消發布`);
+				loadPosts();
+			} else {
+				notifications.error('取消發布失敗');
+			}
+		} catch (error) {
+			notifications.error('取消發布文章時發生錯誤');
+		} finally {
+			publishingPostId = null;
 		}
 	}
 
@@ -201,6 +238,23 @@
 
 						<!-- 操作按鈕 -->
 						<div class="flex items-center gap-2">
+							{#if post.status === 'DRAFT'}
+								<button
+									onclick={() => handlePublish(post.id, post.title)}
+									disabled={publishingPostId === post.id}
+									class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+								>
+									{publishingPostId === post.id ? '發布中...' : '發布'}
+								</button>
+							{:else}
+								<button
+									onclick={() => handleUnpublish(post.id, post.title)}
+									disabled={publishingPostId === post.id}
+									class="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+								>
+									{publishingPostId === post.id ? '取消中...' : '取消發布'}
+								</button>
+							{/if}
 							<a
 								href="/posts/{post.slug || post.id}/edit"
 								class="btn btn-secondary text-sm"

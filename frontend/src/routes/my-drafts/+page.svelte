@@ -1,16 +1,18 @@
 <script lang="ts">
-	import { GetMyPostsStore, DeletePostStore } from '$houdini';
+	import { GetMyPostsStore, DeletePostStore, PublishPostStore } from '$houdini';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
 
 	const postsStore = new GetMyPostsStore();
 	const deleteStore = new DeletePostStore();
+	const publishStore = new PublishPostStore();
 
 	let currentPage = $state(1);
 	let limit = $state(10);
 	let isLoading = $state(true);
 	let postsData = $state<any>(null);
+	let publishingPostId = $state<string | null>(null);
 
 	// 檢查登入狀態
 	$effect(() => {
@@ -55,6 +57,23 @@
 			}
 		} catch (error) {
 			notifications.error('刪除草稿時發生錯誤');
+		}
+	}
+
+	async function handlePublish(postId: string, postTitle: string) {
+		publishingPostId = postId;
+		try {
+			const result = await publishStore.mutate({ id: postId });
+			if (result.data?.publishPost) {
+				notifications.success(`「${postTitle}」已發布`);
+				loadDrafts();
+			} else {
+				notifications.error('發布失敗');
+			}
+		} catch (error) {
+			notifications.error('發布文章時發生錯誤');
+		} finally {
+			publishingPostId = null;
 		}
 	}
 
@@ -142,6 +161,13 @@
 
 						<!-- 操作按鈕 -->
 						<div class="flex items-center gap-2">
+							<button
+								onclick={() => handlePublish(post.id, post.title)}
+								disabled={publishingPostId === post.id}
+								class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								{publishingPostId === post.id ? '發布中...' : '發布'}
+							</button>
 							<a
 								href="/posts/{post.slug || post.id}/edit"
 								class="btn btn-primary text-sm"
