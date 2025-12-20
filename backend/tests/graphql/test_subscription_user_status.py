@@ -146,11 +146,14 @@ class TestUserStatusSubscription:
     async def test_user_status_subscription_resolver(self):
         """測試 GraphQL subscription resolver"""
         subscription = UserStatusSubscription()
-        
-        # 開始訂閱
-        subscription_gen = subscription.user_status_changed()
-        
-        # 在另一個協程中發布狀態變更
+
+        # 開始訂閱（使用參數傳入 user_id 和 username）
+        subscription_gen = subscription.user_status_changed(
+            user_id="subscriber1",
+            username="subscriber_user"
+        )
+
+        # 在另一個協程中發布狀態變更（由另一個用戶）
         async def publish_status_changes():
             await asyncio.sleep(0.1)
             await UserStatusEvent.publish_status_change(
@@ -158,16 +161,22 @@ class TestUserStatusSubscription:
                 username="alice",
                 status=UserStatus.ONLINE
             )
-        
+
         # 啟動發布任務
         publish_task = asyncio.create_task(publish_status_changes())
-        
-        # 從 subscription 獲取狀態變更
+
+        # 第一個事件是訂閱者自己的 ONLINE 狀態
+        status_change = await anext(subscription_gen)
+        assert status_change.user_id == "subscriber1"
+        assert status_change.username == "subscriber_user"
+        assert status_change.status == UserStatus.ONLINE
+
+        # 第二個事件是其他用戶的狀態變更
         status_change = await anext(subscription_gen)
         assert status_change.user_id == "user1"
         assert status_change.username == "alice"
         assert status_change.status == UserStatus.ONLINE
-        
+
         # 清理
         await publish_task
         await subscription_gen.aclose()
@@ -176,3 +185,54 @@ class TestUserStatusSubscription:
         """測試預設離線狀態"""
         # 未設置過狀態的用戶應該返回離線
         assert UserStatusEvent.get_user_status("unknown_user") == UserStatus.OFFLINE
+
+    async def test_user_connected_and_disconnected(self):
+        """測試用戶連線和斷線狀態追蹤"""
+        user_id = "conn_user"
+        username = "connection_test"
+
+        # 訂閱狀態變更
+        queue = UserStatusEvent.subscribe()
+
+        # 用戶第一次連線 - 應該發送 ONLINE
+        await UserStatusEvent.user_connected(user_id, username)
+        status_change = await asyncio.wait_for(queue.get(), timeout=1.0)
+        assert status_change.status == UserStatus.ONLINE
+        assert UserStatusEvent.get_user_status(user_id) == UserStatus.ONLINE
+
+        # 用戶第二次連線（多分頁）- 不應該發送新狀態
+        await UserStatusEvent.user_connected(user_id, username)
+        # queue 應該是空的（沒有新事件）
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(queue.get(), timeout=0.1)
+
+        # 用戶關閉一個分頁 - 不應該發送 OFFLINE
+        await UserStatusEvent.user_disconnected(user_id)
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(queue.get(), timeout=0.1)
+
+        # 用戶關閉最後一個分頁 - 應該發送 OFFLINE
+        await UserStatusEvent.user_disconnected(user_id)
+        status_change = await asyncio.wait_for(queue.get(), timeout=1.0)
+        assert status_change.status == UserStatus.OFFLINE
+        assert UserStatusEvent.get_user_status(user_id) == UserStatus.OFFLINE
+
+        # 清理
+        UserStatusEvent.unsubscribe(queue)
+
+    async def test_get_online_users(self):
+        """測試獲取在線用戶列表"""
+        # 設置一些用戶狀態
+        await UserStatusEvent.user_connected("online1", "user1")
+        await UserStatusEvent.user_connected("online2", "user2")
+
+        # 獲取在線用戶列表
+        online_users = UserStatusEvent.get_online_users()
+        assert "online1" in online_users
+        assert "online2" in online_users
+
+        # 用戶離線後應該從列表中移除
+        await UserStatusEvent.user_disconnected("online1")
+        online_users = UserStatusEvent.get_online_users()
+        assert "online1" not in online_users
+        assert "online2" in online_users

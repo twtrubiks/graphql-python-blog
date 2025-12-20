@@ -3,6 +3,7 @@
 	import { FollowUserStore, UnfollowUserStore } from '$houdini';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
+	import { userStatusStore } from '$lib/stores/userStatus.svelte';
 
 	interface Props {
 		userId: string;
@@ -42,6 +43,9 @@
 
 	// 判斷是否為當前登入用戶
 	let isCurrentUser = $derived(auth.user?.id === userId);
+
+	// 獲取用戶在線狀態
+	let isOnline = $derived(userStatusStore.getStatus(userId) === 'ONLINE');
 
 	async function handleFollow() {
 		if (!auth.isAuthenticated) {
@@ -84,20 +88,27 @@
 
 <article class="card hover:shadow-lg transition-shadow">
 	<div class="flex items-start gap-4">
-		<!-- Avatar -->
-		{#if avatarUrl}
-			<img
-				src={avatarUrl}
-				alt={username}
-				class="w-16 h-16 rounded-full flex-shrink-0"
-			/>
-		{:else}
-			<div class="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-				<span class="text-2xl font-bold text-primary-600">
-					{username.charAt(0).toUpperCase()}
-				</span>
-			</div>
-		{/if}
+		<!-- Avatar with online indicator -->
+		<div class="relative flex-shrink-0">
+			{#if avatarUrl}
+				<img
+					src={avatarUrl}
+					alt={username}
+					class="w-16 h-16 rounded-full"
+				/>
+			{:else}
+				<div class="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center">
+					<span class="text-2xl font-bold text-primary-600">
+						{username.charAt(0).toUpperCase()}
+					</span>
+				</div>
+			{/if}
+			<!-- 在線狀態指示器 -->
+			<span
+				class="absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white {isOnline ? 'bg-green-500' : 'bg-gray-400'}"
+				title={isOnline ? '在線' : '離線'}
+			></span>
+		</div>
 
 		<div class="flex-1 min-w-0">
 			<!-- Username & Full Name -->

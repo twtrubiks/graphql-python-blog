@@ -3,8 +3,9 @@
 	import { page } from '$app/state';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
+	import { userStatusStore } from '$lib/stores/userStatus.svelte';
 	import RealtimeNotification from '$lib/components/RealtimeNotification.svelte';
-	import { PostPublishedStore, FollowedUserPostedStore } from '$houdini';
+	import { PostPublishedStore, FollowedUserPostedStore, UserStatusChangedStore } from '$houdini';
 	import { onMount, onDestroy } from 'svelte';
 	import type { LayoutProps } from './$types';
 
@@ -24,6 +25,11 @@
 	let isFollowedSubscriptionActive = $state(false);
 	let lastFollowedPostId: string | null = null;
 	let followedStoreUnsubscribe: (() => void) | null = null;
+
+	// 用戶在線狀態訂閱
+	let userStatusStore_sub: UserStatusChangedStore | null = null;
+	let isUserStatusSubscriptionActive = $state(false);
+	let userStatusUnsubscribe: (() => void) | null = null;
 
 	async function handleLogout() {
 		await auth.logout();
@@ -47,6 +53,26 @@
 			}
 			isFollowedSubscriptionActive = false;
 			lastFollowedPostId = null;
+		}
+	});
+
+	// 當用戶登入狀態改變時，啟動或停止 UserStatus 訂閱
+	$effect(() => {
+		if (auth.isAuthenticated && auth.user?.id && !isUserStatusSubscriptionActive) {
+			// 用戶剛登入，啟動訂閱
+			initUserStatusSubscription();
+		} else if (!auth.isAuthenticated && isUserStatusSubscriptionActive) {
+			// 用戶登出，停止訂閱
+			if (userStatusUnsubscribe) {
+				userStatusUnsubscribe();
+				userStatusUnsubscribe = null;
+			}
+			if (userStatusStore_sub) {
+				userStatusStore_sub.unlisten();
+				userStatusStore_sub = null;
+			}
+			isUserStatusSubscriptionActive = false;
+			userStatusStore.clear();
 		}
 	});
 
@@ -127,6 +153,7 @@
 		// 初始化追蹤用戶發文訂閱（僅限已登入用戶）
 		if (auth.isAuthenticated && auth.user?.id) {
 			initFollowedUserSubscription();
+			initUserStatusSubscription();
 		}
 
 		// 設定定期檢查 token 過期
@@ -158,6 +185,10 @@
 				followedStoreUnsubscribe();
 				followedStoreUnsubscribe = null;
 			}
+			if (userStatusUnsubscribe) {
+				userStatusUnsubscribe();
+				userStatusUnsubscribe = null;
+			}
 			if (tokenCheckInterval) {
 				clearInterval(tokenCheckInterval);
 				tokenCheckInterval = null;
@@ -183,6 +214,15 @@
 		if (followedPostsStore && isFollowedSubscriptionActive) {
 			await followedPostsStore.unlisten();
 			isFollowedSubscriptionActive = false;
+		}
+		// 清理用戶狀態訂閱
+		if (userStatusUnsubscribe) {
+			userStatusUnsubscribe();
+			userStatusUnsubscribe = null;
+		}
+		if (userStatusStore_sub && isUserStatusSubscriptionActive) {
+			await userStatusStore_sub.unlisten();
+			isUserStatusSubscriptionActive = false;
 		}
 		// 清理 token 檢查 interval
 		if (tokenCheckInterval) {
@@ -280,6 +320,49 @@
 				}
 			}
 		);
+	}
+
+	// ===== 用戶在線狀態訂閱 =====
+	function initUserStatusSubscription() {
+		if (!auth.user?.id) return;
+
+		userStatusStore_sub = new UserStatusChangedStore();
+
+		// 監聽訂閱資料
+		userStatusUnsubscribe = userStatusStore_sub.subscribe((value: any) => {
+			if (!value || !isUserStatusSubscriptionActive) return;
+
+			if (value.data?.userStatusChanged) {
+				const { userId, status, username } = value.data.userStatusChanged;
+				userStatusStore.updateStatus(userId, status);
+				console.log('[UserStatus] Status changed:', username, status);
+			}
+
+			if (value.error) {
+				console.error('[UserStatus] Subscription error:', value.error);
+			}
+		});
+
+		// 啟動訂閱
+		startUserStatusSubscription();
+	}
+
+	async function startUserStatusSubscription() {
+		if (!userStatusStore_sub || isUserStatusSubscriptionActive || !auth.user?.id || !auth.user?.username) return;
+
+		console.log('[UserStatus] Starting subscription for user:', auth.user.username);
+		isUserStatusSubscriptionActive = true;
+
+		try {
+			await userStatusStore_sub.listen({
+				userId: auth.user.id,
+				username: auth.user.username
+			});
+			console.log('[UserStatus] Subscription connected');
+		} catch (error) {
+			console.error('[UserStatus] Failed to connect:', error);
+			isUserStatusSubscriptionActive = false;
+		}
 	}
 
 </script>
