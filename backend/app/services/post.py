@@ -605,3 +605,57 @@ class PostService:
         posts = result.scalars().unique().all()
 
         return list(posts), total_count
+
+    @staticmethod
+    async def get_posts_by_author(
+        session: AsyncSession,
+        author_id: int,
+        status: Optional[str] = None,
+        page: int = 1,
+        limit: int = 10
+    ) -> Tuple[List[Post], int]:
+        """
+        獲取指定作者的文章（包含草稿和已發布）
+
+        Args:
+            session: 資料庫 session
+            author_id: 作者 ID
+            status: 文章狀態篩選 ('PUBLISHED', 'DRAFT', 或 None 表示全部)
+            page: 頁碼（從 1 開始）
+            limit: 每頁數量
+
+        Returns:
+            Tuple[List[Post], int]: (文章列表, 總數)
+        """
+        # 建立基本條件：作者 ID + 未刪除
+        base_condition = and_(
+            Post.author_id == author_id,
+            Post.deleted_at.is_(None)
+        )
+
+        # 如果有指定狀態，加入篩選條件
+        if status:
+            base_condition = and_(base_condition, Post.status == status)
+
+        # 計算總數
+        count_query = select(func.count()).select_from(Post).where(base_condition)
+        count_result = await session.execute(count_query)
+        total_count = count_result.scalar() or 0
+
+        # 查詢文章
+        query = (
+            select(Post)
+            .where(base_condition)
+            .options(
+                joinedload(Post.author),
+                selectinload(Post.tags)
+            )
+            .order_by(desc(Post.created_at))
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+
+        result = await session.execute(query)
+        posts = result.scalars().unique().all()
+
+        return list(posts), total_count

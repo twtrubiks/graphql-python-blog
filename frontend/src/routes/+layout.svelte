@@ -359,30 +359,46 @@
 
 						{#if showUserMenu}
 							<div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border">
-								<!-- 個人資料頁面 - 不在實作範圍內
 								<a
-									href="/profile"
-									class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+									href="/my-posts"
+									class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
 									onclick={() => showUserMenu = false}
 								>
-									個人資料
+									<span>📝</span>
+									<span>我的文章</span>
 								</a>
-								-->
-								<!-- 我的文章頁面 - 不在實作範圍內
 								<a
-									href="/posts/my"
-									class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+									href="/my-drafts"
+									class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
 									onclick={() => showUserMenu = false}
 								>
-									我的文章
+									<span>📄</span>
+									<span>我的草稿</span>
 								</a>
 								<hr class="my-1" />
-								-->
+								<a
+									href="/profile/followers"
+									class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+									onclick={() => showUserMenu = false}
+								>
+									<span>👥</span>
+									<span>追蹤者/追蹤中</span>
+								</a>
+								<a
+									href="/settings"
+									class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+									onclick={() => showUserMenu = false}
+								>
+									<span>⚙️</span>
+									<span>個人設定</span>
+								</a>
+								<hr class="my-1" />
 								<button
 									onclick={handleLogout}
-									class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+									class="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
 								>
-									登出
+									<span>🚪</span>
+									<span>登出</span>
 								</button>
 							</div>
 						{/if}

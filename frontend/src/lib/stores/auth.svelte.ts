@@ -160,6 +160,10 @@ function createAuthStore() {
 		updateUser(updates: Partial<User>) {
 			if (user) {
 				user = { ...user, ...updates };
+				// 同步更新到 localStorage
+				if (browser) {
+					localStorage.setItem('user', JSON.stringify(user));
+				}
 			}
 		},
 

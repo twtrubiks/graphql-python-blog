@@ -1,0 +1,12 @@
+query GetMyPosts($page: Int = 1, $limit: Int = 10, $status: String) {
+  myPosts(page: $page, limit: $limit, status: $status) {
+    edges {
+      node {
+        ...PostCard @mask_disable
+      }
+    }
+    pageInfo {
+      ...PageInfoFields @mask_disable
+    }
+  }
+}

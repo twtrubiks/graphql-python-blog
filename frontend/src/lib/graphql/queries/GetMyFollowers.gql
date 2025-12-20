@@ -1,0 +1,14 @@
+query GetMyFollowers {
+  me {
+    id
+    username
+    followers {
+      ...AuthorDetailed @mask_disable
+    }
+    following {
+      ...AuthorDetailed @mask_disable
+    }
+    followersCount
+    followingCount
+  }
+}

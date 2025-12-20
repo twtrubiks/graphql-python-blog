@@ -193,3 +193,38 @@ class PostQuery:
         )
 
         return PostQuery._create_connection(posts, total_count, page, limit)
+
+    @strawberry.field(permission_classes=[IsAuthenticated])
+    async def my_posts(
+        self,
+        info: Info,
+        page: int = 1,
+        limit: int = 10,
+        status: Optional[str] = None
+    ) -> PostConnection:
+        """
+        Get current user's posts (both published and drafts)
+
+        Args:
+            page: Page number (1-indexed)
+            limit: Number of posts per page
+            status: Filter by status ('PUBLISHED', 'DRAFT', or None for all)
+
+        Returns:
+            PostConnection with paginated posts by current user
+        """
+        session = info.context["db_session"]
+
+        # Get current user
+        current_user = await require_auth(info)
+
+        # Get posts by author
+        posts, total_count = await PostService.get_posts_by_author(
+            session,
+            author_id=current_user.id,
+            status=status,
+            page=page,
+            limit=limit
+        )
+
+        return PostQuery._create_connection(posts, total_count, page, limit)

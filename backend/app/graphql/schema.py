@@ -29,6 +29,7 @@ from app.graphql.mutations.post import (
     unpublish_post,
     DeletePostResult
 )
+from app.graphql.mutations.user import update_me, UpdateUserInput
 from app.graphql.mutations.comment import CommentMutation
 from app.graphql.mutations.like import LikeMutation
 from app.graphql.mutations.follow import FollowMutation
@@ -115,6 +116,12 @@ class Mutation(CommentMutation, LikeMutation, FollowMutation):
     )
     unpublish_post: PostType = strawberry.field(
         resolver=unpublish_post,
+        permission_classes=[IsAuthenticated]
+    )
+
+    # 用戶相關 Mutations（需要認證）
+    update_me: UserType = strawberry.field(
+        resolver=update_me,
         permission_classes=[IsAuthenticated]
     )
 
