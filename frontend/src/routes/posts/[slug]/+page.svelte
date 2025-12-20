@@ -567,32 +567,32 @@
 				</div>
 			</div>
 
-			<!-- Author Info Card (不再依賴 bio 存在，改為非自己的文章才顯示) -->
-			{#if !isAuthor}
-				<div class="card bg-gray-50 mb-8">
-					<h3 class="font-semibold mb-2">關於作者</h3>
-					<div class="flex items-start gap-4">
-						{#if post.author.avatarUrl}
-							<img
-								src={post.author.avatarUrl}
-								alt={post.author.username}
-								class="w-16 h-16 rounded-full"
-							/>
-						{:else}
-							<div class="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center">
-								<span class="text-2xl font-medium text-primary-600">
-									{post.author.username.charAt(0).toUpperCase()}
-								</span>
+			<!-- Author Info Card (統一顯示，無論是否為作者) -->
+			<div class="card bg-gray-50 mb-8">
+				<h3 class="font-semibold mb-2">關於作者</h3>
+				<div class="flex items-start gap-4">
+					{#if post.author.avatarUrl}
+						<img
+							src={post.author.avatarUrl}
+							alt={post.author.username}
+							class="w-16 h-16 rounded-full"
+						/>
+					{:else}
+						<div class="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center">
+							<span class="text-2xl font-medium text-primary-600">
+								{post.author.username.charAt(0).toUpperCase()}
+							</span>
+						</div>
+					{/if}
+					<div class="flex-1">
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="font-medium">{post.author.fullName || post.author.username}</p>
+								<p class="text-sm text-gray-600">@{post.author.username}</p>
 							</div>
-						{/if}
-						<div class="flex-1">
-							<div class="flex items-center justify-between">
-								<div>
-									<p class="font-medium">{post.author.fullName || post.author.username}</p>
-									<p class="text-sm text-gray-600">@{post.author.username}</p>
-								</div>
 
-								<!-- 追蹤按鈕 -->
+							<!-- 追蹤按鈕 (僅非作者時顯示) -->
+							{#if !isAuthor}
 								<button
 									onclick={handleFollowAuthor}
 									disabled={isFollowing}
@@ -608,18 +608,18 @@
 										追蹤
 									{/if}
 								</button>
-							</div>
-							{#if post.author.bio}
-								<p class="text-gray-700 mt-2">{post.author.bio}</p>
 							{/if}
-							<div class="flex gap-4 mt-3 text-sm text-gray-600">
-								<span>{localFollowersCount} 個粉絲</span>
-								<span>{post.author.followingCount} 個追蹤</span>
-							</div>
+						</div>
+						{#if post.author.bio}
+							<p class="text-gray-700 mt-2">{post.author.bio}</p>
+						{/if}
+						<div class="flex gap-4 mt-3 text-sm text-gray-600">
+							<span>{localFollowersCount} 個粉絲</span>
+							<span>{post.author.followingCount} 個追蹤</span>
 						</div>
 					</div>
 				</div>
-			{/if}
+			</div>
 
 			<!-- Comments Section -->
 			<section>
