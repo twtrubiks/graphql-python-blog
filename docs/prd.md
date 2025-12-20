@@ -88,6 +88,12 @@ type Query {
 
   post(id: ID, slug: String): Post
 
+  # 我的文章 - 取得當前用戶的文章（含草稿）
+  myPosts(page: Int = 1, limit: Int = 10, status: PostStatus): PostConnection!
+
+  # 用戶文章 - 依 username 取得用戶已發布文章
+  postsByAuthor(username: String!, page: Int = 1, limit: Int = 10): PostConnection!
+
   # 用戶查詢 - 展示認證整合
   me: User  # 需要認證，從 context 獲取當前用戶
   user(id: ID, username: String): User
@@ -129,13 +135,27 @@ type Mutation {
 
   # 個人資料
   updateProfile(input: ProfileInput!): User!
+  updateMe(input: UpdateMeInput!): User!  # 更新當前用戶資料
   uploadAvatar(file: Upload!): User!
+
+  # 文章發布管理
+  unpublishPost(id: ID!): Post!  # 取消發布文章
 }
 
 type Subscription {
   # 即時更新
   commentAdded(postId: ID!): Comment!
   postPublished(authorId: ID): Post!
+  followedUserPosted: Post!
+  postDeleted: ID!
+  userStatus(userId: ID, username: String): UserStatus!
+}
+
+type UserStatus {
+  userId: ID!
+  username: String!
+  isOnline: Boolean!
+  lastSeen: DateTime
 }
 
 type Post {

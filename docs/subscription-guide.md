@@ -288,6 +288,38 @@ subscription PostDeleted {
 
 **檔案位置**：`backend/app/graphql/subscriptions/post_deleted.py`
 
+### userStatus - 用戶在線狀態訂閱 ⭐
+
+即時追蹤用戶的在線/離線狀態，支援多分頁連線計數。
+
+```graphql
+subscription UserStatus($userId: ID, $username: String) {
+  userStatus(userId: $userId, username: $username) {
+    userId
+    username
+    isOnline
+    lastSeen
+  }
+}
+```
+
+**檔案位置**：`backend/app/graphql/subscriptions/user_status.py`
+
+**特點**：
+- 支援 `userId` 或 `username` 參數訂閱特定用戶狀態
+- 連線計數器處理多分頁情境（同一用戶開多個分頁不會誤判離線）
+- 前端全局訂閱（在 Layout 層級）
+- UserCard 組件顯示綠色在線狀態指示器
+
+**前端整合**：
+
+| 檔案 | 職責 |
+|-----|------|
+| `frontend/src/lib/graphql/subscriptions/UserStatus.gql` | GraphQL subscription 定義 |
+| `frontend/src/lib/stores/userStatus.svelte.ts` | 用戶狀態 store |
+| `frontend/src/routes/+layout.svelte` | 全局訂閱管理 |
+| `frontend/src/lib/components/UserCard.svelte` | 在線狀態指示器 UI |
+
 ---
 
 ## 延伸閱讀
