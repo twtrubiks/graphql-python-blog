@@ -65,6 +65,12 @@
 	});
 
 	onMount(async () => {
+		// 刷新用戶資料（驗證 token 並同步伺服器資訊）
+		if (auth.isAuthenticated) {
+			console.log('[Layout] Refreshing user data on mount');
+			await auth.refreshUser();
+		}
+
 		// 初始化 postPublished subscription
 		postPublishedStore = new PostPublishedStore();
 

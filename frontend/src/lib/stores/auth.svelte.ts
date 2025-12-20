@@ -20,6 +20,7 @@
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { jwtDecode } from 'jwt-decode';
+import { GetMeStore } from '$houdini';
 
 interface User {
 	id: string;
@@ -30,6 +31,9 @@ interface User {
 	avatarUrl?: string;
 	isActive?: boolean;
 	isSuperuser?: boolean;
+	createdAt?: string;
+	followersCount?: number;
+	followingCount?: number;
 }
 
 interface AuthState {
@@ -180,6 +184,57 @@ function createAuthStore() {
 				return timeUntilExpiry > 0 && timeUntilExpiry < 86400;
 			} catch {
 				return false;
+			}
+		},
+
+		// 從伺服器刷新用戶資訊
+		async refreshUser(): Promise<boolean> {
+			if (!token) return false;
+
+			// 先檢查 token 是否已過期
+			if (isTokenExpired(token)) {
+				console.log('[Auth] Token expired, logging out');
+				this.logout();
+				return false;
+			}
+
+			isLoading = true;
+			try {
+				const getMeStore = new GetMeStore();
+				const result = await getMeStore.fetch();
+
+				if (result.data?.me) {
+					const serverUser = result.data.me;
+					user = {
+						id: serverUser.id,
+						email: serverUser.email,
+						username: serverUser.username,
+						fullName: serverUser.fullName ?? undefined,
+						bio: serverUser.bio ?? undefined,
+						avatarUrl: serverUser.avatarUrl ?? undefined,
+						isActive: serverUser.isActive ?? undefined,
+						isSuperuser: serverUser.isSuperuser ?? undefined,
+						createdAt: serverUser.createdAt ?? undefined,
+						followersCount: serverUser.followersCount ?? undefined,
+						followingCount: serverUser.followingCount ?? undefined
+					};
+					if (browser) {
+						localStorage.setItem('user', JSON.stringify(user));
+					}
+					console.log('[Auth] User refreshed successfully');
+					return true;
+				} else {
+					// me query 返回 null - token 無效或用戶被停用
+					console.log('[Auth] Server returned null for me query, logging out');
+					this.logout();
+					return false;
+				}
+			} catch (error) {
+				console.error('[Auth] Failed to refresh user:', error);
+				// 網路錯誤時保留本地狀態（允許離線使用）
+				return false;
+			} finally {
+				isLoading = false;
 			}
 		}
 	};
