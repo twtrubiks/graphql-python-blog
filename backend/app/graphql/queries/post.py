@@ -6,6 +6,7 @@ from strawberry.types import Info
 
 from app.graphql.types.post import PostType, PostConnection, PostEdge, PageInfo
 from app.services.post import PostService
+from app.services.user import UserService
 from app.core.auth import get_current_user_optional, require_auth
 from app.graphql.permissions import IsAuthenticated
 
@@ -223,6 +224,51 @@ class PostQuery:
             session,
             author_id=current_user.id,
             status=status,
+            page=page,
+            limit=limit
+        )
+
+        return PostQuery._create_connection(posts, total_count, page, limit)
+
+    @strawberry.field
+    async def posts_by_author(
+        self,
+        info: Info,
+        author_id: Optional[int] = None,
+        author_username: Optional[str] = None,
+        page: int = 1,
+        limit: int = 10
+    ) -> PostConnection:
+        """
+        Get published posts by a specific author (public)
+
+        Args:
+            author_id: Author's user ID
+            author_username: Author's username
+            page: Page number (1-indexed)
+            limit: Number of posts per page
+
+        Returns:
+            PostConnection with paginated published posts by the author
+        """
+        if not author_id and not author_username:
+            raise ValueError("Either author_id or author_username must be provided")
+
+        session = info.context["db_session"]
+
+        # If username provided, look up the author_id
+        if author_username and not author_id:
+            user = await UserService.get_user_by_username(session, author_username)
+            if not user:
+                # Return empty connection if user not found
+                return PostQuery._create_connection([], 0, page, limit)
+            author_id = user.id
+
+        # Get only published posts by author
+        posts, total_count = await PostService.get_posts_by_author(
+            session,
+            author_id=author_id,
+            status="PUBLISHED",
             page=page,
             limit=limit
         )

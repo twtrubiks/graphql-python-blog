@@ -1,0 +1,12 @@
+query GetUserPosts($authorUsername: String!, $page: Int = 1, $limit: Int = 10) {
+  postsByAuthor(authorUsername: $authorUsername, page: $page, limit: $limit) {
+    edges {
+      node {
+        ...PostCard @mask_disable
+      }
+    }
+    pageInfo {
+      ...PageInfoFields @mask_disable
+    }
+  }
+}

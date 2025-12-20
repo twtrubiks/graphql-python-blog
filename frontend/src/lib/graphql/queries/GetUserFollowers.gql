@@ -1,0 +1,15 @@
+query GetUserFollowers($username: String!) {
+  user(username: $username) {
+    id
+    username
+    fullName
+    followersCount
+    followingCount
+    followers {
+      ...AuthorDetailed @mask_disable
+    }
+    following {
+      ...AuthorDetailed @mask_disable
+    }
+  }
+}

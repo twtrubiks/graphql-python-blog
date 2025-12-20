@@ -101,7 +101,9 @@
 					</span>
 				</div>
 			{/if}
-			<span>{author.username}</span>
+			<a href="/users/{author.username}" class="hover:text-primary-600 transition-colors">
+				{author.username}
+			</a>
 		</div>
 		<time datetime={createdAt}>
 			{formatDate(createdAt)}
