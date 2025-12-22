@@ -4,6 +4,7 @@
 提供用戶個人資料更新功能。
 """
 
+import re
 import strawberry
 from typing import Optional
 from sqlalchemy import select
@@ -12,6 +13,17 @@ from strawberry.types import Info
 from app.models.user import User
 from app.graphql.types.user import UserType
 from app.core.auth import require_auth
+
+# 常數定義
+MAX_BIO_LENGTH = 200
+URL_PATTERN = re.compile(
+    r'^https?://'  # http:// 或 https://
+    r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # 域名
+    r'localhost|'  # localhost
+    r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # IP
+    r'(?::\d+)?'  # 可選的埠號
+    r'(?:/?|[/?]\S+)$', re.IGNORECASE
+)
 
 
 @strawberry.input
@@ -66,10 +78,16 @@ async def update_me(
         user.full_name = input.full_name.strip() if input.full_name else None
 
     if input.bio is not None:
-        user.bio = input.bio.strip() if input.bio else None
+        bio_value = input.bio.strip() if input.bio else None
+        if bio_value and len(bio_value) > MAX_BIO_LENGTH:
+            raise ValueError(f"個人簡介不能超過 {MAX_BIO_LENGTH} 字")
+        user.bio = bio_value
 
     if input.avatar_url is not None:
-        user.avatar_url = input.avatar_url.strip() if input.avatar_url else None
+        avatar_value = input.avatar_url.strip() if input.avatar_url else None
+        if avatar_value and not URL_PATTERN.match(avatar_value):
+            raise ValueError("請輸入有效的圖片網址")
+        user.avatar_url = avatar_value
 
     await db_session.commit()
     await db_session.refresh(user)

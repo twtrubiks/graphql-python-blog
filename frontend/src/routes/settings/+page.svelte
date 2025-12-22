@@ -153,10 +153,11 @@
 				id="bio"
 				bind:value={bio}
 				rows="4"
+				maxlength="200"
 				class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
 				placeholder="介紹一下自己..."
 			></textarea>
-			<p class="mt-1 text-xs text-gray-500">最多 200 字</p>
+			<p class="mt-1 text-xs text-gray-500">{bio.length}/200 字</p>
 		</div>
 
 		<!-- 頭像 URL -->

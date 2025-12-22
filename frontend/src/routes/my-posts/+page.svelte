@@ -230,9 +230,11 @@
 										發布於 {formatDate(post.publishedAt)}
 									</time>
 								{/if}
-								<span>·</span>
-								<span>💬 {post.totalComments}</span>
-								<span>❤️ {post.likesCount}</span>
+								{#if post.status === 'PUBLISHED'}
+									<span>·</span>
+									<span>💬 {post.totalComments}</span>
+									<span>❤️ {post.likesCount}</span>
+								{/if}
 							</div>
 						</div>
 
