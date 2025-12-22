@@ -32,7 +32,8 @@
 					page,
 					limit,
 					status: 'DRAFT'
-				}
+				},
+				policy: 'CacheAndNetwork'
 			});
 			postsData = result.data?.myPosts;
 			currentPage = page;
@@ -66,7 +67,17 @@
 			const result = await publishStore.mutate({ id: postId });
 			if (result.data?.publishPost) {
 				notifications.success(`「${postTitle}」已發布`);
-				loadDrafts();
+				// 直接更新本地狀態，不發網路請求
+				if (postsData?.edges) {
+					postsData = {
+						...postsData,
+						edges: postsData.edges.filter((edge: any) => edge.node.id !== postId),
+						pageInfo: {
+							...postsData.pageInfo,
+							totalCount: Math.max(0, (postsData.pageInfo.totalCount || 1) - 1)
+						}
+					};
+				}
 			} else {
 				notifications.error('發布失敗');
 			}
