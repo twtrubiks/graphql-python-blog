@@ -1,9 +1,11 @@
-import strawberry
+import asyncio
+import logging
 from datetime import datetime, timezone
+
+import strawberry
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload, joinedload
 from strawberry.types import Info
-import asyncio
 
 from app.models.post import Post
 from app.graphql.types.post import PostType, PostInput, UpdatePostInput, PostStatus
@@ -16,9 +18,40 @@ from app.graphql.subscriptions.post_deleted import PostDeletedEvent
 from app.core.database import AsyncSessionLocal
 
 
-async def _notify_post_published(author_id: int, post_type: PostType):
+async def _notify_followers_new_post(author_id: int, post_type: PostType) -> None:
     """
-    發布文章後觸發通知（使用獨立 session 避免狀態衝突）
+    通知追蹤者有新文章發布（使用獨立 session）
+
+    Args:
+        author_id: 文章作者 ID
+        post_type: PostType GraphQL 型別
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            follower_ids = await FollowService.get_follower_ids(session, author_id)
+            if follower_ids:
+                await FollowedUserPostEvent.publish_to_followers(follower_ids, post_type)
+    except Exception as e:
+        logging.error(f"Failed to notify followers about new post: {e}")
+
+
+async def _notify_followers_post_deleted(follower_ids: list[int], post_id: int) -> None:
+    """
+    通知追蹤者文章已刪除（純記憶體操作）
+
+    Args:
+        follower_ids: 追蹤者 ID 列表
+        post_id: 被刪除的文章 ID
+    """
+    try:
+        await PostDeletedEvent.publish_to_followers(follower_ids, post_id)
+    except Exception as e:
+        logging.error(f"Failed to notify followers about deleted post {post_id}: {e}")
+
+
+async def _notify_post_published(author_id: int, post_type: PostType) -> None:
+    """
+    發布文章後觸發通知
 
     Args:
         author_id: 文章作者 ID（用於查詢追蹤者）
@@ -27,14 +60,8 @@ async def _notify_post_published(author_id: int, post_type: PostType):
     # 觸發全域 subscription 事件
     asyncio.create_task(PostEvent.publish_post(post_type))
 
-    # 觸發追蹤用戶發文通知（使用獨立 session）
-    async def notify_followers():
-        async with AsyncSessionLocal() as session:
-            follower_ids = await FollowService.get_follower_ids(session, author_id)
-            if follower_ids:
-                await FollowedUserPostEvent.publish_to_followers(follower_ids, post_type)
-
-    asyncio.create_task(notify_followers())
+    # 觸發追蹤用戶發文通知
+    asyncio.create_task(_notify_followers_new_post(author_id, post_type))
 
 
 async def create_post(
@@ -159,14 +186,7 @@ async def delete_post(
 
     # 後台發送通知（純記憶體操作，不需要 session）
     if follower_ids:
-        async def safe_notify():
-            try:
-                await PostDeletedEvent.publish_to_followers(follower_ids, post_id)
-            except Exception as e:
-                import logging
-                logging.error(f"Failed to notify followers about deleted post {post_id}: {e}")
-
-        asyncio.create_task(safe_notify())
+        asyncio.create_task(_notify_followers_post_deleted(follower_ids, post_id))
 
     return DeletePostResult(
         success=True,
