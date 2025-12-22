@@ -34,7 +34,8 @@ from app.graphql.mutations.comment import CommentMutation
 from app.graphql.mutations.like import LikeMutation
 from app.graphql.mutations.follow import FollowMutation
 from app.graphql.queries.auth import me, protected_data, ProtectedData
-from app.graphql.queries.user import get_user, get_users
+from app.graphql.queries.user import get_user, get_users, get_online_users
+from app.graphql.subscriptions.user_status import OnlineUserInfo
 from app.graphql.queries.post import PostQuery
 from app.graphql.queries.search import SearchQuery
 from app.graphql.queries.tag import TagQuery
@@ -79,6 +80,9 @@ class Query(PostQuery, SearchQuery, TagQuery):
     )
     user: Optional[UserType] = strawberry.field(resolver=get_user)
     users: List[UserType] = strawberry.field(resolver=get_users)
+
+    # 在線用戶查詢（用於訂閱初始化）
+    online_users: List[OnlineUserInfo] = strawberry.field(resolver=get_online_users)
 
 
 @strawberry.type

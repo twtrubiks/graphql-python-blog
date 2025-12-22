@@ -5,7 +5,9 @@ from app.graphql.subscriptions.user_status import (
     UserStatusEvent,
     UserStatusSubscription,
     UserStatus,
+    OnlineUserInfo,
 )
+from app.graphql.queries.user import get_online_users
 
 
 @pytest.mark.asyncio
@@ -236,3 +238,36 @@ class TestUserStatusSubscription:
         online_users = UserStatusEvent.get_online_users()
         assert "online1" not in online_users
         assert "online2" in online_users
+
+    async def test_get_online_users_query_resolver(self):
+        """測試 get_online_users GraphQL query resolver 返回 OnlineUserInfo 列表"""
+        # 清理之前的狀態
+        UserStatusEvent._user_status.clear()
+        UserStatusEvent._user_connections.clear()
+        UserStatusEvent._user_info.clear()
+
+        # 設置一些用戶為在線狀態
+        await UserStatusEvent.user_connected("query_user1", "alice")
+        await UserStatusEvent.user_connected("query_user2", "bob")
+
+        # 使用 mock info 呼叫 resolver
+        class MockInfo:
+            pass
+
+        result = get_online_users(MockInfo())
+
+        # 驗證返回類型和內容
+        assert len(result) == 2
+        assert all(isinstance(item, OnlineUserInfo) for item in result)
+
+        user_ids = [str(item.user_id) for item in result]
+        usernames = [item.username for item in result]
+
+        assert "query_user1" in user_ids
+        assert "query_user2" in user_ids
+        assert "alice" in usernames
+        assert "bob" in usernames
+
+        # 清理測試狀態
+        await UserStatusEvent.user_disconnected("query_user1")
+        await UserStatusEvent.user_disconnected("query_user2")

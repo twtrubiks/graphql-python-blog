@@ -19,6 +19,13 @@ class UserStatusChange:
     timestamp: datetime
 
 
+@strawberry.type
+class OnlineUserInfo:
+    """在線用戶資訊，用於初始狀態查詢"""
+    user_id: strawberry.ID
+    username: str
+
+
 class UserStatusEvent:
     """用戶狀態事件管理器"""
     _subscribers: list[asyncio.Queue] = []

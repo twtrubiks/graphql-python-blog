@@ -5,7 +5,13 @@
 	import { notifications } from '$lib/stores/notifications.svelte';
 	import { userStatusStore } from '$lib/stores/userStatus.svelte';
 	import RealtimeNotification from '$lib/components/RealtimeNotification.svelte';
-	import { PostPublishedStore, FollowedUserPostedStore, UserStatusChangedStore } from '$houdini';
+	import {
+		PostPublishedStore,
+		FollowedUserPostedStore,
+		UserStatusChangedStore,
+		GetOnlineUsersStore
+	} from '$houdini';
+	import { createSubscriptionManager } from '$lib/utils/subscriptionManager.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import type { LayoutProps } from './$types';
 
@@ -14,65 +20,92 @@
 
 	let showUserMenu = $state(false);
 	let menuContainer: HTMLDivElement | null = $state(null);
-	let postPublishedStore: any = null;
-	let isSubscriptionActive = $state(false);
-	let lastPostId: string | null = null;
-	let storeUnsubscribe: (() => void) | null = null;
 	let tokenCheckInterval: ReturnType<typeof setInterval> | null = null;
 
-	// 追蹤用戶發文訂閱狀態
-	let followedPostsStore: FollowedUserPostedStore | null = null;
-	let isFollowedSubscriptionActive = $state(false);
+	// 用於去重的追蹤變數
+	let lastPostId: string | null = null;
 	let lastFollowedPostId: string | null = null;
-	let followedStoreUnsubscribe: (() => void) | null = null;
-
-	// 用戶在線狀態訂閱
-	let userStatusStore_sub: UserStatusChangedStore | null = null;
-	let isUserStatusSubscriptionActive = $state(false);
-	let userStatusUnsubscribe: (() => void) | null = null;
 
 	async function handleLogout() {
 		await auth.logout();
 		showUserMenu = false;
 	}
 
-	// 當用戶登入狀態改變時，啟動或停止追蹤訂閱
-	$effect(() => {
-		if (auth.isAuthenticated && auth.user?.id && !isFollowedSubscriptionActive) {
-			// 用戶剛登入，啟動訂閱
-			initFollowedUserSubscription();
-		} else if (!auth.isAuthenticated && isFollowedSubscriptionActive) {
-			// 用戶登出，停止訂閱
-			if (followedStoreUnsubscribe) {
-				followedStoreUnsubscribe();
-				followedStoreUnsubscribe = null;
+	// ===== 使用訂閱管理器 =====
+
+	// PostPublished 訂閱管理器（公開，不需認證）
+	const postPublishedManager = createSubscriptionManager<{ postPublished?: any }>({
+		name: 'PostPublished',
+		createStore: () => new PostPublishedStore(),
+		getListenParams: () => ({}),
+		requiresAuth: false,
+		onData: (data) => {
+			if (data.postPublished) {
+				const post = data.postPublished;
+				if (post.id !== lastPostId) {
+					lastPostId = post.id;
+					handleNewPost(post);
+				}
 			}
-			if (followedPostsStore) {
-				followedPostsStore.unlisten();
-				followedPostsStore = null;
+		},
+		onError: (error) => console.error('[PostPublished] Error:', error)
+	});
+
+	// FollowedUserPosted 訂閱管理器（需認證）
+	const followedUserManager = createSubscriptionManager<{ followedUserPosted?: any }>({
+		name: 'FollowedUserPosted',
+		createStore: () => new FollowedUserPostedStore(),
+		getListenParams: () => (auth.user?.id ? { userId: auth.user.id } : null),
+		requiresAuth: true,
+		onData: (data) => {
+			if (data.followedUserPosted) {
+				const newPost = data.followedUserPosted;
+				if (newPost.id !== lastFollowedPostId) {
+					lastFollowedPostId = newPost.id;
+					handleFollowedUserPost(newPost);
+				}
 			}
-			isFollowedSubscriptionActive = false;
+		},
+		onError: (error) => console.error('[FollowedUserPosted] Error:', error),
+		onCleanup: () => {
 			lastFollowedPostId = null;
 		}
 	});
 
-	// 當用戶登入狀態改變時，啟動或停止 UserStatus 訂閱
+	// UserStatus 訂閱管理器（需認證）
+	const userStatusManager = createSubscriptionManager<{ userStatusChanged?: any }>({
+		name: 'UserStatus',
+		createStore: () => new UserStatusChangedStore(),
+		getListenParams: () =>
+			auth.user?.id && auth.user?.username
+				? { userId: auth.user.id, username: auth.user.username }
+				: null,
+		requiresAuth: true,
+		onData: (data) => {
+			if (data.userStatusChanged) {
+				const { userId, status, username } = data.userStatusChanged;
+				userStatusStore.updateStatus(userId, status);
+				console.log('[UserStatus] Status changed:', username, status);
+			}
+		},
+		onError: (error) => console.error('[UserStatus] Error:', error),
+		onCleanup: () => userStatusStore.clear()
+	});
+
+	// 統一的認證狀態變更處理（合併原本兩個 $effect）
 	$effect(() => {
-		if (auth.isAuthenticated && auth.user?.id && !isUserStatusSubscriptionActive) {
-			// 用戶剛登入，啟動訂閱
-			initUserStatusSubscription();
-		} else if (!auth.isAuthenticated && isUserStatusSubscriptionActive) {
-			// 用戶登出，停止訂閱
-			if (userStatusUnsubscribe) {
-				userStatusUnsubscribe();
-				userStatusUnsubscribe = null;
+		if (auth.isAuthenticated && auth.user?.id) {
+			// 用戶已登入，初始化需認證的訂閱
+			if (!followedUserManager.isInitialized) {
+				followedUserManager.init();
 			}
-			if (userStatusStore_sub) {
-				userStatusStore_sub.unlisten();
-				userStatusStore_sub = null;
+			if (!userStatusManager.isInitialized) {
+				initUserStatusWithInitialState();
 			}
-			isUserStatusSubscriptionActive = false;
-			userStatusStore.clear();
+		} else if (!auth.isAuthenticated) {
+			// 用戶登出，清理訂閱
+			followedUserManager.cleanup();
+			userStatusManager.cleanup();
 		}
 	});
 
@@ -97,64 +130,11 @@
 			await auth.refreshUser();
 		}
 
-		// 初始化 postPublished subscription
-		postPublishedStore = new PostPublishedStore();
+		// 初始化公開訂閱（PostPublished 不需認證）
+		postPublishedManager.init();
 
-		// 建立 store subscription
-		storeUnsubscribe = postPublishedStore.subscribe((value: any) => {
-			if (!value || !isSubscriptionActive) return;
-
-			// 檢查是否有新文章
-			if (value.data?.postPublished) {
-				const post = value.data.postPublished;
-
-				// 避免重複處理
-				if (post.id !== lastPostId) {
-					lastPostId = post.id;
-
-					// 排除自己發的文章（不通知作者本人）
-					if (auth.user?.id && post.author?.id === auth.user.id) {
-						console.log('[Subscription] Skipping notification for own post');
-						return;
-					}
-
-					const authorName = post.author?.fullName || post.author?.username || '某用戶';
-
-					console.log('[Subscription] New post published:', post);
-
-					// 顯示通知
-					notifications.info(
-						`${authorName} 發表了新文章：${post.title}`,
-						{
-							duration: 8000,
-							link: {
-								text: '立即查看',
-								href: `/posts/${post.slug || post.id}`
-							}
-						}
-					);
-
-					// 如果在文章列表頁，可以考慮重新載入
-					if (page.url.pathname === '/posts' || page.url.pathname === '/') {
-						console.log('[Info] New post available. Consider refreshing the list.');
-					}
-				}
-			}
-
-			// 處理錯誤
-			if (value.error) {
-				console.error('[Subscription] Error:', value.error);
-			}
-		});
-
-		// 啟動 subscription
-		subscribeToNewPosts();
-
-		// 初始化追蹤用戶發文訂閱（僅限已登入用戶）
-		if (auth.isAuthenticated && auth.user?.id) {
-			initFollowedUserSubscription();
-			initUserStatusSubscription();
-		}
+		// 注意：需認證的訂閱由 $effect 處理，不在此處重複初始化
+		// 這樣避免了 $effect/onMount 競爭條件
 
 		// 設定定期檢查 token 過期
 		tokenCheckInterval = setInterval(() => {
@@ -174,56 +154,14 @@
 				}
 			}
 		}, 3600000); // 每小時檢查一次（適合 7 天的 token 週期）
-
-		return () => {
-			// onMount cleanup
-			if (storeUnsubscribe) {
-				storeUnsubscribe();
-				storeUnsubscribe = null;
-			}
-			if (followedStoreUnsubscribe) {
-				followedStoreUnsubscribe();
-				followedStoreUnsubscribe = null;
-			}
-			if (userStatusUnsubscribe) {
-				userStatusUnsubscribe();
-				userStatusUnsubscribe = null;
-			}
-			if (tokenCheckInterval) {
-				clearInterval(tokenCheckInterval);
-				tokenCheckInterval = null;
-			}
-		};
 	});
 
 	onDestroy(async () => {
-		// 清理 subscription
-		if (storeUnsubscribe) {
-			storeUnsubscribe();
-			storeUnsubscribe = null;
-		}
-		if (postPublishedStore && isSubscriptionActive) {
-			await postPublishedStore.unlisten();
-			isSubscriptionActive = false;
-		}
-		// 清理追蹤用戶發文訂閱
-		if (followedStoreUnsubscribe) {
-			followedStoreUnsubscribe();
-			followedStoreUnsubscribe = null;
-		}
-		if (followedPostsStore && isFollowedSubscriptionActive) {
-			await followedPostsStore.unlisten();
-			isFollowedSubscriptionActive = false;
-		}
-		// 清理用戶狀態訂閱
-		if (userStatusUnsubscribe) {
-			userStatusUnsubscribe();
-			userStatusUnsubscribe = null;
-		}
-		if (userStatusStore_sub && isUserStatusSubscriptionActive) {
-			await userStatusStore_sub.unlisten();
-			isUserStatusSubscriptionActive = false;
-		}
+		// 統一清理所有訂閱
+		await postPublishedManager.cleanup();
+		await followedUserManager.cleanup();
+		await userStatusManager.cleanup();
+
 		// 清理 token 檢查 interval
 		if (tokenCheckInterval) {
 			clearInterval(tokenCheckInterval);
@@ -231,67 +169,39 @@
 		}
 	});
 
-	async function subscribeToNewPosts() {
-		if (!postPublishedStore || isSubscriptionActive) return;
+	// ===== 事件處理函數 =====
 
-		console.log('[Subscription] Starting post published subscription');
-		isSubscriptionActive = true;
-
-		try {
-			// 觸發 subscription
-			await postPublishedStore.listen({});
-			console.log('[Subscription] Post published subscription connected');
-		} catch (error) {
-			console.error('[Subscription] Failed to start subscription:', error);
-			isSubscriptionActive = false;
+	/**
+	 * 處理新文章發布事件
+	 */
+	function handleNewPost(post: any) {
+		// 排除自己發的文章（不通知作者本人）
+		if (auth.user?.id && post.author?.id === auth.user.id) {
+			console.log('[PostPublished] Skipping notification for own post');
+			return;
 		}
-	}
 
-	function initFollowedUserSubscription() {
-		if (!auth.user?.id) return;
+		const authorName = post.author?.fullName || post.author?.username || '某用戶';
+		console.log('[PostPublished] New post published:', post);
 
-		followedPostsStore = new FollowedUserPostedStore();
-
-		// 監聽訂閱資料
-		followedStoreUnsubscribe = followedPostsStore.subscribe((value: any) => {
-			if (!value || !isFollowedSubscriptionActive) return;
-
-			if (value.data?.followedUserPosted) {
-				const newPost = value.data.followedUserPosted;
-
-				// 避免重複處理
-				if (newPost.id !== lastFollowedPostId) {
-					lastFollowedPostId = newPost.id;
-					handleFollowedUserPost(newPost);
-				}
-			}
-
-			if (value.error) {
-				console.error('[FollowedUserPosted] Error:', value.error);
+		// 顯示通知
+		notifications.info(`${authorName} 發表了新文章：${post.title}`, {
+			duration: 8000,
+			link: {
+				text: '立即查看',
+				href: `/posts/${post.slug || post.id}`
 			}
 		});
 
-		// 啟動訂閱
-		startFollowedUserSubscription();
-	}
-
-	async function startFollowedUserSubscription() {
-		if (!followedPostsStore || isFollowedSubscriptionActive || !auth.user?.id) return;
-
-		console.log('[FollowedUserPosted] Starting subscription for user:', auth.user.id);
-		isFollowedSubscriptionActive = true;
-
-		try {
-			await followedPostsStore.listen({
-				userId: auth.user.id
-			});
-			console.log('[FollowedUserPosted] Subscription connected');
-		} catch (error) {
-			console.error('[FollowedUserPosted] Failed to connect:', error);
-			isFollowedSubscriptionActive = false;
+		// 如果在文章列表頁，可以考慮重新載入
+		if (page.url.pathname === '/posts' || page.url.pathname === '/') {
+			console.log('[Info] New post available. Consider refreshing the list.');
 		}
 	}
 
+	/**
+	 * 處理追蹤用戶發文事件
+	 */
 	function handleFollowedUserPost(post: any) {
 		// 排除自己發的文章（不通知作者本人）
 		if (auth.user?.id && post.author?.id === auth.user.id) {
@@ -322,49 +232,35 @@
 		);
 	}
 
-	// ===== 用戶在線狀態訂閱 =====
-	function initUserStatusSubscription() {
-		if (!auth.user?.id) return;
-
-		userStatusStore_sub = new UserStatusChangedStore();
-
-		// 監聽訂閱資料
-		userStatusUnsubscribe = userStatusStore_sub.subscribe((value: any) => {
-			if (!value || !isUserStatusSubscriptionActive) return;
-
-			if (value.data?.userStatusChanged) {
-				const { userId, status, username } = value.data.userStatusChanged;
-				userStatusStore.updateStatus(userId, status);
-				console.log('[UserStatus] Status changed:', username, status);
-			}
-
-			if (value.error) {
-				console.error('[UserStatus] Subscription error:', value.error);
-			}
-		});
-
-		// 啟動訂閱
-		startUserStatusSubscription();
-	}
-
-	async function startUserStatusSubscription() {
-		if (!userStatusStore_sub || isUserStatusSubscriptionActive || !auth.user?.id || !auth.user?.username) return;
-
-		console.log('[UserStatus] Starting subscription for user:', auth.user.username);
-		isUserStatusSubscriptionActive = true;
+	/**
+	 * 初始化用戶狀態訂閱（包含初始狀態載入）
+	 * 解決「缺少初始狀態」問題：先查詢當前在線用戶，再啟動訂閱
+	 */
+	async function initUserStatusWithInitialState() {
+		if (userStatusManager.isInitialized) return;
 
 		try {
-			await userStatusStore_sub.listen({
-				userId: auth.user.id,
-				username: auth.user.username
-			});
-			console.log('[UserStatus] Subscription connected');
-		} catch (error) {
-			console.error('[UserStatus] Failed to connect:', error);
-			isUserStatusSubscriptionActive = false;
-		}
-	}
+			// 先獲取當前在線用戶列表
+			const onlineUsersStore = new GetOnlineUsersStore();
+			const result = await onlineUsersStore.fetch();
 
+			if (result.data?.onlineUsers) {
+				// 設置初始狀態
+				userStatusStore.setInitialStatuses(
+					result.data.onlineUsers.map((u: { userId: string; username: string }) => ({
+						userId: u.userId,
+						status: 'ONLINE' as const
+					}))
+				);
+				console.log('[UserStatus] Initial online users loaded:', result.data.onlineUsers.length);
+			}
+		} catch (error) {
+			console.error('[UserStatus] Failed to fetch initial online users:', error);
+		}
+
+		// 然後啟動訂閱監聽後續狀態變更
+		userStatusManager.init();
+	}
 </script>
 
 <div class="min-h-screen flex flex-col">

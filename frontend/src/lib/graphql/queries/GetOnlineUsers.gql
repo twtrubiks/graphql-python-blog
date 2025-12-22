@@ -1,0 +1,6 @@
+query GetOnlineUsers {
+	onlineUsers {
+		userId
+		username
+	}
+}

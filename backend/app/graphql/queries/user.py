@@ -1,8 +1,10 @@
 from typing import Optional, List
 from sqlalchemy import select
 from strawberry.types import Info
+import strawberry
 from app.models.user import User
 from app.graphql.types.user import UserType
+from app.graphql.subscriptions.user_status import UserStatusEvent, OnlineUserInfo
 
 
 async def get_user(
@@ -78,5 +80,25 @@ async def get_users(
     
     result = await db.execute(query)
     users = result.scalars().all()
-    
+
     return [UserType.from_orm(user) for user in users]
+
+
+def get_online_users(info: Info) -> List[OnlineUserInfo]:
+    """
+    查詢當前在線用戶列表
+
+    用於訂閱初始化時獲取當前已在線的用戶，
+    確保新訂閱者能看到完整的在線狀態。
+
+    Returns:
+        在線用戶列表（包含 user_id 和 username）
+    """
+    online_user_ids = UserStatusEvent.get_online_users()
+    return [
+        OnlineUserInfo(
+            user_id=strawberry.ID(uid),
+            username=UserStatusEvent._user_info.get(uid, "Unknown")
+        )
+        for uid in online_user_ids
+    ]
