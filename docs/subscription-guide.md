@@ -319,6 +319,53 @@ subscription UserStatus($userId: ID, $username: String) {
 | `frontend/src/lib/stores/userStatus.svelte.ts` | 用戶狀態 store |
 | `frontend/src/routes/+layout.svelte` | 全局訂閱管理 |
 | `frontend/src/lib/components/UserCard.svelte` | 在線狀態指示器 UI |
+| `frontend/src/lib/utils/subscriptionManager.svelte.ts` | 通用訂閱管理器 |
+
+**初始狀態查詢**：
+
+訂閱只會接收「變化」事件，新訂閱者需透過 query 取得當前狀態：
+
+```graphql
+query GetOnlineUsers {
+  onlineUsers {
+    userId
+    username
+  }
+}
+```
+
+---
+
+## 訂閱管理器 (subscriptionManager)
+
+解決 `$effect`/`onMount` 競爭條件導致的重複初始化問題。
+
+**使用方式**：
+
+```typescript
+import { createSubscriptionManager } from '$lib/utils/subscriptionManager.svelte';
+
+const manager = createSubscriptionManager({
+  name: 'UserStatus',
+  createStore: () => new UserStatusStore(),
+  getListenParams: () => auth.user ? { userId: auth.user.id } : null,
+  onData: (data) => handleStatusChange(data),
+  requiresAuth: true
+});
+
+// 在 $effect 中初始化（自動防重複）
+$effect(() => {
+  if (auth.user) manager.init();
+});
+
+// 清理
+onDestroy(() => manager.cleanup());
+```
+
+**核心功能**：
+- 防重複初始化（`isInitialized` 狀態鎖）
+- 統一生命週期管理（init → start → cleanup）
+- 支援認證檢查（`requiresAuth`）
 
 ---
 
