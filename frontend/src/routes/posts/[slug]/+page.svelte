@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { GetPostStore, AddCommentStore, LikePostStore, UnlikePostStore, CommentAddedStore, DeleteCommentStore, DeletePostStore, FollowUserStore, UnfollowUserStore } from '$houdini';
+	import { GetPostStore, AddCommentStore, LikePostStore, UnlikePostStore, CommentAddedStore, DeleteCommentStore, DeletePostStore, FollowUserStore, UnfollowUserStore, UpdateCommentStore } from '$houdini';
 	import { page } from '$app/state';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
@@ -13,6 +13,7 @@
 	const commentAddedStore = new CommentAddedStore();
 	const deleteCommentStore = new DeleteCommentStore();
 	const deletePostStore = new DeletePostStore();
+	const updateCommentStore = new UpdateCommentStore();
 
 	let post = $state<any>(null);
 	let isLoading = $state(true);
@@ -22,6 +23,11 @@
 	let isSubmittingComment = $state(false);
 	let isLiking = $state(false);
 	let deletingCommentId = $state<string | null>(null);
+
+	// 編輯評論狀態
+	let editingCommentId = $state<string | null>(null);
+	let editingContent = $state('');
+	let isUpdatingComment = $state(false);
 
 	// 文章刪除狀態
 	let isDeleting = $state(false);
@@ -376,6 +382,67 @@
 		return userId === commentAuthorId || userId === postAuthorId;
 	}
 
+	// 檢查是否可以編輯評論（只有評論作者）
+	function canEditComment(comment: any): boolean {
+		if (!auth.isAuthenticated || !auth.user) return false;
+		const userId = String(auth.user.id);
+		const commentAuthorId = String(comment.author.id);
+		return userId === commentAuthorId;
+	}
+
+	// 開始編輯評論
+	function startEditComment(comment: any) {
+		editingCommentId = comment.id;
+		editingContent = comment.content;
+	}
+
+	// 取消編輯
+	function cancelEditComment() {
+		editingCommentId = null;
+		editingContent = '';
+	}
+
+	// 儲存編輯
+	async function handleUpdateComment(commentId: string) {
+		if (!editingContent.trim()) {
+			notifications.warning('評論內容不能為空');
+			return;
+		}
+
+		isUpdatingComment = true;
+		try {
+			const result = await updateCommentStore.mutate({
+				commentId,
+				input: { content: editingContent }
+			});
+
+			if (result.data?.updateComment?.success) {
+				// 更新本地狀態
+				post = {
+					...post,
+					comments: post.comments.map((c: any) =>
+						c.id === commentId
+							? {
+									...c,
+									content: result.data.updateComment.comment.content,
+									updatedAt: result.data.updateComment.comment.updatedAt
+								}
+							: c
+					)
+				};
+				notifications.success('評論已更新');
+				cancelEditComment();
+			} else {
+				notifications.error(result.data?.updateComment?.message || '更新評論失敗');
+			}
+		} catch (err: any) {
+			console.error('更新評論失敗:', err);
+			notifications.error(err.message || '更新評論失敗');
+		} finally {
+			isUpdatingComment = false;
+		}
+	}
+
 	// 刪除評論
 	async function handleDeleteComment(commentId: string) {
 		if (!confirm('確定要刪除這則評論嗎？')) return;
@@ -714,27 +781,69 @@
 														<span class="text-xs text-gray-500">(已編輯)</span>
 													{/if}
 												</div>
-												{#if canDeleteComment(comment)}
-													<button
-														onclick={() => handleDeleteComment(comment.id)}
-														disabled={deletingCommentId === comment.id}
-														class="text-gray-400 hover:text-red-500 transition-colors p-1"
-														title="刪除評論"
-													>
-														{#if deletingCommentId === comment.id}
-															<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-																<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-																<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-															</svg>
-														{:else}
+												<!-- 操作按鈕區 -->
+												<div class="flex items-center gap-1">
+													{#if canEditComment(comment)}
+														<button
+															onclick={() => startEditComment(comment)}
+															class="text-gray-400 hover:text-blue-500 transition-colors p-1"
+															title="編輯評論"
+														>
 															<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-																<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+																<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
 															</svg>
-														{/if}
-													</button>
-												{/if}
+														</button>
+													{/if}
+													{#if canDeleteComment(comment)}
+														<button
+															onclick={() => handleDeleteComment(comment.id)}
+															disabled={deletingCommentId === comment.id}
+															class="text-gray-400 hover:text-red-500 transition-colors p-1"
+															title="刪除評論"
+														>
+															{#if deletingCommentId === comment.id}
+																<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+																	<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+																	<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+																</svg>
+															{:else}
+																<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+																</svg>
+															{/if}
+														</button>
+													{/if}
+												</div>
 											</div>
-											<p class="text-gray-700">{comment.content}</p>
+											<!-- 評論內容 / 編輯模式 -->
+											{#if editingCommentId === comment.id}
+												<div class="mt-2">
+													<textarea
+														bind:value={editingContent}
+														class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+														rows="3"
+														disabled={isUpdatingComment}
+													></textarea>
+													<div class="mt-2 flex justify-end gap-2">
+														<button
+															onclick={cancelEditComment}
+															disabled={isUpdatingComment}
+															class="btn btn-secondary btn-sm"
+														>
+															取消
+														</button>
+														<button
+															onclick={() => handleUpdateComment(comment.id)}
+															disabled={isUpdatingComment || !editingContent.trim()}
+															class="btn btn-primary btn-sm"
+														>
+															{isUpdatingComment ? '更新中...' : '儲存'}
+														</button>
+													</div>
+												</div>
+											{:else}
+												<p class="text-gray-700">{comment.content}</p>
+											{/if}
 										</div>
 									</div>
 								</div>

@@ -41,6 +41,12 @@ class CommentInput:
     content: str
 
 
+@strawberry.input
+class UpdateCommentInput:
+    """編輯評論的輸入類型"""
+    content: str
+
+
 @strawberry.type
 class CommentMutationResponse:
     success: bool

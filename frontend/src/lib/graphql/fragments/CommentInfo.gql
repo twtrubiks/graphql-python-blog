@@ -5,6 +5,6 @@ fragment CommentInfo on Comment {
   updatedAt
   isDeleted
   author {
-    ...AuthorBasic
+    ...AuthorBasic @mask_disable
   }
 }

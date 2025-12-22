@@ -1,0 +1,12 @@
+mutation UpdateComment($commentId: ID!, $input: UpdateCommentInput!) {
+  updateComment(commentId: $commentId, input: $input) {
+    success
+    message
+    comment {
+      id
+      content
+      createdAt
+      updatedAt
+    }
+  }
+}

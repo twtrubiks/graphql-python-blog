@@ -83,6 +83,40 @@ class CommentService:
         return len(result.scalars().all())
 
     @staticmethod
+    async def update_comment(
+        db: AsyncSession,
+        comment_id: int,
+        content: str,
+        user_id: int
+    ) -> Comment:
+        """編輯評論 - 只有評論作者可以編輯"""
+        # 檢查內容是否為空
+        if not content or not content.strip():
+            raise ValueError("評論內容不能為空")
+
+        # 獲取評論
+        comment = await db.get(Comment, comment_id, options=[selectinload(Comment.author), selectinload(Comment.post)])
+        if not comment:
+            raise ValueError("評論不存在")
+
+        # 檢查是否已刪除
+        if comment.deleted_at:
+            raise ValueError("評論已被刪除")
+
+        # 檢查權限：只有評論作者可以編輯（與刪除不同，文章作者不能編輯他人評論）
+        if comment.user_id != user_id:
+            raise PermissionError("沒有權限編輯此評論")
+
+        # 更新內容
+        comment.content = content.strip()
+        comment.updated_at = datetime.now(timezone.utc)
+
+        await db.commit()
+        await db.refresh(comment, ["author", "post"])
+
+        return comment
+
+    @staticmethod
     async def delete_comment(
         db: AsyncSession,
         comment_id: int,
