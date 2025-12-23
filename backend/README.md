@@ -22,20 +22,25 @@ backend/
 │   │   ├── schema.py      # 主要 Schema 定義
 │   │   ├── queries/       # GraphQL 查詢
 │   │   ├── mutations/     # GraphQL 變更
-│   │   ├── subscriptions/ # GraphQL 訂閱
+│   │   ├── subscriptions/ # GraphQL 訂閱（5 種即時通知）
 │   │   ├── types/         # GraphQL 類型定義
-│   │   ├── directives/    # 自定義指令（如 @auth）
-│   │   └── dataloaders/   # DataLoader 實作
+│   │   ├── permissions.py # 權限控制（IsAuthenticated 等）
+│   │   └── dataloaders.py # DataLoader 實作（8 種 Loader）
 │   ├── models/        # SQLAlchemy 資料模型
 │   │   ├── user.py        # 使用者模型
 │   │   ├── post.py        # 文章模型
 │   │   ├── comment.py     # 評論模型
-│   │   └── tag.py         # 標籤模型
+│   │   ├── tag.py         # 標籤模型
+│   │   ├── like.py        # 按讚模型
+│   │   └── follow.py      # 追蹤關係模型
 │   ├── services/      # 業務邏輯層
 │   │   ├── auth.py        # 認證服務
 │   │   ├── user.py        # 使用者服務
 │   │   ├── post.py        # 文章服務
-│   │   └── search.py      # 搜尋服務
+│   │   ├── comment.py     # 評論服務
+│   │   ├── like.py        # 按讚服務
+│   │   ├── follow.py      # 追蹤服務
+│   │   └── tag.py         # 標籤服務
 │   ├── core/          # 核心設定
 │   │   ├── config.py      # 環境變數配置
 │   │   ├── database.py    # 資料庫連線
@@ -53,6 +58,16 @@ backend/
 └── main.py           # 應用程式入口
 
 ```
+
+## 功能完成度
+
+| 項目 | 數量 | 測試覆蓋率 |
+|------|------|-----------|
+| Queries | 10+ | 76% |
+| Mutations | 15 | 76% |
+| Subscriptions | 5 | 100% |
+| DataLoaders | 8 | 88% |
+| 總測試數 | 284 | 全部通過 |
 
 ## 快速開始
 
@@ -75,25 +90,47 @@ http://localhost:8000/graphql
 
 #### 查詢 (Queries)
 - `posts` - 獲取文章列表（支援分頁、篩選）
-- `post` - 獲取單篇文章
+- `post` - 獲取單篇文章（by ID 或 slug）
+- `postsByTag` - 依單一標籤篩選文章
+- `postsByTags` - 依多個標籤篩選文章
+- `postsByAuthor` - 獲取特定作者的文章
+- `followingPosts` - 獲取追蹤用戶的文章
 - `user` - 獲取使用者資訊
 - `me` - 獲取當前登入使用者
-- `searchContent` - 全文搜尋（Union Type）
-- `tags` - 獲取標籤列表
+- `onlineUsers` - 獲取在線使用者列表
+- `search` - 全文搜尋（Union Type：文章+用戶）
+- `tags` - 獲取所有標籤列表
 
 #### 變更 (Mutations)
+**認證相關**
 - `register` - 使用者註冊
 - `login` - 使用者登入
+- `updateMe` - 更新個人資料
+
+**文章相關**
 - `createPost` - 創建文章
 - `updatePost` - 更新文章
 - `deletePost` - 刪除文章
+- `publishPost` - 發布草稿
+- `unpublishPost` - 取消發布（轉為草稿）
+
+**評論相關**
 - `addComment` - 新增評論
+- `updateComment` - 更新評論
+- `deleteComment` - 刪除評論
+
+**互動相關**
 - `likePost` - 按讚文章
 - `unlikePost` - 取消按讚
+- `followUser` - 追蹤用戶
+- `unfollowUser` - 取消追蹤
 
 #### 訂閱 (Subscriptions)
 - `commentAdded` - 新評論即時通知
-- `userStatusChanged` - 使用者狀態變更
+- `postPublished` - 文章發布通知
+- `followedUserPosted` - 追蹤用戶發文通知
+- `postDeleted` - 文章刪除通知
+- `userStatusChanged` - 使用者上線/離線狀態變更
 
 ### 認證機制
 
@@ -167,11 +204,18 @@ alembic downgrade -1
 
 ## DataLoader 優化
 
-專案使用 DataLoader 模式解決 N+1 查詢問題：
+專案使用 DataLoader 模式解決 N+1 查詢問題（實作於 `app/graphql/dataloaders.py`）：
 
-- `UserLoader` - 批次載入使用者
-- `PostLoader` - 批次載入文章
-- `CommentLoader` - 批次載入評論
+| DataLoader | 用途 |
+|------------|------|
+| `UserLoader` | 批次載入用戶資料 |
+| `PostLoader` | 批次載入文章 |
+| `CommentLoader` | 批次載入評論 |
+| `PostCommentsLoader` | 批次載入文章的所有評論 |
+| `LikeCountLoader` | 批次載入文章按讚數 |
+| `UserLikedPostsLoader` | 批次載入用戶按讚的文章 |
+| `FollowersCountLoader` | 批次載入追蹤者數量 |
+| `FollowingCountLoader` | 批次載入追蹤中數量 |
 
 詳細實作請參考 [DataLoader 實作指南](../docs/dataloader-implementation.md)
 
