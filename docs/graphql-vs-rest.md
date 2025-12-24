@@ -448,7 +448,7 @@ type Post {
 
 ✅ 多個客戶端類型
 
-✅ 需要即時更新（Subscriptions）
+✅ 需要即時更新（[Subscriptions](./subscription-guide.md)）
 
 ✅ 想要更好的開發體驗
 

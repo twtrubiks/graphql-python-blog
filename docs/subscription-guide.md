@@ -369,7 +369,140 @@ onDestroy(() => manager.cleanup());
 
 ---
 
+## ⚠️ 限制與擴展方案
+
+### 目前實作的限制
+
+本專案使用 **記憶體內的 asyncio.Queue** 管理訂閱者：
+
+```python
+class PostEvent:
+    _subscribers: list[asyncio.Queue] = []  # ← 記憶體中的類別變數
+```
+
+**限制說明：**
+
+| 限制 | 說明 |
+|------|------|
+| 記憶體儲存 | `_subscribers` 儲存在 Server 記憶體中 |
+| 重啟清空 | 重啟 Server 後，所有訂閱狀態會清空 |
+| 單機限制 | **僅適用於單機部署** |
+
+> **注意**：重啟 Server 時 WebSocket 連線本就會斷開，客戶端會自動重連並重新訂閱，因此單機情境下這不是問題。
+
+### 多機部署問題
+
+當使用多台 Server 負載均衡時，會發生訂閱隔離問題：
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    負載均衡器                              │
+└─────────────────┬────────────────────┬───────────────────┘
+                  │                    │
+                  ▼                    ▼
+         ┌──────────────┐      ┌──────────────┐
+         │   Server A   │      │   Server B   │
+         │ _sub = [A]   │      │ _sub = [B]   │
+         │ 用戶A 連這台  │      │ 用戶B 連這台  │
+         └──────────────┘      └──────────────┘
+
+問題：用戶A 發文時，PostEvent.publish() 只會通知 Server A 的訂閱者
+     → 用戶B 收不到通知！
+```
+
+### 擴展方案
+
+根據規模選擇適合的方案：
+
+| 方案 | 適用場景 | 複雜度 | 說明 |
+|------|---------|--------|------|
+| **目前方式** | 單機部署、開發環境 | ⭐ 簡單 | 無需額外依賴 |
+| **Redis Pub/Sub** | 多台 Server | ⭐⭐ 中等 | 輕量級，適合大多數場景 |
+| **Kafka/RabbitMQ** | 大規模、高可用 | ⭐⭐⭐ 複雜 | 訊息持久化、重播能力 |
+
+### Redis Pub/Sub 實作範例
+
+若需要支援多機部署，可改用 Redis 作為訊息中介：
+
+```python
+# 概念範例（需安裝 redis 套件）
+import aioredis
+
+class PostEventRedis:
+    """使用 Redis Pub/Sub 的事件管理器"""
+
+    CHANNEL = "post_events"
+
+    @classmethod
+    async def publish_post(cls, post: PostType):
+        """發布到 Redis Channel"""
+        redis = await aioredis.from_url("redis://localhost")
+        await redis.publish(cls.CHANNEL, post.json())
+        await redis.close()
+
+    @classmethod
+    async def subscribe(cls) -> AsyncGenerator[PostType, None]:
+        """訂閱 Redis Channel"""
+        redis = await aioredis.from_url("redis://localhost")
+        pubsub = redis.pubsub()
+        await pubsub.subscribe(cls.CHANNEL)
+
+        try:
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    post_data = json.loads(message["data"])
+                    yield PostType(**post_data)
+        finally:
+            await pubsub.unsubscribe(cls.CHANNEL)
+            await redis.close()
+```
+
+**Redis 方案優點：**
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    負載均衡器                              │
+└─────────────────┬────────────────────┬───────────────────┘
+                  │                    │
+                  ▼                    ▼
+         ┌──────────────┐      ┌──────────────┐
+         │   Server A   │      │   Server B   │
+         │   用戶A      │      │   用戶B      │
+         └───────┬──────┘      └───────┬──────┘
+                 │                     │
+                 └──────────┬──────────┘
+                            ▼
+                    ┌──────────────┐
+                    │    Redis     │
+                    │   Pub/Sub    │
+                    └──────────────┘
+
+用戶A 發文 → Redis 廣播 → 所有 Server 收到 → 所有用戶收到 ✅
+```
+
+### 選擇建議
+
+```
+你的使用情境是？
+
+├── 開發/測試環境
+│   └── ✅ 使用目前方式（記憶體 Queue）
+│
+├── 單機生產環境
+│   └── ✅ 使用目前方式（記憶體 Queue）
+│
+├── 多機部署（2-10 台）
+│   └── ✅ 使用 Redis Pub/Sub
+│
+└── 大規模部署（10+ 台）/ 需要訊息持久化
+    └── ✅ 使用 Kafka 或 RabbitMQ
+```
+
+---
+
 ## 延伸閱讀
 
 - [Strawberry GraphQL Subscriptions](https://strawberry.rocks/docs/general/subscriptions)
 - [Houdini Subscriptions](https://houdinigraphql.com/guides/subscriptions)
+- [Redis Pub/Sub 官方文檔](https://redis.io/docs/manual/pubsub/)
+- [aioredis Python 套件](https://aioredis.readthedocs.io/)

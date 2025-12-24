@@ -297,6 +297,9 @@ query {
 ## 進階主題
 
 ### Subscription（訂閱）- 即時更新
+
+> 詳細實作與限制說明請參考 [Subscription 即時通訊指南](./subscription-guide.md)
+
 ```graphql
 subscription OnCommentAdded($postId: ID!) {
   commentAdded(postId: $postId) {
