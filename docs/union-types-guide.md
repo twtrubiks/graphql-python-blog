@@ -311,11 +311,12 @@ class SearchQuery:
 
         search_term = term.lower()
 
-        # 搜尋文章
+        # 搜尋文章（只搜尋已發布的）
         post_stmt = select(Post).where(
             or_(
                 func.lower(Post.title).contains(search_term),
-                func.lower(Post.content).contains(search_term)
+                func.lower(Post.content).contains(search_term),
+                func.lower(Post.excerpt).contains(search_term)
             ),
             Post.status == "published"
         )
@@ -336,13 +337,15 @@ class SearchQuery:
                 created_at=post.created_at,
                 updated_at=post.updated_at
             )
+            # 設置私有的 excerpt 欄位
+            post_type._excerpt = post.excerpt
             results.append(post_type)
 
         # 搜尋用戶
         user_stmt = select(User).where(
             or_(
                 func.lower(User.username).contains(search_term),
-                func.lower(User.bio).contains(search_term)
+                func.lower(User.bio).contains(search_term) if User.bio else False
             )
         )
 

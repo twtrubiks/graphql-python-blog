@@ -17,7 +17,7 @@
 
 本系統採用現代化的前後端分離架構，以 GraphQL 作為 API 層，實現高效的資料查詢與變更。
 
-後端使用 Python 3.13 搭配 FastAPI 框架，前端使用 SvelteKit 與 Svelte 5，資料庫採用 PostgreSQL 搭配 pgvector 擴充套件支援向量搜尋。
+後端使用 Python 3.13 搭配 FastAPI 框架，前端使用 SvelteKit 與 Svelte 5，資料庫採用 PostgreSQL。
 
 ### 技術元件分類
 
@@ -27,8 +27,8 @@
 - **Strawberry** - GraphQL 函式庫
 - **SQLAlchemy 2.0** - ORM
 
-#### 選用元件（增強功能）
-- **pgvector** - 向量搜尋（進階 AI 功能）
+#### 選用元件（未來擴充）
+- **pgvector** - 向量搜尋（尚未實作）
 
 ### 核心原則
 
@@ -83,14 +83,12 @@ graph TB
     end
 
     subgraph "Data Layer"
-        DB[(PostgreSQL 16<br/>+ pgvector)]
-        FileStore[File Storage<br/>Local]
+        DB[(PostgreSQL 16)]
     end
 
     WebApp -->|GraphQL over HTTP/HTTPS| API
     WebApp -->|WebSocket| API
     API --> DB
-    API --> FileStore
 
     style WebApp fill:#1168bd,stroke:#333,stroke-width:2px,color:#fff
     style API fill:#1168bd,stroke:#333,stroke-width:2px,color:#fff
@@ -122,12 +120,10 @@ graph TB
 
         subgraph "Data Access"
             Models[SQLAlchemy Models]
-            Repos[Repositories]
         end
 
         subgraph "Cross-Cutting"
-            MW[Middleware<br/>CORS, Auth, Logging]
-            Valid[Validators<br/>輸入驗證]
+            MW[Middleware<br/>CORS]
         end
     end
 
@@ -144,10 +140,12 @@ graph TB
     UserSvc --> DataLoader
     CommentSvc --> DataLoader
 
-    DataLoader --> Repos
-    Auth --> Repos
-
-    Repos --> Models
+    DataLoader --> Models
+    Auth --> Models
+    PostSvc --> Models
+    UserSvc --> Models
+    CommentSvc --> Models
+    SearchSvc --> Models
 
     style GQL fill:#1168bd,stroke:#333,stroke-width:2px,color:#fff
     style TypeDefs fill:#1168bd,stroke:#333,stroke-width:2px,color:#fff
@@ -174,25 +172,35 @@ GraphQL Type 系統圖，展示 Schema 定義與關係解析。
 classDiagram
     class Query {
         <<GraphQL Root>>
-        +posts(page, limit, tag, authorId): PostConnection!
+        +posts(page, limit, search): PostConnection!
         +post(id, slug): Post
         +me(): User
         +user(id, username): User
-        +users(page, limit): UserConnection!
         +search(term): [SearchResult!]!
-        +tags(popular): [Tag!]!
+        +tags(): [Tag!]!
+        ----
+        ... 更多查詢見輔助類型表格
     }
 
     class Mutation {
         <<GraphQL Root>>
-        +register(input): AuthPayload!
+        +register(email, password, username): AuthPayload!
         +login(email, password): AuthPayload!
-        +createPost(input): Post!
-        +updatePost(id, input): Post!
-        +deletePost(id): Boolean!
-        +likePost(postId): Post!
-        +createComment(postId, content): Comment!
-        +followUser(userId): User!
+        +create_post(input): Post!
+        +update_post(id, input): Post!
+        +delete_post(id): DeletePostResult!
+        +add_comment(postId, content): Comment!
+        ----
+        ... 更多變更見輔助類型表格
+    }
+
+    class Subscription {
+        <<GraphQL Root>>
+        +comment_added(postId): Comment!
+        +user_status_changed(userId, username): UserStatusChange!
+        +post_published(): Post!
+        +followed_user_posted(userId): Post!
+        +post_deleted(userId): Post!
     }
 
     class User {
@@ -200,14 +208,10 @@ classDiagram
         +ID id
         +String email
         +String username
-        +String bio
-        +String avatarUrl
-        +DateTime createdAt
+        +String avatar_url
         ====Resolvers====
-        +posts(): [Post!]!
         +followers(): [User!]!
         +following(): [User!]!
-        +isFollowing(): Boolean!
     }
 
     class Post {
@@ -215,28 +219,21 @@ classDiagram
         +ID id
         +String title
         +String slug
-        +String content
-        +String excerpt
         +PostStatus status
-        +DateTime createdAt
-        +DateTime updatedAt
+        +Int author_id
         ====Resolvers====
         +author(): User!
         +tags(): [Tag!]!
         +comments(): [Comment!]!
-        +likes(): Int!
-        +isLiked(): Boolean!
-        +readTime(): Int!
     }
 
     class Comment {
         <<GraphQL Type>>
         +ID id
         +String content
-        +DateTime createdAt
+        +DateTime created_at
         ====Resolvers====
         +author(): User!
-        +post(): Post!
     }
 
     class Tag {
@@ -244,23 +241,12 @@ classDiagram
         +ID id
         +String name
         +String slug
-        ====Resolvers====
-        +posts(): [Post!]!
     }
 
     class SearchResult {
         <<Union Type>>
         PostType | UserType
     }
-
-    Query --> User : returns
-    Query --> Post : returns
-    Query --> Tag : returns
-    Query --> SearchResult : returns
-
-    Mutation --> User : returns
-    Mutation --> Post : returns
-    Mutation --> Comment : returns
 
     User "1" --> "*" Post : authors
     User "*" --> "*" User : follows
@@ -271,13 +257,70 @@ classDiagram
     Comment "*" --> "1" Post : on
 ```
 
+> **關係符號說明：**
+> - `"1" --> "*"` 一對多（如：一個 User 可以寫多篇 Post）
+> - `"*" --> "*"` 多對多（如：多個 User 可以追蹤多個 User）
+> - 自我關聯（如 `User --> User`）表示同一實體間的關係
+
+> **關係解讀：**
+>
+> | 關係 | 解讀 |
+> |------|------|
+> | `User "1" --> "*" Post : authors` | 一個 User 可以寫多篇 Post |
+> | `User "*" --> "*" User : follows` | 多個 User 可以追蹤多個 User（多對多） |
+> | `User "*" --> "*" Post : likes` | 多個 User 可以喜歡多篇 Post（多對多） |
+> | `Post "1" --> "*" Comment : has` | 一篇 Post 可以有多個 Comment |
+> | `Post "*" --> "*" Tag : tagged` | 多篇 Post 可以有多個 Tag（多對多） |
+> | `Comment "*" --> "1" User : written by` | 多個 Comment 由一個 User 寫 |
+> | `Comment "*" --> "1" Post : on` | 多個 Comment 在一篇 Post 上 |
+
 > **GraphQL Schema 特色：**
 > - **Type System**：強型別定義，提供自動驗證和文件
 > - **Resolver Pattern**：每個欄位都可以有獨立的解析邏輯
-> - **計算欄位**：如 `isLiked`、`readTime` 等動態計算
+> - **計算欄位**：如 `is_liked`、`likes_count`、`total_comments` 等動態計算
 > - **關係導航**：客戶端可自由組合查詢關聯資料
 > - **單一入口**：所有操作通過 Query/Mutation/Subscription
 > - **Union Types**：支援多型返回值，如搜尋結果可同時返回文章和用戶（[詳細說明](./union-types-guide.md)）
+
+> **命名約定：** Python 欄位使用 snake_case（如 `avatar_url`），GraphQL Schema 自動轉換為 camelCase（如 `avatarUrl`）。
+
+#### 輔助類型參考
+
+##### Enum Types
+
+| Enum | 值 | 說明 |
+|------|----|------|
+| PostStatus | DRAFT, PUBLISHED, ARCHIVED | 文章狀態 |
+| UserStatus | ONLINE, OFFLINE | 用戶在線狀態 |
+
+##### Input Types
+
+| Input Type | 用於 | 欄位 |
+|------------|------|------|
+| PostInput | create_post | title, content, excerpt?, slug?, status?, tags? |
+| UpdatePostInput | update_post | title?, content?, excerpt?, slug?, status?, tags? |
+| UpdateUserInput | update_me | username?, full_name?, bio?, avatar_url? |
+| CommentInput | （已定義但未使用） | content |
+| UpdateCommentInput | update_comment | content |
+
+##### Response Types
+
+| Response Type | 用於 | 欄位 |
+|---------------|------|------|
+| AuthPayload | register, login | user, token |
+| PostConnection | posts 分頁查詢 | edges, page_info |
+| DeletePostResult | delete_post | success, message |
+| LikeMutationResponse | like_post, unlike_post | success, message, post? |
+| CommentMutationResponse | update_comment, delete_comment | success, message?, comment? |
+| FollowResponse | follow_user | success, message, follow? |
+| UnfollowResponse | unfollow_user | success, message |
+
+##### Subscription Types
+
+| Type | 欄位 | 說明 |
+|------|------|------|
+| UserStatusChange | user_id, username, status, timestamp | 用戶狀態變更事件 |
+| OnlineUserInfo | user_id, username | 在線用戶資訊 |
 
 ### Subscription 即時通訊架構
 
@@ -306,11 +349,12 @@ sequenceDiagram
 ```
 
 **實作的 Subscription 功能：**
+
 - `commentAdded(postId: ID!)` - 文章新評論即時通知
-- `userStatusChanged(userId: ID!)` - 用戶上線/離線狀態追蹤
+- `userStatusChanged(userId: ID!, username: String!)` - 用戶上線/離線狀態追蹤
 - `postPublished` - 新文章發布通知
-- `followedUserPosted` - 追蹤用戶發文通知
-- `postDeleted` - 文章刪除即時更新
+- `followedUserPosted(userId: ID!)` - 追蹤用戶發文通知（需傳入當前用戶 ID）
+- `postDeleted(userId: ID!)` - 文章刪除即時更新（需傳入當前用戶 ID）
 
 ## 技術決策
 
@@ -388,12 +432,13 @@ sequenceDiagram
 3. **維護成本降低**：程式碼即文檔，自動同步更新
 4. **效能優異**：原生異步支援，適合高並發場景
 
-### 為什麼選擇 PostgreSQL + pgvector？
+### 為什麼選擇 PostgreSQL？
 
 1. **關聯式資料**: 部落格資料本質上是關聯式的
 2. **ACID 特性**: 確保資料一致性
-3. **向量搜尋**: pgvector 支援語義搜尋
+3. **全文搜尋**: 內建全文搜尋功能
 4. **成熟穩定**: PostgreSQL 是最可靠的開源資料庫
+5. **擴展性**: 未來可透過 pgvector 擴充支援向量搜尋
 
 ### 為什麼選擇 SvelteKit + Svelte 5？
 
@@ -411,15 +456,12 @@ sequenceDiagram
     participant Client
     participant GraphQL
     participant Service
-    participant Repository
     participant Database
 
     Client->>GraphQL: GraphQL Query
     GraphQL->>Service: Call Service Method
-    Service->>Repository: Query Data
-    Repository->>Database: SQL Query
-    Database-->>Repository: Result Set
-    Repository-->>Service: Domain Objects
+    Service->>Database: SQL Query (SQLAlchemy)
+    Database-->>Service: Result Set
     Service-->>GraphQL: Return Data
     GraphQL-->>Client: GraphQL Response
 ```
@@ -432,44 +474,16 @@ sequenceDiagram
     participant GraphQL
     participant Auth
     participant Service
-    participant Repository
     participant Database
 
     Client->>GraphQL: GraphQL Mutation
     GraphQL->>Auth: Verify JWT
     Auth-->>GraphQL: User Context
     GraphQL->>Service: Execute Business Logic
-    Service->>Repository: Persist Changes
-    Repository->>Database: INSERT/UPDATE/DELETE
-    Database-->>Repository: Confirmation
-    Repository-->>Service: Updated Entity
+    Service->>Database: INSERT/UPDATE/DELETE (SQLAlchemy)
+    Database-->>Service: Confirmation
     Service-->>GraphQL: Return Result
     GraphQL-->>Client: GraphQL Response
-```
-
-### 向量搜尋流程 (選用功能)
-
-> 此功能需要 pgvector 擴充套件，為選用的進階功能
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant GraphQL
-    participant SearchService
-    participant VectorService
-    participant EmbeddingModel
-    participant Database
-
-    Client->>GraphQL: Search Query
-    GraphQL->>SearchService: Search Request
-    SearchService->>VectorService: Generate Embedding
-    VectorService->>EmbeddingModel: Text to Vector
-    EmbeddingModel-->>VectorService: Vector Embedding
-    VectorService->>Database: Vector Similarity Search
-    Database-->>VectorService: Similar Documents
-    VectorService-->>SearchService: Search Results
-    SearchService-->>GraphQL: Formatted Results
-    GraphQL-->>Client: Search Response
 ```
 
 ## GraphQL 安全特性
@@ -535,9 +549,6 @@ CREATE INDEX idx_posts_status ON posts(status) WHERE status = 'published';
 
 -- 全文搜尋索引
 CREATE INDEX idx_posts_search ON posts USING gin(to_tsvector('english', title || ' ' || content));
-
--- 向量搜尋索引
-CREATE INDEX idx_posts_embedding ON posts USING ivfflat (embedding vector_cosine_ops);
 ```
 
 4. **快取策略（選用）**
@@ -551,8 +562,8 @@ CREATE INDEX idx_posts_embedding ON posts USING ivfflat (embedding vector_cosine
    - SQLAlchemy 異步 Session
 
 2. **異步操作**
-   - 向量生成（使用異步函式）
-   - 圖片處理（使用異步函式）
+   - 資料庫查詢（使用異步 Session）
+   - GraphQL Subscription（WebSocket 連線）
 
 ### 基本監控（教學用）
 

@@ -198,16 +198,32 @@ query NextPage {
 
 ## 在我們專案中的實作
 
-### 目前的簡化版本
+### 混合模式：Relay 結構 + 頁碼分頁
+
+本專案採用**混合模式**，結合了 Relay Connection Pattern 的結構優點與傳統頁碼分頁的便利性：
+
+- ✅ 使用 Relay 的三層結構（Connection → Edge → Node）
+- ✅ 支援跳頁功能（傳統分頁優勢）
+- ❌ 不使用 cursor（簡化實作）
+
+這種方式適合部落格等資料變動頻率較低的應用。
 
 ```python
 # backend/app/graphql/types/post.py
-# 這段程式碼在定義 GraphQL 的型別結構
+
+@strawberry.type
+class PageInfo:
+    """分頁資訊 - 採用頁碼模式而非游標模式"""
+    has_next_page: bool       # 還有下一頁嗎？
+    has_previous_page: bool   # 有上一頁嗎？
+    total_count: int          # 總共幾篇文章
+    current_page: int         # 現在第幾頁
+    total_pages: int          # 總共幾頁
 
 @strawberry.type
 class PostEdge:
     """文章的包裝盒"""
-    node: PostType    # 文章本身（目前只有這個，未來可加入更多欄位）
+    node: PostType    # 文章本身
 
 @strawberry.type
 class PostConnection:
@@ -222,42 +238,49 @@ class PostConnection:
 # backend/app/graphql/queries/post.py
 # 這段程式碼示範如何把資料庫的文章包裝成 Relay 格式
 
+# 計算分頁資訊
+total_pages = (total_count + limit - 1) // limit if total_count > 0 else 0
+has_next_page = page < total_pages
+has_previous_page = page > 1
+
 # 步驟 1：把每篇文章包裝成 Edge
 edges = [
-    PostEdge(
-        node=PostType.from_orm(post)  # 把資料庫的文章轉成 GraphQL 型別
-    )
+    PostEdge(node=PostType.from_orm(post))
     for post in posts  # posts 是從資料庫查出來的文章列表
 ]
 
-# 步驟 2：建立完整的連接物件
+# 步驟 2：建立分頁資訊
+page_info = PageInfo(
+    has_next_page=has_next_page,
+    has_previous_page=has_previous_page,
+    total_count=total_count,
+    current_page=page,
+    total_pages=total_pages
+)
+
+# 步驟 3：回傳完整的連接物件
 return PostConnection(
-    edges=edges,    # 包裝好的文章列表
-    page_info=PageInfo(
-        has_next_page=has_next,           # 還有下一頁嗎？
-        has_previous_page=(page > 1),    # 不是第一頁就有上一頁
-        total_count=total,                # 總共幾篇文章
-        current_page=page,                # 現在第幾頁
-        total_pages=total_pages           # 總共幾頁
-    )
+    edges=edges,
+    page_info=page_info
 )
 ```
 
 ## 優缺點對比
 
-| 特點 | Relay Pattern | 傳統分頁 |
-|------|--------------|----------|
-| 穩定性 | ✅ 資料變動不影響 | ❌ 可能看到重複內容 |
-| 額外資訊 | ✅ 可儲存關係資料 | ❌ 只有資料本身 |
-| 跳頁 | ❌ 不能跳到第N頁 | ✅ 可以直接跳頁 |
-| 複雜度 | ❌ 需要理解三層結構 | ✅ 簡單直覺 |
-| 標準化 | ✅ 業界標準 | ❌ 各家不同 |
+| 特點 | Relay (Cursor) | 混合模式（本專案） | 傳統分頁 |
+|------|---------------|------------------|----------|
+| 穩定性 | ✅ 資料變動不影響 | ⚠️ 同傳統分頁 | ❌ 可能看到重複內容 |
+| 額外資訊 | ✅ 可儲存關係資料 | ✅ 可儲存關係資料 | ❌ 只有資料本身 |
+| 跳頁 | ❌ 不能跳到第N頁 | ✅ 可以直接跳頁 | ✅ 可以直接跳頁 |
+| 複雜度 | ❌ 需要理解三層結構 | ⚠️ 中等 | ✅ 簡單直覺 |
+| 標準化 | ✅ 業界標準 | ⚠️ 非標準 | ❌ 各家不同 |
+| 適用場景 | 社交動態牆 | 部落格、CMS | 簡單列表 |
 
 **一句話總結**：
 
-如果你的應用像 Instagram/Facebook 一樣資料一直在變，用 Relay；
-
-如果只是簡單的部落格或產品列表，用傳統分頁就好。
+- **社交應用**（資料頻繁變動）→ 用完整 Relay (Cursor)
+- **部落格/CMS**（需要結構化但變動少）→ 用混合模式（本專案採用）
+- **簡單列表**（快速開發）→ 用傳統分頁
 
 ## 我的專案需要用這個嗎？
 

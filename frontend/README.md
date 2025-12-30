@@ -56,48 +56,22 @@ npm run dev
 ```
 frontend/
 ├── src/
-│   ├── routes/           # SvelteKit 路由
-│   │   ├── +layout.svelte    # 根 layout（使用 Svelte 5 語法）
-│   │   ├── +layout.ts        # SSR/CSR 配置
-│   │   ├── +page.svelte      # 首頁
-│   │   ├── +page.ts          # 頁面載入函數
-│   │   ├── login/            # 登入頁面
-│   │   └── +error.svelte     # 錯誤頁面
+│   ├── routes/           # SvelteKit 路由（文章、用戶、搜尋等頁面）
 │   ├── lib/
-│   │   ├── components/   # 可重用元件
-│   │   │   └── Button.svelte # Svelte 5 元件範例
+│   │   ├── components/   # 可重用元件（PostCard, UserCard 等）
 │   │   ├── graphql/      # GraphQL 操作定義
-│   │   │   ├── queries/      # GraphQL 查詢
-│   │   │   │   ├── GetPosts.gql
-│   │   │   │   ├── GetPost.gql
-│   │   │   │   ├── GetMe.gql
-│   │   │   │   └── SearchContent.gql
-│   │   │   ├── mutations/    # GraphQL 變更
-│   │   │   │   ├── Login.gql
-│   │   │   │   ├── Register.gql
-│   │   │   │   ├── CreatePost.gql
-│   │   │   │   ├── AddComment.gql
-│   │   │   │   ├── LikePost.gql
-│   │   │   │   └── UnlikePost.gql
-│   │   │   └── subscriptions/ # GraphQL 訂閱
-│   │   │       ├── CommentAdded.gql
-│   │   │       └── UserStatus.gql
-│   │   ├── stores/       # Svelte stores
-│   │   │   └── auth.svelte.ts # 認證 store（.svelte.ts 支援 runes）
+│   │   │   ├── fragments/    # 可重用欄位片段
+│   │   │   ├── queries/      # 查詢操作
+│   │   │   ├── mutations/    # 變更操作
+│   │   │   └── subscriptions/ # 訂閱操作
+│   │   ├── stores/       # Svelte stores（auth, notifications）
 │   │   └── utils/        # 工具函數
-│   ├── client.ts        # Houdini GraphQL 客戶端設置
-│   ├── env.d.ts         # 環境變數 TypeScript 定義
-│   ├── app.html         # HTML 模板
-│   ├── app.css          # 全域樣式（Tailwind）
-│   └── app.d.ts         # TypeScript 定義
-├── .houdini/            # Houdini 生成的檔案（git-ignored）
-├── static/              # 靜態檔案
-├── .env                 # 環境變數
-├── houdini.config.js    # Houdini 配置
-├── svelte.config.js     # SvelteKit 配置
-├── tailwind.config.js   # Tailwind 配置
-├── postcss.config.js    # PostCSS 配置
-└── tsconfig.json        # TypeScript 配置
+│   ├── client.ts         # Houdini GraphQL 客戶端設置
+│   ├── app.html          # HTML 模板
+│   └── app.css           # 全域樣式（Tailwind）
+├── houdini.config.js     # Houdini 配置
+├── svelte.config.js      # SvelteKit 配置
+└── tailwind.config.js    # Tailwind 配置
 ```
 
 ## GraphQL 整合 (Houdini)
@@ -154,21 +128,10 @@ frontend/
 #### 專案檔案結構
 ```
 src/lib/graphql/
-├── queries/           # 查詢操作
-│   ├── GetPosts.gql      # 獲取文章列表
-│   ├── GetPost.gql       # 獲取單篇文章
-│   ├── GetMe.gql         # 獲取當前使用者
-│   └── SearchContent.gql # 搜尋內容
-├── mutations/         # 變更操作
-│   ├── Login.gql         # 使用者登入
-│   ├── Register.gql      # 使用者註冊
-│   ├── CreatePost.gql    # 創建文章
-│   ├── AddComment.gql    # 新增評論
-│   ├── LikePost.gql      # 按讚文章
-│   └── UnlikePost.gql    # 取消按讚
-└── subscriptions/     # 訂閱操作
-    ├── CommentAdded.gql  # 新評論通知
-    └── UserStatus.gql    # 使用者狀態變更
+├── fragments/      # 可重用欄位片段（AuthorBasic, PostCard 等）
+├── queries/        # 查詢操作（GetPosts, GetMe, SearchContent 等）
+├── mutations/      # 變更操作（Login, CreatePost, FollowUser 等）
+└── subscriptions/  # 訂閱操作（CommentAdded, PostPublished 等）
 ```
 
 #### .gql 檔案範例

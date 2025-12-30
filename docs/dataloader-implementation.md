@@ -115,17 +115,6 @@ author1_again = await user_loader.load(1)
 
 ## 效能提升結果
 
-根據測試報告，DataLoader 帶來了顯著的效能提升：
-
-### 測試結果摘要
-
-| 測試案例 | 無 DataLoader | 有 DataLoader | 改善幅度 | 加速倍數 |
-|---------|--------------|--------------|---------|---------|
-| 小型查詢 (10 posts) | 0.031s | 0.005s | 85.1% | 6.70x |
-| 中型查詢 (25 posts) | 0.059s | 0.009s | 85.1% | 6.73x |
-| 大型查詢 (50 posts) | 0.097s | 0.024s | 75.6% | 4.10x |
-| **平均** | - | - | **81.9%** | **5.84x** |
-
 ### 關鍵改善
 
 1. **N+1 問題解決**: 將多個獨立查詢合併為單一批次查詢
@@ -146,7 +135,7 @@ async def author(self, info: strawberry.Info) -> UserType:
         # 使用 DataLoader 批次載入
         user = await dataloaders.get_user_loader().load(self.author_id)
         return UserType.from_orm(user) if user else None
-    
+
     # 降級到直接查詢
     session = info.context["db_session"]
     user = await UserService.get_user_by_id(session, self.author_id)
@@ -155,16 +144,26 @@ async def author(self, info: strawberry.Info) -> UserType:
 
 ### 2. Context 設置
 
-DataLoader 會在每個請求中自動初始化：
+DataLoader 透過 `GraphQLContext` 類別延遲初始化，只在需要時才建立：
 
 ```python
-async def get_context(request: Request, db_session: AsyncSession):
-    dataloader_context = DataLoaderContext(db_session, user_id)
-    return {
-        "db_session": db_session,
-        "request": request,
-        "dataloaders": dataloader_context
-    }
+# app/main.py
+class GraphQLContext:
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
+        self._dataloaders = None  # 延遲初始化，提升效能
+
+    @property
+    def dataloaders(self) -> DataLoaderContext:
+        # 只在首次存取時才建立 DataLoader
+        if self._dataloaders is None:
+            self._dataloaders = DataLoaderContext(self.db_session, self.user_id)
+        return self._dataloaders
+
+async def get_context(
+    db_session: AsyncSession = Depends(get_async_session),
+) -> GraphQLContext:
+    return GraphQLContext(db_session)
 ```
 
 ## 測試覆蓋

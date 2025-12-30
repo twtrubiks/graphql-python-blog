@@ -197,7 +197,10 @@ class TestUserQuery:
         # Assert: 驗證結果
         assert response.status_code == 200
         data = response.json()
-        assert data["data"]["user"]["email"] == "queryuser@example.com"
+        assert data["data"]["user"]["username"] == "queryuser"
+        assert data["data"]["user"]["bio"] == "Test user bio"
+        # 注意：未認證的查詢中，email 因權限保護會是 None
+        assert data["data"]["user"]["email"] is None
 ```
 
 執行測試：

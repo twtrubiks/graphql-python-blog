@@ -88,7 +88,7 @@ alembic revision -m "Manual migration for custom changes"
 1. **修改 Model 檔案**
    ```python
    # 例如在 app/models/user.py 新增欄位
-   avatar: str = Column(String(255), nullable=True)
+   avatar_url = Column(String, nullable=True)
    ```
 
 2. **生成遷移檔案**
@@ -117,13 +117,14 @@ alembic revision -m "Manual migration for custom changes"
 確保新的 Model 檔案在 `alembic/env.py` 中被 import：
 ```python
 # 在 alembic/env.py 中
-from app.models import user, post, comment, tag  # 新增的 model
+from app.models import user, post, comment  # 目前已 import 的 models
+# 注意：tag, like, follow 透過 post/user 的關聯自動載入
 ```
 
 ### 2. 資料庫連線設定
-- 開發環境使用 `.env` 檔案設定
-- Alembic 會自動轉換連線字串為 asyncpg 格式
-- 預設連接到 `localhost:5432`
+- 開發環境使用 `.env` 檔案設定（`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`）
+- `alembic/env.py` 會從 settings 讀取配置並組合成 `postgresql+asyncpg://` URL
+- 預設值定義在 `alembic.ini`，但會被 `env.py` 動態覆蓋
 
 ### 3. 遷移檔案版本控制
 - 所有 `alembic/versions/*.py` 檔案都應該加入 git

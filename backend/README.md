@@ -17,46 +17,15 @@
 ```
 backend/
 ├── app/
-│   ├── api/           # REST API 端點（如有需要）
-│   ├── graphql/       # GraphQL Schema 和 Resolvers
-│   │   ├── schema.py      # 主要 Schema 定義
-│   │   ├── queries/       # GraphQL 查詢
-│   │   ├── mutations/     # GraphQL 變更
-│   │   ├── subscriptions/ # GraphQL 訂閱（5 種即時通知）
-│   │   ├── types/         # GraphQL 類型定義
-│   │   ├── permissions.py # 權限控制（IsAuthenticated 等）
-│   │   └── dataloaders.py # DataLoader 實作（8 種 Loader）
-│   ├── models/        # SQLAlchemy 資料模型
-│   │   ├── user.py        # 使用者模型
-│   │   ├── post.py        # 文章模型
-│   │   ├── comment.py     # 評論模型
-│   │   ├── tag.py         # 標籤模型
-│   │   ├── like.py        # 按讚模型
-│   │   └── follow.py      # 追蹤關係模型
+│   ├── api/           # REST API 端點
+│   ├── graphql/       # GraphQL（queries/mutations/subscriptions/types）
+│   ├── models/        # SQLAlchemy 資料模型（User/Post/Comment/Tag/Like/Follow）
 │   ├── services/      # 業務邏輯層
-│   │   ├── auth.py        # 認證服務
-│   │   ├── user.py        # 使用者服務
-│   │   ├── post.py        # 文章服務
-│   │   ├── comment.py     # 評論服務
-│   │   ├── like.py        # 按讚服務
-│   │   ├── follow.py      # 追蹤服務
-│   │   └── tag.py         # 標籤服務
-│   ├── core/          # 核心設定
-│   │   ├── config.py      # 環境變數配置
-│   │   ├── database.py    # 資料庫連線
-│   │   ├── security.py    # 安全相關工具
-│   │   └── deps.py        # 依賴注入
-│   └── utils/         # 工具函數
-├── tests/             # 測試檔案
-│   ├── graphql/           # GraphQL 測試
-│   ├── services/          # 服務層測試
-│   └── integration/       # 整合測試
+│   ├── core/          # 核心設定（config/database/security/deps）
+│   └── main.py        # 應用程式入口
+├── tests/             # 測試（graphql/services/models/integration）
 ├── alembic/           # 資料庫遷移
-│   ├── versions/          # 遷移版本檔案
-│   └── alembic.ini        # Alembic 設定
-├── requirements.txt   # 專案依賴
-└── main.py           # 應用程式入口
-
+└── requirements.txt   # 專案依賴
 ```
 
 ## 功能完成度
@@ -243,11 +212,15 @@ alembic downgrade -1
 
 | 變數名稱 | 說明 | 預設值 |
 |---------|------|--------|
-| DATABASE_URL | PostgreSQL 連接字串 | - |
+| DB_HOST | 資料庫主機 | localhost |
+| DB_PORT | 資料庫連接埠 | 5432 |
+| DB_USER | 資料庫用戶 | blog_user |
+| DB_PASSWORD | 資料庫密碼 | blog_password |
+| DB_NAME | 資料庫名稱 | blog_db |
 | SECRET_KEY | JWT 密鑰 | - |
 | ALGORITHM | JWT 算法 | HS256 |
 | ACCESS_TOKEN_EXPIRE_MINUTES | Token 過期時間（分鐘，預設 7 天） | 10080 |
-| DEBUG | 除錯模式 | False |
+| DEBUG | 除錯模式 | True |
 
 ## 相關文件
 

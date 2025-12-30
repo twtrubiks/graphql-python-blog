@@ -122,13 +122,11 @@ await CommentEvent.publish(str(post_id), comment_type)
 
 subscription CommentAdded($postId: ID!) {
   commentAdded(postId: $postId) {
-    id
-    content
-    createdAt
-    updatedAt
-    isDeleted
-    author { id, username, avatarUrl }
-    post { id, totalComments }
+    ...CommentInfo @mask_disable
+    post {
+      id
+      totalComments
+    }
   }
 }
 ```
@@ -215,7 +213,7 @@ onDestroy(async () => {
 
 ## 連線狀態指示器
 
-前端實作了視覺化的連線狀態（參考 `+page.svelte:549-576`）：
+前端實作了視覺化的連線狀態（參考 `+page.svelte:696-723`）：
 
 | 狀態 | 顯示 |
 |-----|------|
@@ -240,7 +238,7 @@ frontend/
 ├── src/lib/graphql/subscriptions/
 │   └── CommentAdded.gql        # GraphQL 定義
 └── src/routes/posts/[slug]/
-    └── +page.svelte:38-152     # 訂閱生命週期管理
+    └── +page.svelte:51-173     # 訂閱生命週期管理
 ```
 
 ---
@@ -267,10 +265,12 @@ subscription PostPublished {
 ### followedUserPosted - 追蹤用戶發文通知
 
 ```graphql
-subscription FollowedUserPosted {
-  followedUserPosted {
+subscription FollowedUserPosted($userId: ID!) {
+  followedUserPosted(userId: $userId) {
     id
     title
+    slug
+    excerpt
     author { username }
   }
 }
@@ -278,27 +278,36 @@ subscription FollowedUserPosted {
 
 **檔案位置**：`backend/app/graphql/subscriptions/followed_user_post.py`
 
+**特點**：
+- 需要提供 `userId` 必填參數（訂閱者的用戶 ID）
+- 只會推送追蹤的作者發布的文章
+
 ### postDeleted - 文章刪除通知
 
 ```graphql
-subscription PostDeleted {
-  postDeleted
+subscription PostDeleted($userId: ID!) {
+  postDeleted(userId: $userId)
 }
 ```
 
 **檔案位置**：`backend/app/graphql/subscriptions/post_deleted.py`
 
-### userStatus - 用戶在線狀態訂閱 ⭐
+**特點**：
+- 需要提供 `userId` 必填參數（訂閱者的用戶 ID）
+- 返回被刪除的文章 ID
+- 用於即時更新 /following 頁面
+
+### userStatusChanged - 用戶在線狀態訂閱 ⭐
 
 即時追蹤用戶的在線/離線狀態，支援多分頁連線計數。
 
 ```graphql
-subscription UserStatus($userId: ID, $username: String) {
-  userStatus(userId: $userId, username: $username) {
+subscription UserStatusChanged($userId: ID!, $username: String!) {
+  userStatusChanged(userId: $userId, username: $username) {
     userId
     username
-    isOnline
-    lastSeen
+    status
+    timestamp
   }
 }
 ```
@@ -306,7 +315,7 @@ subscription UserStatus($userId: ID, $username: String) {
 **檔案位置**：`backend/app/graphql/subscriptions/user_status.py`
 
 **特點**：
-- 支援 `userId` 或 `username` 參數訂閱特定用戶狀態
+- 需要提供 `userId` 和 `username` 必填參數（用於通知上線）
 - 連線計數器處理多分頁情境（同一用戶開多個分頁不會誤判離線）
 - 前端全局訂閱（在 Layout 層級）
 - UserCard 組件顯示綠色在線狀態指示器

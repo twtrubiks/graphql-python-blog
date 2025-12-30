@@ -83,6 +83,7 @@ query {
 | `IsSuperuser` | 超級用戶 | 管理功能、敏感資料 |
 | `IsOwnerOrSuperuser` | 擁有者或管理員 | 私密欄位如 email |
 | `IsOwnerOrReadOnly` | 擁有者可寫，其他人只讀 | 公開內容的編輯 |
+| `CanManageUsers` | 超級用戶專用 | 用戶列表、禁用用戶 |
 
 ### 權限組合邏輯
 
@@ -139,7 +140,7 @@ class IsOwnerOrSuperuser(BasePermission):
 ```python
 # backend/app/graphql/types/user.py
 import strawberry
-from strawberry.extensions import PermissionExtension
+from strawberry.permission import PermissionExtension
 
 @strawberry.type
 class UserType:
@@ -160,18 +161,21 @@ class UserType:
 ### 權限應用範例
 
 **Query 權限**
+
 - `me` → 需要認證
-- `users` → 需要超級用戶權限
+- `users` → 公開查詢
 - `posts` → 公開查詢
 
 **Mutation 權限**
+
 - `createPost` → 需要認證
 - `updatePost` → 需要認證且是擁有者
 - `deletePost` → 需要認證且是擁有者
 
 **Field 權限**
+
 - `UserType.email` → 只有擁有者或超級用戶能看（已實作）
-- `UserType.is_superuser` → 所有認證用戶都能看到（公開欄位）
+- `UserType.is_superuser` → 公開欄位（無權限限制）
 
 ## 最佳實踐
 
