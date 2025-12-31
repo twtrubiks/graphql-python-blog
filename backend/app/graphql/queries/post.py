@@ -4,7 +4,7 @@ from typing import Optional, List
 import strawberry
 from strawberry.types import Info
 
-from app.graphql.types.post import PostType, PostConnection, PostEdge, PageInfo
+from app.graphql.types.post import PostType, PostConnection, PostEdge, PageInfo, PostStatus
 from app.services.post import PostService
 from app.services.user import UserService
 from app.core.auth import get_current_user_optional, require_auth
@@ -201,7 +201,7 @@ class PostQuery:
         info: Info,
         page: int = 1,
         limit: int = 10,
-        status: Optional[str] = None
+        status: Optional[PostStatus] = None
     ) -> PostConnection:
         """
         Get current user's posts (both published and drafts)
@@ -209,7 +209,7 @@ class PostQuery:
         Args:
             page: Page number (1-indexed)
             limit: Number of posts per page
-            status: Filter by status ('PUBLISHED', 'DRAFT', or None for all)
+            status: Filter by status (PUBLISHED, DRAFT, or None for all)
 
         Returns:
             PostConnection with paginated posts by current user
@@ -219,11 +219,11 @@ class PostQuery:
         # Get current user
         current_user = await require_auth(info)
 
-        # Get posts by author
+        # Get posts by author (pass enum value for service layer)
         posts, total_count = await PostService.get_posts_by_author(
             session,
             author_id=current_user.id,
-            status=status,
+            status=status.value if status else None,
             page=page,
             limit=limit
         )
@@ -268,7 +268,7 @@ class PostQuery:
         posts, total_count = await PostService.get_posts_by_author(
             session,
             author_id=author_id,
-            status="PUBLISHED",
+            status=PostStatus.PUBLISHED.value,
             page=page,
             limit=limit
         )

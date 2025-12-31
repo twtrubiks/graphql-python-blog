@@ -10,7 +10,7 @@ GraphQL Blog Platform Tutorial
 
 ### 技術規格
 - **Python**: 3.13 (最新版)
-- **後端**: FastAPI + Strawberry + SQLAlchemy 2.0 + PostgreSQL 16
+- **後端**: FastAPI + Strawberry + SQLAlchemy 2.0 + PostgreSQL 18
 - **前端**: SvelteKit 2.x + Svelte 5 (Runes) + Houdini
 - **進階**: pgvector (第二階段)
 
@@ -64,7 +64,7 @@ GraphQL Blog Platform Tutorial
 
 ### 核心技術棧
 - **後端**: FastAPI + Strawberry (GraphQL) + SQLAlchemy 2.0
-- **資料庫**: PostgreSQL 16
+- **資料庫**: PostgreSQL 18
 - **前端**: SvelteKit + Houdini (GraphQL Client)
 - **進階**: pgvector (選用 - 語義搜尋)
 

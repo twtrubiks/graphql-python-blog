@@ -2,7 +2,8 @@
 	import { page } from '$app/state';
 
 	// Svelte 5: 使用 $derived rune
-	let statusCode = $derived(page.error?.status || 500);
+	// page.status 是 HTTP 狀態碼，page.error 是錯誤物件
+	let statusCode = $derived(page.status);
 	let message = $derived(page.error?.message || '發生未知錯誤');
 </script>
 

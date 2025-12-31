@@ -258,7 +258,7 @@ subscription OnCommentAdded($postId: ID!) {
 version: '3.8'
 services:
   db:
-    image: postgres:16
+    image: postgres:18
     environment:
       POSTGRES_DB: blog
 

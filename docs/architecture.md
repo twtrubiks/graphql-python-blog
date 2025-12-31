@@ -22,7 +22,7 @@
 ### 技術元件分類
 
 #### 核心元件（必需）
-- **PostgreSQL 16** - 主要資料庫
+- **PostgreSQL 18** - 主要資料庫
 - **FastAPI** - Web 框架
 - **Strawberry** - GraphQL 函式庫
 - **SQLAlchemy 2.0** - ORM
@@ -83,7 +83,7 @@ graph TB
     end
 
     subgraph "Data Layer"
-        DB[(PostgreSQL 16)]
+        DB[(PostgreSQL 18)]
     end
 
     WebApp -->|GraphQL over HTTP/HTTPS| API

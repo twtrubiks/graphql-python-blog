@@ -36,7 +36,8 @@
 					page,
 					limit,
 					status: statusFilter === 'all' ? null : statusFilter
-				}
+				},
+				policy: 'CacheAndNetwork'
 			});
 			postsData = result.data?.myPosts;
 			currentPage = page;

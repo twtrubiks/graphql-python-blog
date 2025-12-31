@@ -5,6 +5,7 @@
 	import { notifications } from '$lib/stores/notifications.svelte';
 	import { goto } from '$app/navigation';
 	import { onMount, onDestroy } from 'svelte';
+	import MarkdownRenderer from '$lib/components/MarkdownRenderer.svelte';
 
 	const postStore = new GetPostStore();
 	const addCommentStore = new AddCommentStore();
@@ -498,20 +499,6 @@
 			showDeleteConfirm = false;
 		}
 	}
-
-	function renderMarkdown(content: string) {
-		// 簡單的 markdown 轉換，實際專案應使用 markdown 函式庫
-		return content
-			.replace(/^### (.*$)/gim, '<h3 class="text-xl font-semibold mt-4 mb-2">$1</h3>')
-			.replace(/^## (.*$)/gim, '<h2 class="text-2xl font-semibold mt-6 mb-3">$1</h2>')
-			.replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold mt-8 mb-4">$1</h1>')
-			.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-			.replace(/\*(.+?)\*/g, '<em>$1</em>')
-			.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" class="link text-primary-600">$1</a>')
-			.replace(/\n\n/g, '</p><p class="mb-4">')
-			.replace(/^/, '<p class="mb-4">')
-			.replace(/$/, '</p>');
-	}
 </script>
 
 <svelte:head>
@@ -612,9 +599,7 @@
 			</header>
 
 			<!-- Article Content -->
-			<div class="prose prose-lg max-w-none mb-8">
-				{@html renderMarkdown(post.content)}
-			</div>
+			<MarkdownRenderer content={post.content} class="mb-8" />
 
 			<!-- Article Actions -->
 			<div class="flex items-center gap-4 py-4 border-y mb-8">

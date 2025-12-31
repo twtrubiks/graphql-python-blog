@@ -1,4 +1,4 @@
-query GetMyPosts($page: Int = 1, $limit: Int = 10, $status: String) {
+query GetMyPosts($page: Int = 1, $limit: Int = 10, $status: PostStatus) {
   myPosts(page: $page, limit: $limit, status: $status) {
     edges {
       node {

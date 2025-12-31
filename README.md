@@ -21,7 +21,7 @@
   - 選擇理由：原生 Type Hints 支援、與 FastAPI 完美整合、簡潔的裝飾器語法
   - 相比 Graphene 更現代化、更 Pythonic、開發效率更高
 - **SQLAlchemy 2.0** - ORM 與資料庫操作
-- **PostgreSQL 16** - 主要資料庫
+- **PostgreSQL 18** - 主要資料庫
 - **pgvector** - 向量搜尋擴充套件（進階功能）(尚未實做)
 
 ### 前端

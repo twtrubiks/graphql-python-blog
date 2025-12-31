@@ -620,7 +620,7 @@ class PostService:
         Args:
             session: 資料庫 session
             author_id: 作者 ID
-            status: 文章狀態篩選 ('PUBLISHED', 'DRAFT', 或 None 表示全部)
+            status: 文章狀態篩選 ('published', 'draft', 或 None 表示全部)
             page: 頁碼（從 1 開始）
             limit: 每頁數量
 

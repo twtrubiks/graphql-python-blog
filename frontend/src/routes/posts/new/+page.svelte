@@ -4,6 +4,7 @@
 	import { notifications } from '$lib/stores/notifications.svelte';
 	import { goto } from '$app/navigation';
 	import TagInput from '$lib/components/TagInput.svelte';
+	import MarkdownRenderer from '$lib/components/MarkdownRenderer.svelte';
 
 	const createPostStore = new CreatePostStore();
 
@@ -21,8 +22,6 @@
 
 	let hasRedirected = $state(false);
 
-	let renderedContent = $derived(renderMarkdown(content));
-
 	$effect(() => {
 		if (!auth.isAuthenticated && !hasRedirected) {
 			hasRedirected = true;
@@ -30,24 +29,6 @@
 			goto('/login');
 		}
 	});
-
-	function renderMarkdown(text: string) {
-		if (!text) return '';
-
-		return text
-			.replace(/^### (.*$)/gim, '<h3 class="text-xl font-semibold mt-4 mb-2">$1</h3>')
-			.replace(/^## (.*$)/gim, '<h2 class="text-2xl font-semibold mt-6 mb-3">$1</h2>')
-			.replace(/^# (.*$)/gim, '<h1 class="text-3xl font-bold mt-8 mb-4">$1</h1>')
-			.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-			.replace(/\*(.+?)\*/g, '<em>$1</em>')
-			.replace(/`(.+?)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded">$1</code>')
-			.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" class="link text-primary-600">$1</a>')
-			.replace(/^- (.+)$/gim, '<li class="ml-4">$1</li>')
-			.replace(/^[0-9]+\. (.+)$/gim, '<li class="ml-4">$1</li>')
-			.replace(/\n\n/g, '</p><p class="mb-4">')
-			.replace(/^/, '<p class="mb-4">')
-			.replace(/$/, '</p>');
-	}
 
 	function validateForm() {
 		errors = {};
@@ -309,13 +290,11 @@
 					</div>
 				{/if}
 
-				<div class="prose max-w-none">
-					{#if content}
-						{@html renderedContent}
-					{:else}
-						<p class="text-gray-400">文章內容預覽將顯示在這裡</p>
-					{/if}
-				</div>
+				{#if content}
+					<MarkdownRenderer {content} />
+				{:else}
+					<p class="text-gray-400">文章內容預覽將顯示在這裡</p>
+				{/if}
 			</div>
 		</div>
 	</div>

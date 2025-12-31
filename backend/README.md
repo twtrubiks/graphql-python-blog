@@ -8,7 +8,7 @@
 - **FastAPI** - 高效能的現代化 Web 框架
 - **Strawberry** - Python GraphQL 函式庫
 - **SQLAlchemy 2.0** - ORM 與資料庫操作
-- **PostgreSQL 16** - 主要資料庫
+- **PostgreSQL 18** - 主要資料庫
 - **Alembic** - 資料庫遷移管理
 - **JWT** - 身份驗證機制
 
@@ -43,7 +43,7 @@ backend/
 ### 環境需求
 
 - Python 3.13+
-- PostgreSQL 16
+- PostgreSQL 18
 - Docker (可選，用於資料庫)
 
 ## GraphQL API

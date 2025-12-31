@@ -47,9 +47,9 @@ query Me {
   }
 }
 
-# 獲取文章列表
+# 獲取文章列表（只返回已發布文章）
 query GetPosts {
-  posts(limit: 10, status: PUBLISHED) {
+  posts(limit: 10) {
     edges {
       node {
         id
@@ -60,7 +60,9 @@ query GetPosts {
         likesCount
       }
     }
-    totalCount
+    pageInfo {
+      totalCount
+    }
   }
 }
 ```
@@ -105,11 +107,11 @@ query GetHomeFeed {
 }
 ```
 
-### 使用變數的查詢
+### 使用變數的查詢（依標籤篩選文章）
 
 ```graphql
-query GetPostsByTag($tag: String!, $limit: Int = 10) {
-  posts(tag: $tag, limit: $limit, status: PUBLISHED) {
+query GetPostsByTag($tagSlug: String!, $limit: Int = 10) {
+  postsByTag(tagSlug: $tagSlug, limit: $limit) {
     edges {
       node {
         id
@@ -124,7 +126,7 @@ query GetPostsByTag($tag: String!, $limit: Int = 10) {
 
 # Variables:
 {
-  "tag": "GraphQL",
+  "tagSlug": "graphql",
   "limit": 20
 }
 ```
