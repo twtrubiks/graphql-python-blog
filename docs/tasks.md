@@ -69,12 +69,15 @@
   tests/
   ├── conftest.py         # pytest 配置與 fixtures
   ├── factories.py        # 測試資料工廠
-  ├── graphql/
-  │   ├── queries/
-  │   ├── mutations/
-  │   └── subscriptions/
-  ├── services/
-  └── integration/
+  ├── graphql/            # GraphQL 測試（按功能組織）
+  │   ├── test_auth_*.py       # 認證測試
+  │   ├── test_post_*.py       # 文章測試
+  │   ├── test_comment_*.py    # 評論測試
+  │   ├── test_dataloader_*.py # DataLoader 測試
+  │   └── test_subscription_*.py # 訂閱測試
+  ├── services/           # 服務層測試
+  ├── models/             # 模型測試
+  └── integration/        # 整合測試
   ```
 - [x] 創建測試資料庫 fixture
 - [x] 創建 GraphQL 測試客戶端

@@ -13,8 +13,7 @@
 ```graphql
 mutation Login {
   login(email: "user@example.com", password: "secure123") {
-    accessToken
-    refreshToken
+    token
     user {
       id
       username
@@ -40,10 +39,9 @@ query Me {
     id
     username
     email
-    posts {
-      id
-      title
-    }
+    bio
+    followersCount
+    followingCount
   }
 }
 
@@ -72,13 +70,13 @@ query GetPosts {
 ### Fragment 重用（減少重複定義）
 
 ```graphql
-fragment UserInfo on User {
+fragment UserInfo on UserType {
   id
   username
   avatarUrl
 }
 
-fragment PostInfo on Post {
+fragment PostInfo on PostType {
   id
   title
   excerpt
@@ -93,14 +91,6 @@ query GetHomeFeed {
         author {
           ...UserInfo
         }
-      }
-    }
-  }
-
-  trendingPosts: posts(limit: 5, orderBy: LIKES_DESC) {
-    edges {
-      node {
-        ...PostInfo
       }
     }
   }
@@ -134,25 +124,27 @@ query GetPostsByTag($tagSlug: String!, $limit: Int = 10) {
 ### Union Type 搜尋
 
 ```graphql
-query Search {
-  search(query: "GraphQL") {
+query Search($term: String!) {
+  search(term: $term) {
     __typename
-    ... on Post {
+    ... on PostType {
       id
       title
       excerpt
     }
-    ... on User {
+    ... on UserType {
       id
       username
       bio
     }
-    ... on Tag {
-      id
-      name
-      postsCount
-    }
   }
+}
+```
+
+Variables:
+```json
+{
+  "term": "GraphQL"
 }
 ```
 
@@ -214,20 +206,26 @@ GraphQL 錯誤回應格式：
 
 ### Token 過期處理
 
+目前 Token 過期後需要重新登入：
+
 ```graphql
-mutation RefreshToken {
-  refreshToken(token: "YOUR_REFRESH_TOKEN") {
-    accessToken
-    refreshToken
+mutation Login {
+  login(email: "user@example.com", password: "secure123") {
+    token
+    user {
+      id
+      username
+    }
   }
 }
 ```
+
+> 注意：Token 預設有效期為 7 天（可在後端環境變數 `ACCESS_TOKEN_EXPIRE_MINUTES` 中配置）
 
 ### 分頁參數說明
 
 - `page`: 頁碼（從 1 開始）
 - `limit`: 每頁數量
-- `orderBy`: 排序選項（CREATED_DESC, LIKES_DESC 等）
 
 ---
 

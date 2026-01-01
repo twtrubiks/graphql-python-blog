@@ -198,9 +198,9 @@ classDiagram
         <<GraphQL Root>>
         +comment_added(postId): Comment!
         +user_status_changed(userId, username): UserStatusChange!
-        +post_published(): Post!
-        +followed_user_posted(userId): Post!
-        +post_deleted(userId): Post!
+        +post_published(): PostType!
+        +followed_user_posted(userId): PostType!
+        +post_deleted(userId): ID!
     }
 
     class User {

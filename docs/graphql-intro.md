@@ -217,7 +217,7 @@ mutation CreateUser($email: String!, $password: String!) {
 重複使用查詢結構：
 
 ```graphql
-fragment UserInfo on User {
+fragment UserInfo on UserType {
   id
   username
   email
@@ -226,9 +226,6 @@ fragment UserInfo on User {
 query {
   user(id: 1) {
     ...UserInfo
-    posts {
-      title
-    }
   }
 }
 ```
