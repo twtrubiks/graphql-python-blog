@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { RegisterStore } from '$houdini';
 	import { auth } from '$lib/stores/auth.svelte';
+	import { extractHoudiniError } from '$lib/utils/errorExtraction';
 	import { translateError } from '$lib/utils/errorTranslation';
 	import { goto } from '$app/navigation';
 
@@ -85,6 +86,21 @@
 		}
 	}
 
+	function classifyMutationError(errorMessage: string) {
+		const translatedMessage = translateError(errorMessage);
+		const lower = errorMessage.toLowerCase();
+
+		if (lower.includes('email')) {
+			errors.email = translatedMessage;
+		} else if (lower.includes('username')) {
+			errors.username = translatedMessage;
+		} else if (lower.includes('password')) {
+			errors.password = translatedMessage;
+		} else {
+			errors.general = translatedMessage;
+		}
+	}
+
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
 
@@ -134,37 +150,22 @@
 				// Navigate to home page
 				await goto('/');
 			} else if (result.errors) {
-				// Handle GraphQL errors
 				console.error('GraphQL errors:', result.errors);
-				const errorMessage = result.errors[0]?.message || '註冊失敗';
-
-				if (errorMessage.includes('email') || errorMessage.includes('Email')) {
-					errors.email = '此電子郵件已被註冊';
-				} else if (errorMessage.includes('username') || errorMessage.includes('Username')) {
-					errors.username = '此使用者名稱已被使用';
+				const errorMessage = result.errors[0]?.message || '';
+				if (errorMessage) {
+					classifyMutationError(errorMessage);
 				} else {
-					errors.general = errorMessage;
+					errors.general = '註冊失敗，請稍後再試';
 				}
 				isLoading = false;
 			}
-		} catch (err) {
+		} catch (err: unknown) {
 			console.error('Registration error:', err);
 			isLoading = false;
 
-			if (err instanceof Error) {
-				const errorMessage = err.message;
-				const translatedMessage = translateError(errorMessage);
-
-				// 根據錯誤內容分類到對應欄位
-				if (errorMessage.toLowerCase().includes('email')) {
-					errors.email = translatedMessage;
-				} else if (errorMessage.toLowerCase().includes('username')) {
-					errors.username = translatedMessage;
-				} else if (errorMessage.toLowerCase().includes('password')) {
-					errors.password = translatedMessage;
-				} else {
-					errors.general = translatedMessage;
-				}
+			const errorMessage = extractHoudiniError(err);
+			if (errorMessage) {
+				classifyMutationError(errorMessage);
 			} else {
 				errors.general = '註冊失敗，請稍後再試';
 			}

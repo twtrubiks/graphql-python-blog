@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { LoginStore } from '$houdini';
 	import { auth } from '$lib/stores/auth.svelte';
+	import { extractHoudiniError } from '$lib/utils/errorExtraction';
 	import { translateError } from '$lib/utils/errorTranslation';
 	import { goto } from '$app/navigation';
 
@@ -35,21 +36,15 @@
 				const errorMessage = result.errors[0]?.message || '登入失敗';
 				error = translateError(errorMessage);
 			}
-		} catch (err) {
-			// Houdini 在 GraphQL 錯誤時會拋出異常
-			// 需要從 store 或其他來源取得實際錯誤訊息
+		} catch (err: unknown) {
 			console.error('Login error:', err);
 
-			// 嘗試從 loginStore 取得錯誤
 			const storeErrors = (loginStore as any).errors;
 			if (storeErrors && storeErrors.length > 0) {
 				error = translateError(storeErrors[0]?.message || '登入失敗');
-			} else if (err instanceof Error) {
-				error = translateError(err.message);
 			} else {
-				// 當 Houdini 拋出 true 時，表示有 GraphQL 錯誤但無法取得詳細訊息
-				// 使用通用的認證錯誤訊息
-				error = '電子郵件或密碼錯誤';
+				const errorMessage = extractHoudiniError(err);
+				error = errorMessage ? translateError(errorMessage) : '電子郵件或密碼錯誤';
 			}
 		} finally {
 			isLoading = false;
