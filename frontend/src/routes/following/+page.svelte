@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { GetFollowingPostsStore, FollowedUserPostedStore, PostDeletedStore } from '$houdini';
-	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
+	import { useAuthGuard } from '$lib/utils/authGuard.svelte';
 	import { onMount, onDestroy } from 'svelte';
 
 	const postsStore = new GetFollowingPostsStore();
@@ -24,13 +24,7 @@
 	let isDeleteSubscriptionActive = $state(false);
 	let deleteStoreUnsubscribe: (() => void) | null = null;
 
-	// 檢查登入狀態
-	$effect(() => {
-		if (!auth.isAuthenticated) {
-			notifications.warning('請先登入才能查看追蹤動態');
-			goto('/login');
-		}
-	});
+	useAuthGuard('請先登入才能查看追蹤動態');
 
 	// 載入文章
 	$effect(() => {

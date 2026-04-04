@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { UpdateMeStore } from '$houdini';
-	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
+	import { useAuthGuard } from '$lib/utils/authGuard.svelte';
 
 	const updateMeStore = new UpdateMeStore();
 
@@ -13,13 +13,7 @@
 	let avatarUrl = $state(auth.user?.avatarUrl || '');
 	let isSubmitting = $state(false);
 
-	// 檢查登入狀態
-	$effect(() => {
-		if (!auth.isAuthenticated) {
-			notifications.warning('請先登入');
-			goto('/login');
-		}
-	});
+	useAuthGuard();
 
 	// 同步 auth store 變化
 	$effect(() => {

@@ -2,6 +2,7 @@
 	import { UpdatePostStore, GetPostStore } from '$houdini';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
+	import { useAuthGuard } from '$lib/utils/authGuard.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import TagInput from '$lib/components/TagInput.svelte';
@@ -31,23 +32,17 @@
 
 	// 權限狀態
 	let hasPermission = $state(false);
-	let hasRedirected = $state(false);
+	let hasPermissionRedirected = $state(false);
 
 	// 預覽
 	let renderedContent = $derived(renderMarkdown(content));
 
 	// 登入檢查
-	$effect(() => {
-		if (!auth.isAuthenticated && !hasRedirected) {
-			hasRedirected = true;
-			notifications.warning('請先登入才能編輯文章');
-			goto('/login');
-		}
-	});
+	useAuthGuard('請先登入才能編輯文章');
 
 	// 載入文章資料
 	$effect(() => {
-		if (auth.isAuthenticated && !hasRedirected) {
+		if (auth.isAuthenticated && !hasPermissionRedirected) {
 			loadPost();
 		}
 	});
@@ -65,7 +60,7 @@
 				// 權限檢查：確認是否為作者
 				if (String(auth.user?.id) !== String(post.author.id)) {
 					notifications.error('您沒有權限編輯此文章');
-					hasRedirected = true;
+					hasPermissionRedirected = true;
 					goto(`/posts/${slug}`);
 					return;
 				}

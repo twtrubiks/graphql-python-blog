@@ -2,6 +2,7 @@
 	import { CreatePostStore } from '$houdini';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
+	import { useAuthGuard } from '$lib/utils/authGuard.svelte';
 	import { goto } from '$app/navigation';
 	import TagInput from '$lib/components/TagInput.svelte';
 	import MarkdownRenderer from '$lib/components/MarkdownRenderer.svelte';
@@ -20,15 +21,7 @@
 		selectedTags = tags;
 	}
 
-	let hasRedirected = $state(false);
-
-	$effect(() => {
-		if (!auth.isAuthenticated && !hasRedirected) {
-			hasRedirected = true;
-			notifications.warning('請先登入才能撰寫文章');
-			goto('/login');
-		}
-	});
+	useAuthGuard('請先登入才能撰寫文章');
 
 	function validateForm() {
 		errors = {};

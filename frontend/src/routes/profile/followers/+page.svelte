@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { GetMyFollowersStore } from '$houdini';
-	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
+	import { useAuthGuard } from '$lib/utils/authGuard.svelte';
 	import UserCard from '$lib/components/UserCard.svelte';
 
 	const followersStore = new GetMyFollowersStore();
@@ -11,12 +11,11 @@
 	let userData = $state<any>(null);
 	let activeTab = $state<'followers' | 'following'>('followers');
 
-	// 檢查登入狀態並載入資料
+	useAuthGuard();
+
+	// 登入後載入追蹤資料
 	$effect(() => {
-		if (!auth.isAuthenticated) {
-			notifications.warning('請先登入');
-			goto('/login');
-		} else {
+		if (auth.isAuthenticated) {
 			loadFollowData();
 		}
 	});
