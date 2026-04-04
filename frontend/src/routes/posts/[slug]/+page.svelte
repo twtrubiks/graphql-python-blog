@@ -364,10 +364,7 @@
 			// 使用統一的通知系統，顯示在畫面右上角
 			notifications.info(
 				`${newComment.author.username} 發表了新評論：${newComment.content.substring(0, 50)}${newComment.content.length > 50 ? '...' : ''}`,
-				{
-					duration: 6000,
-					link: null  // 已經在同一頁面，不需要連結
-				}
+				{ duration: 6000 }
 			);
 		} else {
 			console.log('[Notification] Not showing notification (own comment or missing author)');

@@ -22,9 +22,8 @@
 export interface SubscriptionConfig<TData> {
 	/** 訂閱名稱（用於日誌） */
 	name: string;
-	/** 建立 Houdini Store 的工廠函數（使用 any 以適配各種 Houdini store 類型） */
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	createStore: () => any;
+	/** 建立 Houdini Store 的工廠函數 */
+	createStore: () => HoudiniSubscriptionStore;
 	/** 獲取 listen 參數，返回 null 表示不滿足啟動條件 */
 	getListenParams: () => Record<string, unknown> | null;
 	/** 資料處理回調 */
@@ -43,7 +42,7 @@ export interface SubscriptionConfig<TData> {
  */
 interface HoudiniSubscriptionStore {
 	subscribe: (callback: (value: { data?: unknown; error?: unknown }) => void) => () => void;
-	listen: (params?: unknown, args?: unknown) => Promise<void>;
+	listen: (...args: any[]) => Promise<void>;
 	unlisten: () => Promise<void>;
 }
 
@@ -54,8 +53,7 @@ interface HoudiniSubscriptionStore {
  * @returns 訂閱管理器物件
  */
 export function createSubscriptionManager<TData>(config: SubscriptionConfig<TData>) {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	let store: any = null;
+	let store: HoudiniSubscriptionStore | null = null;
 	let unsubscribe: (() => void) | null = null;
 	let isActive = $state(false);
 	let isInitialized = $state(false);
