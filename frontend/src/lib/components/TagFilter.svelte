@@ -142,6 +142,8 @@
 </div>
 
 <style>
+	@reference "../../app.css";
+
 	.tag-item {
 		@apply text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors cursor-pointer border-2 border-transparent;
 	}
