@@ -6,10 +6,10 @@
 
 - **SvelteKit** - 全端框架
 - **Svelte 5** - 使用最新的 runes 語法 (`$state`, `$props`, `$effect`, `$derived`)
-- **TypeScript** - 類型安全
-- **Tailwind CSS** - 實用優先的 CSS 框架
-- **Vite** - 快速的建置工具
-- **Houdini v2.0.0-next.9** - GraphQL 客戶端（完整支援 Svelte 5）
+- **TypeScript 6** - 類型安全
+- **Tailwind CSS 4** - 實用優先的 CSS 框架（CSS-first 設定）
+- **Vite 7** - 快速的建置工具
+- **Houdini v2.0.0-next.11** - GraphQL 客戶端（完整支援 Svelte 5）
 
 ## 快速開始
 

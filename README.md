@@ -1,5 +1,20 @@
 # GraphQL Blog Platform
 
+[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.135-green.svg)](https://fastapi.tiangolo.com/)
+[![Strawberry GraphQL](https://img.shields.io/badge/Strawberry_GraphQL-0.312-red.svg)](https://strawberry.rocks/)
+[![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-orange.svg)](https://www.sqlalchemy.org/)
+[![SvelteKit](https://img.shields.io/badge/SvelteKit-2.56-orange.svg)](https://svelte.dev/)
+[![Svelte](https://img.shields.io/badge/Svelte-5-red.svg)](https://svelte.dev/)
+[![Houdini](https://img.shields.io/badge/Houdini-2.0--next.11-purple.svg)](https://houdinigraphql.com/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-blue.svg)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-blue.svg)](https://tailwindcss.com/)
+[![Vite](https://img.shields.io/badge/Vite-7-purple.svg)](https://vite.dev/)
+[![Node.js](https://img.shields.io/badge/Node.js-24+-green.svg)](https://nodejs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-blue.svg)](https://www.postgresql.org/)
+[![WebSocket](https://img.shields.io/badge/WebSocket-Real--time-orange.svg)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
+
 本專案目標是透過 Claude 學習, GraphQL API 和 Python 後端,
 
 練習 GraphQL-First TDD 開發方法的最佳實.
@@ -25,10 +40,10 @@
 - **pgvector** - 向量搜尋擴充套件（進階功能）(尚未實做)
 
 ### 前端
-- **SvelteKit 2.41+** - 全端框架
+- **SvelteKit 2.56+** - 全端框架
 - **Svelte 5** - 使用最新的 Runes 系統
-- **Houdini v2.0.0-next.9** - GraphQL 客戶端（完整支援 Svelte 5）
-- **Tailwind CSS** - 樣式框架
+- **Houdini v2.0.0-next.11** - GraphQL 客戶端（完整支援 Svelte 5）
+- **Tailwind CSS 4** - 樣式框架（CSS-first 設定）
 - **Vite 7** - 建置工具
 
 ### 測試
@@ -58,6 +73,7 @@
 | [Union Types 指南](./docs/union-types-guide.md) | GraphQL Union Types 完整說明 | 多型返回值處理 |
 | [Fragment 指南](./docs/fragment-guide.md) | GraphQL Fragment 重用機制 | 減少重複查詢 |
 | [權限控制指南](./docs/permissions-guide.md) | GraphQL 權限控制機制 | 實作授權與權限管理 |
+| [Subscription 指南](./docs/subscription-guide.md) | GraphQL Subscription 即時通訊 | 實作 WebSocket 即時推播 |
 | [Relay Connection Pattern](./docs/relay-connection-pattern.md) | 標準化分頁實作 | 實現游標分頁 |
 
 ### 參考資料
@@ -77,7 +93,7 @@
 ### 環境需求
 
 - Python 3.13+
-- Node.js 22+
+- Node.js 24+
 - Docker 和 Docker Compose
 
 > **注意**：本專案為教學練習用途，`.env` 配置檔已包含在版本控制中，可直接使用。
@@ -193,6 +209,10 @@ GraphQL/
 │   ├── app/
 │   │   ├── api/           # API 端點
 │   │   ├── graphql/       # GraphQL schema 和 resolvers
+│   │   │   ├── mutations/     # GraphQL mutations
+│   │   │   ├── queries/       # GraphQL queries
+│   │   │   ├── subscriptions/ # GraphQL subscriptions (WebSocket)
+│   │   │   └── types/         # GraphQL 型別定義
 │   │   ├── models/        # SQLAlchemy models
 │   │   ├── services/      # 業務邏輯
 │   │   ├── core/          # 核心設定
@@ -203,6 +223,14 @@ GraphQL/
 ├── frontend/
 │   ├── src/
 │   │   ├── routes/        # SvelteKit 路由
+│   │   │   ├── posts/        # 文章頁面
+│   │   │   ├── following/     # 追蹤動態
+│   │   │   ├── my-drafts/     # 草稿管理
+│   │   │   ├── my-posts/      # 我的文章
+│   │   │   ├── profile/       # 個人資料
+│   │   │   ├── settings/      # 個人設定
+│   │   │   ├── search/        # 搜尋
+│   │   │   └── users/         # 用戶頁面
 │   │   ├── lib/           # 共用元件
 │   │   └── $houdini/      # GraphQL 生成檔案
 │   └── package.json
@@ -210,7 +238,8 @@ GraphQL/
 └── docs/                  # 專案文件
     ├── prd.md
     ├── architecture.md
-    └── tasks.md
+    ├── tasks.md
+    └── ...
 ```
 
 ## 開發流程
