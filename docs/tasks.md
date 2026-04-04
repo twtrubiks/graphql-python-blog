@@ -384,7 +384,7 @@
 - [x] 配置 SSR/CSR 策略
 
 ### 6.2 Houdini GraphQL 整合
-- [x] 安裝並配置 Houdini (v2.0.0-next.9)
+- [x] 安裝並配置 Houdini (v2.0.0-next.11)
 - [x] 設置 GraphQL endpoint
 - [x] 生成 TypeScript types
 - [x] 創建基礎查詢與 mutations (12個操作已定義)
