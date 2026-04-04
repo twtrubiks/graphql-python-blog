@@ -33,15 +33,16 @@
 ### 1.2 依賴套件設置
 - [x] 創建 requirements.txt
   ```
-  fastapi[standard]
-  strawberry-graphql[fastapi]
-  sqlalchemy
-  asyncpg
-  pydantic-settings
-  python-jose[cryptography]
-  passlib[bcrypt]
-  alembic
-  python-slugify
+  fastapi[standard]==0.135.3
+  strawberry-graphql[fastapi]==0.312.2
+  websockets==16.0
+  sqlalchemy==2.0.49
+  pydantic_settings==2.13.1
+  asyncpg==0.31.0
+  bcrypt==5.0.0
+  PyJWT==2.12.1
+  alembic==1.18.4
+  python-slugify==8.0.4
   ```
 - [x] 創建 requirements-test.txt
   ```
