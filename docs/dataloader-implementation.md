@@ -101,6 +101,8 @@ author1_again = await user_loader.load(1)
 - **PostLoader**: 批次載入文章資料
 - **CommentLoader**: 批次載入評論資料
 - **PostCommentsLoader**: 批次載入文章的所有評論
+- **CommentCountLoader**: 批次載入評論數（SQL COUNT + GROUP BY，排除已軟刪除的評論）
+- **PostTagsLoader**: 批次載入文章標籤
 - **LikeCountLoader**: 批次載入按讚數
 - **UserLikedPostsLoader**: 批次檢查用戶是否按讚
 - **FollowersCountLoader**: 批次載入追蹤者數量

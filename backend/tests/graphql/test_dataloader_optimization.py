@@ -298,3 +298,106 @@ async def test_dataloader_cache_behavior(test_session: AsyncSession, setup_datal
     has_duplicate_requests = any(count > 1 for count in author_requests.values())
     if has_duplicate_requests:
         print("Cache hit: Same author data reused from DataLoader cache")
+
+@pytest.mark.asyncio
+async def test_comment_count_loader_batch(test_session: AsyncSession, setup_dataloader_test_data):
+    """測試 CommentCountLoader 批次載入評論數"""
+    import asyncio
+    from app.graphql.dataloaders import CommentCountLoader
+
+    posts = setup_dataloader_test_data["posts"]
+    loader = CommentCountLoader(test_session)
+
+    # 併發 load 觸發批次載入（單一 GROUP BY 查詢）
+    counts = await asyncio.gather(*[loader.load(post.id) for post in posts])
+
+    # fixture 中每篇文章有 2 個評論
+    assert counts == [2] * len(posts)
+
+
+@pytest.mark.asyncio
+async def test_comment_count_loader_excludes_deleted(test_session: AsyncSession, setup_dataloader_test_data):
+    """測試 CommentCountLoader 排除已軟刪除的評論"""
+    from datetime import datetime, timezone
+    from app.graphql.dataloaders import CommentCountLoader
+
+    post = setup_dataloader_test_data["posts"][0]
+    comment = setup_dataloader_test_data["comments"][0]
+    assert comment.post_id == post.id
+
+    # 軟刪除其中一個評論
+    comment.deleted_at = datetime.now(timezone.utc)
+    await test_session.commit()
+
+    loader = CommentCountLoader(test_session)
+    count = await loader.load(post.id)
+
+    assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_post_tags_loader_batch(test_session: AsyncSession, setup_dataloader_test_data):
+    """測試 PostTagsLoader 批次載入文章標籤"""
+    import asyncio
+    from app.models.tag import Tag, post_tags
+    from app.graphql.dataloaders import PostTagsLoader
+
+    posts = setup_dataloader_test_data["posts"][:3]
+
+    tag_a = Tag(name="LoaderTagA", slug="loader-tag-a")
+    tag_b = Tag(name="LoaderTagB", slug="loader-tag-b")
+    test_session.add_all([tag_a, tag_b])
+    await test_session.flush()
+
+    await test_session.execute(post_tags.insert().values([
+        {"post_id": posts[0].id, "tag_id": tag_a.id},
+        {"post_id": posts[0].id, "tag_id": tag_b.id},
+        {"post_id": posts[1].id, "tag_id": tag_a.id},
+    ]))
+    await test_session.commit()
+
+    loader = PostTagsLoader(test_session)
+    tags0, tags1, tags2 = await asyncio.gather(
+        loader.load(posts[0].id),
+        loader.load(posts[1].id),
+        loader.load(posts[2].id),
+    )
+
+    assert sorted(tag.name for tag in tags0) == ["LoaderTagA", "LoaderTagB"]
+    assert [tag.name for tag in tags1] == ["LoaderTagA"]
+    assert tags2 == []
+
+
+@pytest.mark.asyncio
+async def test_total_comments_and_tags_use_dataloader(test_session: AsyncSession, setup_dataloader_test_data):
+    """測試 GraphQL 查詢中 totalComments 與 tags 透過 DataLoader 正確解析"""
+    dataloader_context = DataLoaderContext(test_session)
+
+    query = """
+    query GetPostsWithCounts {
+        posts(page: 1, limit: 15) {
+            edges {
+                node {
+                    id
+                    totalComments
+                    tags { name }
+                }
+            }
+        }
+    }
+    """
+
+    result = await schema.execute(
+        query,
+        context_value={
+            "db_session": test_session,
+            "dataloaders": dataloader_context
+        }
+    )
+
+    assert result.errors is None
+    edges = result.data["posts"]["edges"]
+    assert len(edges) == 15
+    for edge in edges:
+        assert edge["node"]["totalComments"] == 2
+        assert edge["node"]["tags"] == []

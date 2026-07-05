@@ -36,6 +36,7 @@ from app.models.post import Post
 from app.models.comment import Comment
 from app.models.like import Like
 from app.models.follow import Follow
+from app.models.tag import Tag, post_tags
 
 
 class UserLoader(DataLoader):
@@ -140,6 +141,55 @@ class PostCommentsLoader(DataLoader):
         return [comments_map.get(post_id, []) for post_id in post_ids]
 
 
+class CommentCountLoader(DataLoader):
+    """批次載入評論數的 DataLoader"""
+
+    def __init__(self, session: AsyncSession):
+        super().__init__(load_fn=self.batch_load_comment_counts)
+        self.session = session
+
+    async def batch_load_comment_counts(self, post_ids: List[int]) -> List[int]:
+        """批次載入多篇文章的評論數（排除已軟刪除的評論）"""
+        from sqlalchemy import func
+
+        result = await self.session.execute(
+            select(Comment.post_id, func.count(Comment.id).label("count"))
+            .where(Comment.post_id.in_(post_ids))
+            .where(Comment.deleted_at.is_(None))
+            .group_by(Comment.post_id)
+        )
+
+        # 建立 post_id -> count 的映射
+        count_map: Dict[int, int] = {row.post_id: row.count for row in result}
+
+        # 按照請求的順序返回結果（沒有評論的文章返回 0）
+        return [count_map.get(post_id, 0) for post_id in post_ids]
+
+
+class PostTagsLoader(DataLoader):
+    """批次載入文章標籤的 DataLoader"""
+
+    def __init__(self, session: AsyncSession):
+        super().__init__(load_fn=self.batch_load_post_tags)
+        self.session = session
+
+    async def batch_load_post_tags(self, post_ids: List[int]) -> List[List[Tag]]:
+        """批次載入多篇文章的標籤"""
+        result = await self.session.execute(
+            select(post_tags.c.post_id, Tag)
+            .join(Tag, Tag.id == post_tags.c.tag_id)
+            .where(post_tags.c.post_id.in_(post_ids))
+        )
+
+        # 建立 post_id -> tags 的映射
+        tags_map: Dict[int, List[Tag]] = defaultdict(list)
+        for post_id, tag in result:
+            tags_map[post_id].append(tag)
+
+        # 按照請求的順序返回結果
+        return [tags_map.get(post_id, []) for post_id in post_ids]
+
+
 class LikeCountLoader(DataLoader):
     """批次載入按讚數的 DataLoader"""
 
@@ -242,6 +292,8 @@ class DataLoaderContext:
         self.post_loader = PostLoader(session)
         self.comment_loader = CommentLoader(session)
         self.post_comments_loader = PostCommentsLoader(session)
+        self.comment_count_loader = CommentCountLoader(session)
+        self.post_tags_loader = PostTagsLoader(session)
         self.like_count_loader = LikeCountLoader(session)
         self.user_liked_posts_loader = UserLikedPostsLoader(session, user_id)
         self.followers_count_loader = FollowersCountLoader(session)
@@ -258,6 +310,12 @@ class DataLoaderContext:
 
     def get_post_comments_loader(self) -> PostCommentsLoader:
         return self.post_comments_loader
+
+    def get_comment_count_loader(self) -> CommentCountLoader:
+        return self.comment_count_loader
+
+    def get_post_tags_loader(self) -> PostTagsLoader:
+        return self.post_tags_loader
 
     def get_like_count_loader(self) -> LikeCountLoader:
         return self.like_count_loader

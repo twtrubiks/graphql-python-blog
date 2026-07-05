@@ -1,6 +1,6 @@
 from typing import List, Optional
 from datetime import datetime, timezone
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.models.comment import Comment
@@ -73,14 +73,14 @@ class CommentService:
     @staticmethod
     async def get_comment_count(db: AsyncSession, post_id: int) -> int:
         """獲取文章的評論總數"""
-        query = select(Comment).where(
+        query = select(func.count()).select_from(Comment).where(
             and_(
                 Comment.post_id == post_id,
                 Comment.deleted_at.is_(None)
             )
         )
         result = await db.execute(query)
-        return len(result.scalars().all())
+        return result.scalar_one()
 
     @staticmethod
     async def update_comment(

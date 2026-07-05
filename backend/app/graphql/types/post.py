@@ -87,8 +87,15 @@ class PostType:
         # If tags were preloaded, use them
         if self._tags is not None:
             return [TagType.from_model(tag) for tag in self._tags]
-        
-        # Otherwise, fetch from database
+
+        # Check if DataLoader is available
+        dataloaders = info.context.get("dataloaders")
+        if dataloaders:
+            # Use DataLoader for batching
+            tags = await dataloaders.get_post_tags_loader().load(self.id)
+            return [TagType.from_model(tag) for tag in tags]
+
+        # Fallback to direct database query
         session = info.context["db_session"]
         result = await session.execute(
             select(PostModel)
@@ -96,7 +103,7 @@ class PostType:
             .where(PostModel.id == self.id)
         )
         post = result.scalar_one_or_none()
-        
+
         if post and post.tags:
             return [TagType.from_model(tag) for tag in post.tags]
         return []
@@ -145,7 +152,14 @@ class PostType:
     async def total_comments(self, info: strawberry.Info) -> int:
         """Get total comment count for this post"""
         from app.services.comment import CommentService
-        
+
+        # Check if DataLoader is available
+        dataloaders = info.context.get("dataloaders")
+        if dataloaders:
+            # Use DataLoader for batching
+            return await dataloaders.get_comment_count_loader().load(self.id)
+
+        # Fallback to direct database query
         session = info.context["db_session"]
         return await CommentService.get_comment_count(session, self.id)
     
