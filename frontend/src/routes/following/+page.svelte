@@ -86,8 +86,6 @@
 	});
 
 	function handleNewPost(newPost: any) {
-		console.log('[FollowedUserPosted] New post received:', newPost);
-
 		// 檢查是否已存在
 		const exists = postsData?.edges?.some((edge: any) => edge.node.id === newPost.id);
 		if (exists) return;

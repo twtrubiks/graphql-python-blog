@@ -61,6 +61,54 @@
 	// 重連機制
 	const MAX_RECONNECT_ATTEMPTS = 3;
 	let reconnectAttempts = $state(0);
+	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	let lastHandledErrors: unknown = null;
+
+	function clearReconnectTimer() {
+		if (reconnectTimer) {
+			clearTimeout(reconnectTimer);
+			reconnectTimer = null;
+		}
+	}
+
+	// 連線失敗時安排重連，最多 MAX_RECONNECT_ATTEMPTS 次，間隔隨次數遞增
+	function scheduleReconnect(postId: string) {
+		if (reconnectTimer || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+			return;
+		}
+		reconnectAttempts += 1;
+		reconnectTimer = setTimeout(() => {
+			reconnectTimer = null;
+			// 文章已切換或元件已銷毀時放棄重連
+			if (currentPostId !== postId) return;
+			console.log(`[Subscription] Reconnecting... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+			startSubscription(postId);
+		}, 2000 * reconnectAttempts);
+	}
+
+	async function startSubscription(postId: string) {
+		try {
+			// Houdini 對相同變數重複 listen 會直接略過，重連前先 unlisten 重置其內部狀態
+			await commentAddedStore.unlisten();
+			isSubscriptionActive = true;
+			// 觸發 subscription 開始監聽
+			await commentAddedStore.listen({
+				postId: postId
+			});
+			// 連線失敗時 listen 也可能正常 resolve（錯誤走 store 的 errors 路徑並排定重連），
+			// 已排定重連時不要覆寫狀態
+			if (!reconnectTimer) {
+				subscriptionStatus = 'connected';
+				reconnectAttempts = 0;
+				console.log('[Subscription] Successfully connected for post:', postId);
+			}
+		} catch (error) {
+			console.error('[Subscription] Error starting subscription:', error);
+			subscriptionStatus = 'error';
+			isSubscriptionActive = false;
+			scheduleReconnect(postId);
+		}
+	}
 
 	// 載入文章資料
 	$effect(() => {
@@ -95,36 +143,13 @@
 
 		currentPostId = postId;
 
-		// 如果有舊的 subscription，先清理
-		if (isSubscriptionActive && commentAddedStore.unlisten) {
-			console.log('[Subscription] Cleaning up old subscription');
-			commentAddedStore.unlisten();
-			isSubscriptionActive = false;
-		}
+		// 換文章時重置重連狀態（舊訂閱由 startSubscription 內的 unlisten 清理）
+		clearReconnectTimer();
+		reconnectAttempts = 0;
 
 		console.log('[Subscription] Starting subscription for post:', postId);
-		console.log('[Subscription] Current user:', auth.user?.username || 'Unknown');
 		subscriptionStatus = 'connecting';
-		isSubscriptionActive = true;
-
-		try {
-			// 觸發 subscription 開始監聽
-			commentAddedStore.listen({
-				postId: postId
-			}).then(() => {
-				subscriptionStatus = 'connected';
-				console.log('[Subscription] Successfully connected for post:', postId);
-				console.log('[Subscription] Ready to receive comments');
-			}).catch((error) => {
-				console.error('[Subscription] Failed to connect:', error);
-				subscriptionStatus = 'error';
-				isSubscriptionActive = false;
-			});
-		} catch (error) {
-			console.error('[Subscription] Error starting subscription:', error);
-			subscriptionStatus = 'error';
-			isSubscriptionActive = false;
-		}
+		startSubscription(postId);
 	});
 
 	// 監聽 subscription store 資料變化
@@ -136,6 +161,9 @@
 
 			// 檢查是否有新評論
 			if (value.data?.commentAdded) {
+				// 收到資料代表連線正常
+				subscriptionStatus = 'connected';
+				reconnectAttempts = 0;
 				const newComment = value.data.commentAdded;
 
 				// 避免重複處理同一則評論
@@ -146,10 +174,16 @@
 				}
 			}
 
-			// 處理錯誤
-			if (value.error) {
-				console.error('[Subscription] Error:', value.error);
+			// 處理錯誤（Houdini 的欄位是 errors 陣列，成功時為空陣列；
+			// 以陣列參照去重，避免 fetching 變化重新發送舊值時重複觸發）
+			if (value.errors?.length && value.errors !== lastHandledErrors) {
+				lastHandledErrors = value.errors;
+				console.error('[Subscription] Error:', value.errors);
 				subscriptionStatus = 'error';
+				// 連線中斷時嘗試重連
+				if (currentPostId) {
+					scheduleReconnect(currentPostId);
+				}
 			}
 		});
 
@@ -163,7 +197,9 @@
 	});
 
 	onDestroy(async () => {
-		// 元件銷毀時停止訂閱
+		// 元件銷毀時停止訂閱與重連
+		clearReconnectTimer();
+		currentPostId = null;
 		if (storeUnsubscribe) {
 			storeUnsubscribe();
 			storeUnsubscribe = null;
@@ -339,8 +375,6 @@
 
 	// 處理新評論
 	function handleNewComment(data: any) {
-		console.log('[Subscription] New comment received:', data);
-
 		const newComment = data?.commentAdded;
 		if (!newComment || newComment.isDeleted) {
 			console.log('[Subscription] Comment is null or deleted, skipping');
@@ -354,12 +388,6 @@
 			return;
 		}
 
-		console.log('[Subscription] Adding comment to list:', {
-			id: newComment.id,
-			author: newComment.author?.username,
-			content: newComment.content.substring(0, 30)
-		});
-
 		// 更新狀態
 		post = {
 			...post,
@@ -367,17 +395,8 @@
 			totalComments: newComment.post?.totalComments ?? (post.totalComments + 1)
 		};
 
-		// 檢查是否需要顯示通知
-		console.log('[Notification] Checking notification conditions:', {
-			authorUsername: newComment.author?.username,
-			currentUser: auth.user?.username,
-			isOwnComment: newComment.author?.username === auth.user?.username
-		});
-
 		// 顯示通知（使用統一的通知系統）
 		if (newComment.author?.username && newComment.author.username !== auth.user?.username) {
-			console.log(`[Notification] Showing notification for comment from ${newComment.author.username}`);
-
 			// 使用統一的通知系統，顯示在畫面右上角
 			notifications.info(
 				`${newComment.author.username} 發表了新評論：${newComment.content.substring(0, 50)}${newComment.content.length > 50 ? '...' : ''}`,

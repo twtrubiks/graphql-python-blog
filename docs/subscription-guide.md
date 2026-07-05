@@ -144,28 +144,60 @@ const commentAddedStore = new CommentAddedStore();
 let subscriptionStatus = $state<'idle' | 'connecting' | 'connected' | 'error'>('idle');
 let currentPostId = $state<string | null>(null);
 
+// 重連機制：失敗後以 2s/4s/6s 遞增間隔重試，最多 3 次
+const MAX_RECONNECT_ATTEMPTS = 3;
+let reconnectAttempts = $state(0);
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleReconnect(postId: string) {
+  if (reconnectTimer || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return;
+  reconnectAttempts += 1;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    if (currentPostId === postId) startSubscription(postId);
+  }, 2000 * reconnectAttempts);
+}
+
+async function startSubscription(postId: string) {
+  // Houdini 對相同變數重複 listen 會直接略過，重連前先 unlisten 重置其內部狀態
+  await commentAddedStore.unlisten();
+  await commentAddedStore.listen({ postId });
+  // 錯誤時 listen 也可能正常 resolve（錯誤走 store 的 errors 路徑），已排定重連就不覆寫狀態
+  if (!reconnectTimer) {
+    subscriptionStatus = 'connected';
+    reconnectAttempts = 0;
+  }
+}
+
 // 開始監聽（當 postId 變化時）
 $effect(() => {
   if (!post?.id || currentPostId === String(post.id)) return;
   currentPostId = String(post.id);
+  reconnectAttempts = 0;
   subscriptionStatus = 'connecting';
-
-  commentAddedStore.listen({ postId: currentPostId })
-    .then(() => { subscriptionStatus = 'connected'; })
-    .catch(() => { subscriptionStatus = 'error'; });
+  startSubscription(currentPostId);
 });
 
 // 監聽資料變化
 onMount(() => {
   storeUnsubscribe = commentAddedStore.subscribe((value) => {
     if (value.data?.commentAdded) {
+      subscriptionStatus = 'connected';
+      reconnectAttempts = 0;
       handleNewComment({ commentAdded: value.data.commentAdded });
+    }
+    // 注意：Houdini 的錯誤欄位是 errors「陣列」（成功時為空陣列），沒有 value.error
+    if (value.errors?.length) {
+      subscriptionStatus = 'error';
+      if (currentPostId) scheduleReconnect(currentPostId);
     }
   });
 });
 
 // 清理
 onDestroy(async () => {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  currentPostId = null;  // 讓已排定的重連 timer 觸發時直接放棄
   storeUnsubscribe?.();
   await commentAddedStore.unlisten?.();
 });
@@ -213,13 +245,21 @@ onDestroy(async () => {
 
 ## 連線狀態指示器
 
-前端實作了視覺化的連線狀態（參考 `+page.svelte:696-723`）：
+前端實作了視覺化的連線狀態（參考 `+page.svelte:714-741`）：
 
 | 狀態 | 顯示 |
 |-----|------|
-| `connecting` | 旋轉圖示 + "連線中..." |
-| `connected` | 綠色脈衝圓點 + "已連線" |
-| `error` | 重連嘗試 or 錯誤訊息 |
+| `connecting` | 旋轉圖示 + "即時更新連線中..." |
+| `connected` | 綠色脈衝圓點 + "即時更新已連線" |
+| `error`（重連中） | 橘色旋轉圖示 + "重新連線中... (嘗試 N/3)" |
+| `error`（重連耗盡） | 紅色圖示 + "即時更新暫時無法使用" |
+
+### 斷線重連
+
+連線失敗時會自動重連，最多 3 次，間隔 2s → 4s → 6s 遞增；重連成功或收到新資料時重置計數。實作上有兩個 Houdini 的陷阱要注意：
+
+1. **錯誤欄位是 `errors` 陣列**（成功的訊息也會帶空陣列），`value.error` 這個欄位不存在，判斷時必須用 `value.errors?.length`。
+2. **對相同變數重複呼叫 `listen()` 會被 Houdini 內部略過**（`variablesChanged` + session 比對），因此重連前必須先 `await unlisten()` 重置其內部狀態，否則重連是 no-op。
 
 ---
 
@@ -238,7 +278,7 @@ frontend/
 ├── src/lib/graphql/subscriptions/
 │   └── CommentAdded.gql        # GraphQL 定義
 └── src/routes/posts/[slug]/
-    └── +page.svelte:51-173     # 訂閱生命週期管理
+    └── +page.svelte:54-212     # 訂閱生命週期管理（含斷線重連）
 ```
 
 ---

@@ -70,8 +70,10 @@
 	}
 
 	$effect(() => {
-		// 當 avatarUrl 改變時，重設錯誤狀態
-		avatarError = false;
+		// 讀取 avatarUrl 以建立響應式依賴，當它改變時重設錯誤狀態
+		if (avatarUrl) {
+			avatarError = false;
+		}
 	});
 </script>
 

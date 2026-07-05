@@ -89,9 +89,8 @@
 		requiresAuth: true,
 		onData: (data) => {
 			if (data.userStatusChanged) {
-				const { userId, status, username } = data.userStatusChanged;
+				const { userId, status } = data.userStatusChanged;
 				userStatusStore.updateStatus(userId, status);
-				console.log('[UserStatus] Status changed:', username, status);
 			}
 		},
 		onError: (error) => console.error('[UserStatus] Error:', error),
@@ -222,8 +221,6 @@
 		}
 
 		const authorName = post.author?.fullName || post.author?.username || '某用戶';
-
-		console.log('[FollowedUserPosted] New post from followed user:', post);
 
 		// 顯示特別的追蹤通知
 		notifications.info(
