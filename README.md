@@ -1,10 +1,10 @@
 # GraphQL Blog Platform
 
 [![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.135-green.svg)](https://fastapi.tiangolo.com/)
-[![Strawberry GraphQL](https://img.shields.io/badge/Strawberry_GraphQL-0.312-red.svg)](https://strawberry.rocks/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.139-green.svg)](https://fastapi.tiangolo.com/)
+[![Strawberry GraphQL](https://img.shields.io/badge/Strawberry_GraphQL-0.320-red.svg)](https://strawberry.rocks/)
 [![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-orange.svg)](https://www.sqlalchemy.org/)
-[![SvelteKit](https://img.shields.io/badge/SvelteKit-2.56-orange.svg)](https://svelte.dev/)
+[![SvelteKit](https://img.shields.io/badge/SvelteKit-2.69-orange.svg)](https://svelte.dev/)
 [![Svelte](https://img.shields.io/badge/Svelte-5-red.svg)](https://svelte.dev/)
 [![Houdini](https://img.shields.io/badge/Houdini-2.0--next.11-purple.svg)](https://houdinigraphql.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-blue.svg)](https://www.typescriptlang.org/)
@@ -40,7 +40,7 @@
 - **pgvector** - 向量搜尋擴充套件（進階功能）(尚未實做)
 
 ### 前端
-- **SvelteKit 2.56+** - 全端框架
+- **SvelteKit 2.69+** - 全端框架
 - **Svelte 5** - 使用最新的 Runes 系統
 - **Houdini v2.0.0-next.11** - GraphQL 客戶端（完整支援 Svelte 5）
 - **Tailwind CSS 4** - 樣式框架（CSS-first 設定）
