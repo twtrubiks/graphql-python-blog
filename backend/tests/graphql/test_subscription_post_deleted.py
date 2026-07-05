@@ -14,6 +14,7 @@ from app.graphql.subscriptions.post_deleted import (
     PostDeletedEvent,
     PostDeletedSubscription
 )
+from tests.utils import FakeSubscriptionInfo
 
 
 @pytest.mark.asyncio
@@ -196,8 +197,10 @@ class TestPostDeletedSubscription:
         follower_ids = [user_id]
         deleted_post_id = 104
 
-        # 開始訂閱
-        subscription_gen = subscription.post_deleted(user_id=str(user_id))
+        # 開始訂閱（訂閱者身分來自已認證的 context，而非客戶端參數）
+        subscription_gen = subscription.post_deleted(
+            info=FakeSubscriptionInfo(user_id=user_id)
+        )
 
         # 在延遲後發布刪除事件
         async def publish_after_delay():
@@ -222,7 +225,9 @@ class TestPostDeletedSubscription:
         follower_ids = [user_id]
         deleted_post_id = 105
 
-        subscription_gen = subscription.post_deleted(user_id=str(user_id))
+        subscription_gen = subscription.post_deleted(
+            info=FakeSubscriptionInfo(user_id=user_id)
+        )
 
         async def publish_after_delay():
             await asyncio.sleep(0.1)
@@ -237,3 +242,14 @@ class TestPostDeletedSubscription:
 
         await publish_task
         await subscription_gen.aclose()
+
+    async def test_subscription_requires_authentication(self):
+        """未認證（context.user_id 為 None）時應拒絕訂閱"""
+        subscription = PostDeletedSubscription()
+
+        subscription_gen = subscription.post_deleted(
+            info=FakeSubscriptionInfo(user_id=None)
+        )
+
+        with pytest.raises(Exception, match="Authentication required"):
+            await anext(subscription_gen)

@@ -1,5 +1,5 @@
-subscription UserStatusChanged($userId: ID!, $username: String!) {
-  userStatusChanged(userId: $userId, username: $username) {
+subscription UserStatusChanged {
+  userStatusChanged {
     userId
     username
     status

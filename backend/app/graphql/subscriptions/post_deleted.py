@@ -84,18 +84,21 @@ class PostDeletedSubscription:
     @strawberry.subscription
     async def post_deleted(
         self,
-        user_id: strawberry.ID
+        info: strawberry.Info
     ) -> AsyncGenerator[strawberry.ID, None]:
         """
         訂閱追蹤用戶的文章刪除事件
 
-        Args:
-            user_id: 當前用戶的 ID（訂閱者）
+        訂閱者身分來自 WebSocket 連線的認證資訊（connectionParams 中的 JWT），
+        不接受客戶端自行指定，避免訂閱他人的動態（IDOR）。
 
         Yields:
             strawberry.ID: 被刪除的文章 ID
         """
-        user_id_int = int(user_id)
+        user_id_int = info.context.user_id
+        if user_id_int is None:
+            raise Exception("Authentication required")
+
         queue = PostDeletedEvent.subscribe(user_id_int)
 
         try:

@@ -1,5 +1,5 @@
-subscription FollowedUserPosted($userId: ID!) {
-  followedUserPosted(userId: $userId) {
+subscription FollowedUserPosted {
+  followedUserPosted {
     id
     title
     slug

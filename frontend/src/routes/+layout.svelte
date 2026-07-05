@@ -56,7 +56,8 @@
 	const followedUserManager = createSubscriptionManager<{ followedUserPosted?: any }>({
 		name: 'FollowedUserPosted',
 		createStore: () => new FollowedUserPostedStore(),
-		getListenParams: () => (auth.user?.id ? { userId: auth.user.id } : null),
+		// 訂閱者身分由後端從 WebSocket 認證資訊判定，不再傳 userId
+		getListenParams: () => (auth.user?.id ? {} : null),
 		requiresAuth: true,
 		onData: (data) => {
 			if (data.followedUserPosted) {
@@ -83,10 +84,8 @@
 	const userStatusManager = createSubscriptionManager<{ userStatusChanged?: any }>({
 		name: 'UserStatus',
 		createStore: () => new UserStatusChangedStore(),
-		getListenParams: () =>
-			auth.user?.id && auth.user?.username
-				? { userId: auth.user.id, username: auth.user.username }
-				: null,
+		// 訂閱者身分由後端從 WebSocket 認證資訊判定，不再傳 userId/username
+		getListenParams: () => (auth.user?.id ? {} : null),
 		requiresAuth: true,
 		onData: (data) => {
 			if (data.userStatusChanged) {

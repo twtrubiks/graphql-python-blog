@@ -90,18 +90,21 @@ class FollowedUserPostSubscription:
     @strawberry.subscription
     async def followed_user_posted(
         self,
-        user_id: strawberry.ID
+        info: strawberry.Info
     ) -> AsyncGenerator[PostType, None]:
         """
         訂閱追蹤用戶的新文章發布
 
-        Args:
-            user_id: 當前用戶的 ID（訂閱者）
+        訂閱者身分來自 WebSocket 連線的認證資訊（connectionParams 中的 JWT），
+        不接受客戶端自行指定，避免訂閱他人的動態（IDOR）。
 
         Yields:
             PostType: 追蹤用戶發布的新文章
         """
-        user_id_int = int(user_id)
+        user_id_int = info.context.user_id
+        if user_id_int is None:
+            raise Exception("Authentication required")
+
         queue = FollowedUserPostEvent.subscribe(user_id_int)
 
         try:

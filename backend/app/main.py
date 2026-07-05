@@ -18,7 +18,7 @@ GraphQL Blog Platform - 主應用程式入口
 
 from contextlib import asynccontextmanager
 from typing import Optional, Any
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from strawberry.fastapi import GraphQLRouter, BaseContext
 from strawberry.subscriptions import GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL
@@ -131,16 +131,20 @@ class GraphQLContext(BaseContext):
 
         result: Optional[int] = None
 
-        # Try HTTP request first
-        if self.request:
+        # WebSocket 連線（strawberry 會把 WebSocket 物件放進 self.request）：
+        # 瀏覽器的 WebSocket API 無法自訂 headers，
+        # graphql-ws 客戶端改以 connectionParams（connection_init payload）傳遞認證資訊
+        if isinstance(self.request, WebSocket):
+            params = self.connection_params
+            if isinstance(params, dict):
+                authorization = params.get("Authorization") or params.get("authorization")
+                result = self._decode_user_id_from_authorization(authorization)
+
+        # HTTP 請求，或 WebSocket handshake headers（非瀏覽器客戶端的 fallback）
+        # starlette 的 headers 查找不區分大小寫
+        if result is None and self.request is not None:
             authorization = self.request.headers.get("Authorization")
             result = self._decode_user_id_from_authorization(authorization)
-        # Try WebSocket connection
-        elif self.websocket:
-            if hasattr(self.websocket, "headers"):
-                headers = dict(self.websocket.headers) if hasattr(self.websocket.headers, "__iter__") else {}
-                authorization = headers.get("authorization") or headers.get("Authorization")
-                result = self._decode_user_id_from_authorization(authorization)
 
         # 快取結果
         self._user_id = result

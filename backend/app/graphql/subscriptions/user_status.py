@@ -3,6 +3,9 @@ from typing import AsyncGenerator
 import asyncio
 from enum import Enum
 from datetime import datetime
+from sqlalchemy import select
+
+from app.models.user import User
 
 
 @strawberry.enum
@@ -102,17 +105,28 @@ class UserStatusSubscription:
     @strawberry.subscription
     async def user_status_changed(
         self,
-        user_id: strawberry.ID,
-        username: str
+        info: strawberry.Info
     ) -> AsyncGenerator[UserStatusChange, None]:
         """
         訂閱用戶狀態變更
 
-        Args:
-            user_id: 當前用戶的 ID
-            username: 當前用戶的用戶名
+        訂閱者身分（user_id 與 username）來自 WebSocket 連線的認證資訊
+        （connectionParams 中的 JWT），不接受客戶端自行指定，
+        避免偽造他人的上線／離線狀態（IDOR）。
         """
+        user_id = info.context.user_id
+        if user_id is None:
+            raise Exception("Authentication required")
+
+        # username 以資料庫為準，不信任客戶端
+        db = info.context.db_session
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise Exception("Authentication required")
+
         user_id_str = str(user_id)
+        username = user.username
 
         # 先訂閱，再通知上線（確保自己也能收到上線事件）
         queue = UserStatusEvent.subscribe()

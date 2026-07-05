@@ -3,6 +3,38 @@ import string
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
+
+class FakeScalarSession:
+    """模擬 AsyncSession，execute() 後 scalar_one_or_none() 固定回傳指定物件"""
+
+    class _Result:
+        def __init__(self, value):
+            self._value = value
+
+        def scalar_one_or_none(self):
+            return self._value
+
+    def __init__(self, value=None):
+        self._value = value
+
+    async def execute(self, stmt):
+        return self._Result(self._value)
+
+
+class FakeSubscriptionContext:
+    """模擬 subscription resolver 的 GraphQL context（提供已認證的 user_id）"""
+
+    def __init__(self, user_id=None, db_session=None):
+        self.user_id = user_id
+        self.db_session = db_session
+
+
+class FakeSubscriptionInfo:
+    """模擬 strawberry.Info，用於直接呼叫 subscription resolver 的單元測試"""
+
+    def __init__(self, user_id=None, db_session=None):
+        self.context = FakeSubscriptionContext(user_id, db_session)
+
 def random_string(length: int = 10) -> str:
     """Generate a random string of specified length."""
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))

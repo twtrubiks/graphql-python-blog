@@ -1,6 +1,7 @@
 import pytest
 import asyncio
 from datetime import datetime
+from types import SimpleNamespace
 from app.graphql.subscriptions.user_status import (
     UserStatusEvent,
     UserStatusSubscription,
@@ -8,6 +9,7 @@ from app.graphql.subscriptions.user_status import (
     OnlineUserInfo,
 )
 from app.graphql.queries.user import get_online_users
+from tests.utils import FakeScalarSession, FakeSubscriptionInfo
 
 
 @pytest.mark.asyncio
@@ -149,10 +151,13 @@ class TestUserStatusSubscription:
         """測試 GraphQL subscription resolver"""
         subscription = UserStatusSubscription()
 
-        # 開始訂閱（使用參數傳入 user_id 和 username）
+        # 訂閱者身分來自已認證的 context，username 由資料庫查出
+        subscriber = SimpleNamespace(id=7001, username="subscriber_user")
         subscription_gen = subscription.user_status_changed(
-            user_id="subscriber1",
-            username="subscriber_user"
+            info=FakeSubscriptionInfo(
+                user_id=subscriber.id,
+                db_session=FakeScalarSession(subscriber)
+            )
         )
 
         # 在另一個協程中發布狀態變更（由另一個用戶）
@@ -169,7 +174,7 @@ class TestUserStatusSubscription:
 
         # 第一個事件是訂閱者自己的 ONLINE 狀態
         status_change = await anext(subscription_gen)
-        assert status_change.user_id == "subscriber1"
+        assert status_change.user_id == "7001"
         assert status_change.username == "subscriber_user"
         assert status_change.status == UserStatus.ONLINE
 
@@ -182,6 +187,17 @@ class TestUserStatusSubscription:
         # 清理
         await publish_task
         await subscription_gen.aclose()
+
+    async def test_subscription_requires_authentication(self):
+        """未認證（context.user_id 為 None）時應拒絕訂閱"""
+        subscription = UserStatusSubscription()
+
+        subscription_gen = subscription.user_status_changed(
+            info=FakeSubscriptionInfo(user_id=None)
+        )
+
+        with pytest.raises(Exception, match="Authentication required"):
+            await anext(subscription_gen)
     
     async def test_default_offline_status(self):
         """測試預設離線狀態"""

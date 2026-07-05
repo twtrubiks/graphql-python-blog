@@ -265,8 +265,8 @@ subscription PostPublished {
 ### followedUserPosted - 追蹤用戶發文通知
 
 ```graphql
-subscription FollowedUserPosted($userId: ID!) {
-  followedUserPosted(userId: $userId) {
+subscription FollowedUserPosted {
+  followedUserPosted {
     id
     title
     slug
@@ -279,21 +279,21 @@ subscription FollowedUserPosted($userId: ID!) {
 **檔案位置**：`backend/app/graphql/subscriptions/followed_user_post.py`
 
 **特點**：
-- 需要提供 `userId` 必填參數（訂閱者的用戶 ID）
+- 需要認證：訂閱者身分取自 WebSocket 連線的 JWT（`connectionParams`），不接受客戶端指定，未登入會收到 `Authentication required` 錯誤
 - 只會推送追蹤的作者發布的文章
 
 ### postDeleted - 文章刪除通知
 
 ```graphql
-subscription PostDeleted($userId: ID!) {
-  postDeleted(userId: $userId)
+subscription PostDeleted {
+  postDeleted
 }
 ```
 
 **檔案位置**：`backend/app/graphql/subscriptions/post_deleted.py`
 
 **特點**：
-- 需要提供 `userId` 必填參數（訂閱者的用戶 ID）
+- 需要認證：訂閱者身分取自 WebSocket 連線的 JWT（`connectionParams`），不接受客戶端指定
 - 返回被刪除的文章 ID
 - 用於即時更新 /following 頁面
 
@@ -302,8 +302,8 @@ subscription PostDeleted($userId: ID!) {
 即時追蹤用戶的在線/離線狀態，支援多分頁連線計數。
 
 ```graphql
-subscription UserStatusChanged($userId: ID!, $username: String!) {
-  userStatusChanged(userId: $userId, username: $username) {
+subscription UserStatusChanged {
+  userStatusChanged {
     userId
     username
     status
@@ -315,7 +315,7 @@ subscription UserStatusChanged($userId: ID!, $username: String!) {
 **檔案位置**：`backend/app/graphql/subscriptions/user_status.py`
 
 **特點**：
-- 需要提供 `userId` 和 `username` 必填參數（用於通知上線）
+- 需要認證：`userId` 取自 WebSocket 連線的 JWT，`username` 由資料庫查出，皆不接受客戶端指定（防止偽造他人上線狀態）
 - 連線計數器處理多分頁情境（同一用戶開多個分頁不會誤判離線）
 - 前端全局訂閱（在 Layout 層級）
 - UserCard 組件顯示綠色在線狀態指示器
@@ -356,8 +356,9 @@ import { createSubscriptionManager } from '$lib/utils/subscriptionManager.svelte
 
 const manager = createSubscriptionManager({
   name: 'UserStatus',
+  // 回傳 null 表示不滿足啟動條件；身分由後端從 WebSocket 認證資訊判定
+  getListenParams: () => auth.user ? {} : null,
   createStore: () => new UserStatusStore(),
-  getListenParams: () => auth.user ? { userId: auth.user.id } : null,
   onData: (data) => handleStatusChange(data),
   requiresAuth: true
 });

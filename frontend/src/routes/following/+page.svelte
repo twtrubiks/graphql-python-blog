@@ -120,9 +120,8 @@
 		isDeleteSubscriptionActive = true;
 
 		try {
-			await postDeletedStore.listen({
-				userId: auth.user.id
-			});
+			// 訂閱者身分由後端從 WebSocket 認證資訊判定，不再傳 userId
+			await postDeletedStore.listen();
 			console.log('[PostDeleted] Successfully connected');
 		} catch (error) {
 			console.error('[PostDeleted] Failed to connect:', error);

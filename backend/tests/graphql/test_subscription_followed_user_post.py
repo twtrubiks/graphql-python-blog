@@ -17,6 +17,7 @@ from app.graphql.subscriptions.followed_user_post import (
 )
 from app.graphql.types.post import PostType
 from app.models.post import PostStatus
+from tests.utils import FakeSubscriptionInfo
 
 
 @pytest.mark.asyncio
@@ -263,8 +264,10 @@ class TestFollowedUserPostSubscription:
             published_at=datetime.now(),
         )
 
-        # 開始訂閱
-        subscription_gen = subscription.followed_user_posted(user_id=str(user_id))
+        # 開始訂閱（訂閱者身分來自已認證的 context，而非客戶端參數）
+        subscription_gen = subscription.followed_user_posted(
+            info=FakeSubscriptionInfo(user_id=user_id)
+        )
 
         # 在延遲後發布文章
         async def publish_after_delay():
@@ -281,3 +284,14 @@ class TestFollowedUserPostSubscription:
         # 清理
         await publish_task
         await subscription_gen.aclose()
+
+    async def test_subscription_requires_authentication(self):
+        """未認證（context.user_id 為 None）時應拒絕訂閱"""
+        subscription = FollowedUserPostSubscription()
+
+        subscription_gen = subscription.followed_user_posted(
+            info=FakeSubscriptionInfo(user_id=None)
+        )
+
+        with pytest.raises(Exception, match="Authentication required"):
+            await anext(subscription_gen)
