@@ -80,8 +80,12 @@ async def setup_test_database():
             await conn.close()
 
 @pytest_asyncio.fixture(scope="session")
-async def test_engine():
-    """Create test database engine - session scope for better performance."""
+async def test_engine(setup_test_database):
+    """Create test database engine - session scope for better performance.
+
+    顯式依賴 setup_test_database，確保建表發生在測試資料庫重建之後
+    （pytest-asyncio 1.4+ 不再保證 autouse session fixture 先執行）。
+    """
     engine = create_async_engine(
         TEST_DATABASE_URL,
         poolclass=NullPool,
