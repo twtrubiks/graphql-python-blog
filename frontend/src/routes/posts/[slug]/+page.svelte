@@ -305,9 +305,9 @@
 			});
 
 			if (result.data?.addComment) {
-				// 不要在這裡直接加入評論，讓 subscription 統一處理
-				// 這樣可以避免重複，並確保所有用戶看到一致的結果
-				console.log('[AddComment] Comment sent successfully, waiting for subscription update');
+				// 用 mutation 回傳的資料直接插入，WebSocket 斷線時留言才不會靜默消失；
+				// handleNewComment 以 id 去重，subscription 再推送同一則會被擋掉
+				handleNewComment({ commentAdded: result.data.addComment });
 				newComment = '';
 			} else {
 				notifications.error('發表留言失敗，請稍後再試');

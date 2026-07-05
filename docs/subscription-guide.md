@@ -203,6 +203,10 @@ onDestroy(async () => {
 });
 ```
 
+### 3. 與 addComment mutation 的分工
+
+自己的留言**不依賴 subscription 回填**：`handleAddComment` 在 mutation 成功後，直接用回傳的 comment 呼叫 `handleNewComment` 做本地插入，因此即使 WebSocket 斷線（被防火牆/代理阻擋等），留言仍會立即顯示。subscription 定位為「別人留言」的即時管道；當訂閱把自己剛發的留言推回來時，`handleNewComment` 內的 id 去重會擋掉重複插入。
+
 ---
 
 ## 訂閱生命週期
