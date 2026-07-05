@@ -14,7 +14,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 # Import models and database settings
 from app.models.base import Base
-from app.models import user, post, comment  # Import all models
+from app.models import user, post, comment, tag, like, follow  # Import all models
 from app.core.config import settings
 
 # this is the Alembic Config object, which provides

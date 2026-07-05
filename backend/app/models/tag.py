@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, List
 from datetime import datetime
-from sqlalchemy import String, Table, Column, ForeignKey, UniqueConstraint, DateTime
+from sqlalchemy import String, Table, Column, ForeignKey, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -25,11 +25,7 @@ class Tag(Base):
     """標籤模型"""
     
     __tablename__ = "tags"
-    __table_args__ = (
-        UniqueConstraint("name", name="uq_tag_name"),
-        UniqueConstraint("slug", name="uq_tag_slug"),
-    )
-    
+
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     slug: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)

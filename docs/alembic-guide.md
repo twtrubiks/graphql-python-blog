@@ -49,7 +49,7 @@ cd backend
 alembic upgrade +1
 
 # 升級到特定版本號
-alembic upgrade 7adae7406530
+alembic upgrade ed3f497fe2d2
 ```
 
 ### 6. 降級資料庫版本
@@ -59,7 +59,7 @@ cd backend
 alembic downgrade -1
 
 # 降級到特定版本
-alembic downgrade 7adae7406530
+alembic downgrade ed3f497fe2d2
 
 # 降級到初始狀態（清空所有遷移）
 alembic downgrade base
@@ -117,9 +117,14 @@ alembic revision -m "Manual migration for custom changes"
 確保新的 Model 檔案在 `alembic/env.py` 中被 import：
 ```python
 # 在 alembic/env.py 中
-from app.models import user, post, comment  # 目前已 import 的 models
-# 注意：tag, like, follow 透過 post/user 的關聯自動載入
+from app.models import user, post, comment, tag, like, follow  # Import all models
 ```
+
+⚠️ **每次新增 Model 都必須在這裡補上 import**。Model 不會透過關聯「自動載入」——
+`relationship()` 用的是字串名稱、`TYPE_CHECKING` 的 import 在執行期也不會生效。
+若遺漏 import，該 model 就不在 `target_metadata` 中，autogenerate 會誤以為
+資料庫中對應的表「應該被刪除」而生成 `drop_table`（本專案舊 migration 鏈
+曾因此損壞，已於重建時修復）。
 
 ### 2. 資料庫連線設定
 - 開發環境使用 `.env` 檔案設定（`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`）
