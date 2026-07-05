@@ -77,6 +77,36 @@ class TestAddCommentMutation:
         assert errors is not None
         assert "登入" in errors[0]["message"] or "authentication" in errors[0]["message"].lower() or "unauthorized" in errors[0]["message"].lower()
     
+    async def test_add_comment_to_soft_deleted_post_fails(self, authenticated_client: AsyncClient, test_session, test_post):
+        """測試對已軟刪除的文章留言會失敗（即使 status 仍是 PUBLISHED）"""
+        post = await test_session.get(Post, test_post.id)
+        post.deleted_at = datetime.now(timezone.utc)
+        await test_session.commit()
+
+        mutation = """
+        mutation AddComment($postId: ID!, $content: String!) {
+            addComment(postId: $postId, content: $content) {
+                id
+                content
+            }
+        }
+        """
+
+        variables = {
+            "postId": str(test_post.id),
+            "content": "對已刪除文章的評論"
+        }
+
+        response = await authenticated_client.post(
+            "/graphql",
+            json={"query": mutation, "variables": variables}
+        )
+
+        assert response.status_code == 200
+        errors = response.json().get("errors")
+        assert errors is not None
+        assert "不存在" in errors[0]["message"] or "not found" in errors[0]["message"].lower()
+
     async def test_add_comment_to_nonexistent_post(self, authenticated_client: AsyncClient):
         """測試評論不存在的文章"""
         mutation = """

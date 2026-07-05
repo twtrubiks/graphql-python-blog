@@ -21,9 +21,9 @@ class CommentService:
         if not content or not content.strip():
             raise ValueError("評論內容不能為空")
 
-        # 檢查文章是否存在
+        # 檢查文章是否存在（已軟刪除的文章視同不存在）
         post = await db.get(Post, post_id)
-        if not post:
+        if post is None or post.deleted_at is not None:
             raise ValueError("文章不存在")
 
         # 檢查文章是否已發布（根據業務需求，可能允許作者評論草稿）

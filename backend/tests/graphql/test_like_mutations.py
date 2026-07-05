@@ -1,6 +1,8 @@
 import pytest
+from datetime import datetime, timezone
 from httpx import AsyncClient
 from app.models.like import Like
+from app.models.post import Post
 
 
 @pytest.mark.asyncio
@@ -74,6 +76,33 @@ class TestLikePostMutation:
         """
 
         variables = {"postId": "999999"}
+
+        response = await authenticated_client.post(
+            "/graphql",
+            json={"query": mutation, "variables": variables}
+        )
+
+        assert response.status_code == 200
+        errors = response.json().get("errors")
+        assert errors is not None
+        assert "不存在" in errors[0]["message"] or "not found" in errors[0]["message"].lower()
+
+    async def test_like_soft_deleted_post_fails(self, authenticated_client: AsyncClient, test_session, test_post):
+        """測試按讚已軟刪除的文章會失敗"""
+        post = await test_session.get(Post, test_post.id)
+        post.deleted_at = datetime.now(timezone.utc)
+        await test_session.commit()
+
+        mutation = """
+        mutation LikePost($postId: ID!) {
+            likePost(postId: $postId) {
+                success
+                message
+            }
+        }
+        """
+
+        variables = {"postId": str(test_post.id)}
 
         response = await authenticated_client.post(
             "/graphql",
