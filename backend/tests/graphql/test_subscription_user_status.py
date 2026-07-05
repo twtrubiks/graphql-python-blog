@@ -238,6 +238,31 @@ class TestUserStatusSubscription:
         # 清理
         UserStatusEvent.unsubscribe(queue)
 
+    async def test_disconnected_user_entries_cleaned_up(self):
+        """測試用戶完全斷線後，內部字典的記錄被清除（避免無上限累積）"""
+        user_id = "cleanup_user"
+        username = "cleanup_test"
+
+        # 連線兩次（多分頁）
+        await UserStatusEvent.user_connected(user_id, username)
+        await UserStatusEvent.user_connected(user_id, username)
+        assert user_id in UserStatusEvent._user_connections
+        assert user_id in UserStatusEvent._user_info
+        assert user_id in UserStatusEvent._user_status
+
+        # 關閉一個分頁：仍有連線，記錄保留
+        await UserStatusEvent.user_disconnected(user_id)
+        assert user_id in UserStatusEvent._user_connections
+
+        # 關閉最後一個分頁：記錄應被清除
+        await UserStatusEvent.user_disconnected(user_id)
+        assert user_id not in UserStatusEvent._user_connections
+        assert user_id not in UserStatusEvent._user_info
+        assert user_id not in UserStatusEvent._user_status
+
+        # 查詢狀態仍應回報 OFFLINE（預設值）
+        assert UserStatusEvent.get_user_status(user_id) == UserStatus.OFFLINE
+
     async def test_get_online_users(self):
         """測試獲取在線用戶列表"""
         # 設置一些用戶狀態

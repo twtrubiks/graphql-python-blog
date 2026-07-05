@@ -72,6 +72,11 @@ class UserStatusEvent:
             # 只有從 1 -> 0 時才發送 OFFLINE 狀態
             if prev_count == 1:
                 await cls.publish_status_change(user_id, username, UserStatus.OFFLINE)
+                # 清除完全離線用戶的記錄，避免字典無上限累積（記憶體洩漏）
+                # get_user_status 對不存在的 user_id 預設回傳 OFFLINE，行為不變
+                cls._user_connections.pop(user_id, None)
+                cls._user_info.pop(user_id, None)
+                cls._user_status.pop(user_id, None)
 
     @classmethod
     async def publish_status_change(cls, user_id: str, username: str, status: UserStatus):

@@ -396,9 +396,11 @@ class PostEvent:
 |------|------|
 | 記憶體儲存 | `_subscribers` 儲存在 Server 記憶體中 |
 | 重啟清空 | 重啟 Server 後，所有訂閱狀態會清空 |
-| 單機限制 | **僅適用於單機部署** |
+| 單行程限制 | **僅適用於單行程部署**（`uvicorn --workers N` 的多 worker 也是多行程，事件不會跨 worker 廣播，同樣需要下方的擴展方案） |
 
 > **注意**：重啟 Server 時 WebSocket 連線本就會斷開，客戶端會自動重連並重新訂閱，因此單機情境下這不是問題。
+
+> **記憶體管理**：`UserStatusEvent` 的 `_user_status` / `_user_info` / `_user_connections` 字典會在用戶完全斷線（連線數歸零）時清除該用戶的記錄，避免長時間運行下無上限累積。
 
 ### 多機部署問題
 
