@@ -434,6 +434,70 @@ class TestSearchUnionTypes:
         assert len(post_results) == 1
         assert post_results[0]["title"] == "Python Tutorial"
 
+    async def test_search_excludes_soft_deleted_posts(
+        self,
+        client,
+        test_session,
+        test_user,
+    ):
+        """測試搜尋不返回已軟刪除的文章（即使 status 仍為 published）"""
+        from datetime import datetime, timezone
+
+        active_post = Post(
+            title="Python Tutorial",
+            slug=slugify("Python Tutorial"),
+            content="Learn Python",
+            excerpt="Python guide",
+            author_id=test_user.id,
+            status="published",
+        )
+
+        deleted_post = Post(
+            title="Python Deleted",
+            slug=slugify("Python Deleted"),
+            content="Deleted Python post",
+            excerpt="Deleted guide",
+            author_id=test_user.id,
+            status="published",
+            deleted_at=datetime.now(timezone.utc),
+        )
+
+        test_session.add_all([active_post, deleted_post])
+        await test_session.commit()
+
+        query = """
+            query SimpleSearch($term: String!) {
+                search(term: $term) {
+                    ... on PostType {
+                        __typename
+                        postId: id
+                        title
+                    }
+                    ... on UserType {
+                        __typename
+                        userId: id
+                        username
+                    }
+                }
+            }
+        """
+
+        response = await client.post(
+            "/graphql",
+            json={"query": query, "variables": {"term": "Python"}}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "errors" not in data
+
+        results = data["data"]["search"]
+        post_results = [r for r in results if r["__typename"] == "PostType"]
+
+        # 已軟刪除的文章不應出現在搜尋結果
+        assert len(post_results) == 1
+        assert post_results[0]["title"] == "Python Tutorial"
+
     async def test_search_with_special_characters(
         self,
         client,

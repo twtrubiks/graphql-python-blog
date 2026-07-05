@@ -311,14 +311,15 @@ class SearchQuery:
 
         search_term = term.lower()
 
-        # 搜尋文章（只搜尋已發布的）
+        # 搜尋文章（只搜尋已發布且未被軟刪除的）
         post_stmt = select(Post).where(
             or_(
                 func.lower(Post.title).contains(search_term),
                 func.lower(Post.content).contains(search_term),
                 func.lower(Post.excerpt).contains(search_term)
             ),
-            Post.status == "published"
+            Post.status == "published",
+            Post.deleted_at.is_(None)
         )
 
         post_result = await db.execute(post_stmt)
