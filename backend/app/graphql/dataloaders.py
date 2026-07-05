@@ -238,6 +238,101 @@ class UserLikedPostsLoader(DataLoader):
         return [post_id in liked_post_ids for post_id in post_ids]
 
 
+# followers / following 列表每個用戶的載入上限，避免巨量追蹤者一次全部載入
+FOLLOW_LIST_LIMIT = 100
+
+
+class FollowersLoader(DataLoader):
+    """批次載入追蹤者列表的 DataLoader（每個用戶最多 FOLLOW_LIST_LIMIT 個）"""
+
+    def __init__(self, session: AsyncSession):
+        super().__init__(load_fn=self.batch_load_followers)
+        self.session = session
+
+    async def batch_load_followers(self, user_ids: List[int]) -> List[List[User]]:
+        """批次載入多個用戶的追蹤者，用 window function 在 SQL 端對每個用戶套用上限"""
+        from sqlalchemy import func
+
+        rn = func.row_number().over(
+            partition_by=Follow.followed_id,
+            order_by=(Follow.created_at.desc(), Follow.id.desc()),
+        ).label("rn")
+        subq = (
+            select(Follow.follower_id, Follow.followed_id, rn)
+            .where(Follow.followed_id.in_(user_ids))
+            .subquery()
+        )
+        result = await self.session.execute(
+            select(subq.c.followed_id, User)
+            .join(User, User.id == subq.c.follower_id)
+            .where(subq.c.rn <= FOLLOW_LIST_LIMIT)
+            .order_by(subq.c.followed_id, subq.c.rn)
+        )
+
+        followers_map: Dict[int, List[User]] = defaultdict(list)
+        for followed_id, user in result:
+            followers_map[followed_id].append(user)
+
+        return [followers_map.get(user_id, []) for user_id in user_ids]
+
+
+class FollowingLoader(DataLoader):
+    """批次載入追蹤中列表的 DataLoader（每個用戶最多 FOLLOW_LIST_LIMIT 個）"""
+
+    def __init__(self, session: AsyncSession):
+        super().__init__(load_fn=self.batch_load_following)
+        self.session = session
+
+    async def batch_load_following(self, user_ids: List[int]) -> List[List[User]]:
+        """批次載入多個用戶追蹤中的用戶，用 window function 在 SQL 端對每個用戶套用上限"""
+        from sqlalchemy import func
+
+        rn = func.row_number().over(
+            partition_by=Follow.follower_id,
+            order_by=(Follow.created_at.desc(), Follow.id.desc()),
+        ).label("rn")
+        subq = (
+            select(Follow.follower_id, Follow.followed_id, rn)
+            .where(Follow.follower_id.in_(user_ids))
+            .subquery()
+        )
+        result = await self.session.execute(
+            select(subq.c.follower_id, User)
+            .join(User, User.id == subq.c.followed_id)
+            .where(subq.c.rn <= FOLLOW_LIST_LIMIT)
+            .order_by(subq.c.follower_id, subq.c.rn)
+        )
+
+        following_map: Dict[int, List[User]] = defaultdict(list)
+        for follower_id, user in result:
+            following_map[follower_id].append(user)
+
+        return [following_map.get(user_id, []) for user_id in user_ids]
+
+
+class IsFollowedByUserLoader(DataLoader):
+    """批次載入當前用戶是否追蹤某些用戶的 DataLoader"""
+
+    def __init__(self, session: AsyncSession, user_id: Optional[int]):
+        super().__init__(load_fn=self.batch_load_is_followed)
+        self.session = session
+        self.user_id = user_id
+
+    async def batch_load_is_followed(self, user_ids: List[int]) -> List[bool]:
+        """批次檢查當前用戶是否追蹤了多個用戶"""
+        if not self.user_id:
+            return [False] * len(user_ids)
+
+        result = await self.session.execute(
+            select(Follow.followed_id)
+            .where(Follow.follower_id == self.user_id)
+            .where(Follow.followed_id.in_(user_ids))
+        )
+        followed_ids = set(result.scalars().all())
+
+        return [user_id in followed_ids for user_id in user_ids]
+
+
 class FollowersCountLoader(DataLoader):
     """批次載入追蹤者數量的 DataLoader"""
 
@@ -298,6 +393,9 @@ class DataLoaderContext:
         self.user_liked_posts_loader = UserLikedPostsLoader(session, user_id)
         self.followers_count_loader = FollowersCountLoader(session)
         self.following_count_loader = FollowingCountLoader(session)
+        self.followers_loader = FollowersLoader(session)
+        self.following_loader = FollowingLoader(session)
+        self.is_followed_loader = IsFollowedByUserLoader(session, user_id)
 
     def get_user_loader(self) -> UserLoader:
         return self.user_loader
@@ -328,3 +426,12 @@ class DataLoaderContext:
 
     def get_following_count_loader(self) -> FollowingCountLoader:
         return self.following_count_loader
+
+    def get_followers_loader(self) -> FollowersLoader:
+        return self.followers_loader
+
+    def get_following_loader(self) -> FollowingLoader:
+        return self.following_loader
+
+    def get_is_followed_loader(self) -> IsFollowedByUserLoader:
+        return self.is_followed_loader

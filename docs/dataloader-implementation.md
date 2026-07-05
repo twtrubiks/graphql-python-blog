@@ -107,6 +107,9 @@ author1_again = await user_loader.load(1)
 - **UserLikedPostsLoader**: 批次檢查用戶是否按讚
 - **FollowersCountLoader**: 批次載入追蹤者數量
 - **FollowingCountLoader**: 批次載入追蹤中數量
+- **FollowersLoader**: 批次載入追蹤者列表（window function 在 SQL 端對每個用戶套用 `FOLLOW_LIST_LIMIT` 上限）
+- **FollowingLoader**: 批次載入追蹤中列表（同上）
+- **IsFollowedByUserLoader**: 批次檢查當前用戶是否追蹤某些用戶（未登入直接回傳 False，不查資料庫）
 
 ### 2. 整合位置
 
@@ -175,6 +178,7 @@ async def get_context(
 - `test_dataloader_basic.py`: 基礎 N+1 問題檢測
 - `test_dataloader_optimization.py`: DataLoader 功能測試
 - `test_dataloader_performance_comparison.py`: 效能對比測試
+- `test_follow_dataloaders.py`: 追蹤功能 loader 測試（批次正確性、列表上限、SQL 查詢數驗證）
 
 ## 最佳實踐
 

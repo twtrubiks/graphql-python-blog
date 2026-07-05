@@ -500,6 +500,8 @@ sequenceDiagram
      （如 `user.followers.following.followers...` 無限巢狀放大 DB 負載形成 DoS）
    - **分頁上限**（已實作）：所有分頁 resolver 以 `clamp_pagination` 將 `limit` 鉗制在 `MAX_PAGE_SIZE`（50）以內，
      並防止 `page`/`limit` 為 0 或負數造成的錯誤
+   - **關聯列表上限**（已實作）：`user.followers` / `user.following` 每層以 `FOLLOW_LIST_LIMIT`（100）為上限，
+     搭配 DataLoader 批次載入，避免巨量追蹤者或巢狀查詢放大 DB 負載
    - **複雜度限制**：根據欄位權重計算查詢成本（尚未實作，可視需求擴充）
    - **速率限制**：基於查詢複雜度而非請求數量（尚未實作，可視需求擴充）
 
