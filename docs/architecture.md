@@ -496,9 +496,12 @@ sequenceDiagram
    - 降低注入攻擊風險
 
 2. **查詢控制機制**
-   - **深度限制**：防止過度嵌套的查詢（如 `user.posts.comments.author.posts...`）
-   - **複雜度限制**：根據欄位權重計算查詢成本
-   - **速率限制**：基於查詢複雜度而非請求數量
+   - **深度限制**（已實作）：透過 `QueryDepthLimiter(max_depth=10)` 防止過度嵌套的查詢
+     （如 `user.followers.following.followers...` 無限巢狀放大 DB 負載形成 DoS）
+   - **分頁上限**（已實作）：所有分頁 resolver 以 `clamp_pagination` 將 `limit` 鉗制在 `MAX_PAGE_SIZE`（50）以內，
+     並防止 `page`/`limit` 為 0 或負數造成的錯誤
+   - **複雜度限制**：根據欄位權重計算查詢成本（尚未實作，可視需求擴充）
+   - **速率限制**：基於查詢複雜度而非請求數量（尚未實作，可視需求擴充）
 
 3. **細粒度權限控制**
    - Field-level 授權：每個欄位可有獨立權限
@@ -506,22 +509,48 @@ sequenceDiagram
    - Context-based 權限：基於使用者身份動態控制
    - PermissionExtension：Strawberry 權限控制實現（[詳細實作指南](./permissions-guide.md)）
 
-4. **防護最佳實踐**
+4. **防護最佳實踐**（實際實作於 `app/graphql/schema.py`）
    ```python
-   # 查詢深度限制範例
+   # 查詢深度限制（防止巢狀查詢放大攻擊）
    from strawberry.extensions import QueryDepthLimiter
 
    schema = strawberry.Schema(
        query=Query,
-       extensions=[QueryDepthLimiter(max_depth=5)]
+       mutation=Mutation,
+       subscription=Subscription,
+       extensions=[QueryDepthLimiter(max_depth=10)]
    )
+   ```
 
-   # Field 權限範例
-   @strawberry.field
-   def sensitive_data(self, info) -> str:
-       if not info.context.user.is_authenticated:
-           raise PermissionError("需要登入")
-       return self._sensitive_data
+   ```python
+   # 分頁上限（防止單次查詢撈取過多資料）app/graphql/utils.py
+   MAX_PAGE_SIZE = 50
+
+   def clamp_pagination(page: int, limit: int) -> tuple[int, int]:
+       return max(page, 1), min(max(limit, 1), MAX_PAGE_SIZE)
+   ```
+
+### 前端安全
+
+1. **XSS 防護（內容消毒）**（已實作）
+   - 文章內容為 Markdown，`MarkdownRenderer.svelte` 以 `{@html}` 渲染
+   - `marked` 本身**不會**消毒 HTML，若直接輸出，攻擊者可透過
+     `<img src=x onerror=...>` 等 payload 在所有讀者瀏覽器執行腳本（儲存型 XSS），
+     並竊取存於 localStorage 的 JWT token
+   - 修法：渲染前一律以 DOMPurify 消毒，移除事件處理屬性、`<script>`、`javascript:` 等危險內容
+
+   ```svelte
+   <!-- MarkdownRenderer.svelte -->
+   <script lang="ts">
+     import { marked } from 'marked';
+     import DOMPurify from 'dompurify';
+     import { browser } from '$app/environment';
+
+     // DOMPurify 需要瀏覽器 DOM，SSR 時輸出空字串，待 hydration 後渲染
+     let html = $derived(
+       browser ? DOMPurify.sanitize(marked.parse(content || '') as string) : ''
+     );
+   </script>
    ```
 
 ## 效能考量

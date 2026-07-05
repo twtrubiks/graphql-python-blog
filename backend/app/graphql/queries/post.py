@@ -5,6 +5,7 @@ import strawberry
 from strawberry.types import Info
 
 from app.graphql.types.post import PostType, PostConnection, PostEdge, PageInfo, PostStatus
+from app.graphql.utils import clamp_pagination
 from app.services.post import PostService
 from app.services.user import UserService
 from app.core.auth import get_current_user_optional, require_auth
@@ -104,6 +105,7 @@ class PostQuery:
             limit: Number of posts per page
             search: Search term to filter posts by title or content
         """
+        page, limit = clamp_pagination(page, limit)
         session = info.context["db_session"]
 
         # Get posts (only published ones for public access)
@@ -125,6 +127,7 @@ class PostQuery:
         limit: int = 10
     ) -> PostConnection:
         """Get posts filtered by a single tag"""
+        page, limit = clamp_pagination(page, limit)
         session = info.context["db_session"]
         
         # Get posts with the specified tag
@@ -147,6 +150,7 @@ class PostQuery:
         limit: int = 10
     ) -> PostConnection:
         """Get posts filtered by multiple tags"""
+        page, limit = clamp_pagination(page, limit)
         session = info.context["db_session"]
 
         # Get posts with the specified tags
@@ -180,6 +184,7 @@ class PostQuery:
         Returns:
             PostConnection with paginated posts from followed users
         """
+        page, limit = clamp_pagination(page, limit)
         session = info.context["db_session"]
 
         # Get current user
@@ -214,6 +219,7 @@ class PostQuery:
         Returns:
             PostConnection with paginated posts by current user
         """
+        page, limit = clamp_pagination(page, limit)
         session = info.context["db_session"]
 
         # Get current user
@@ -254,6 +260,7 @@ class PostQuery:
         if not author_id and not author_username:
             raise ValueError("Either author_id or author_username must be provided")
 
+        page, limit = clamp_pagination(page, limit)
         session = info.context["db_session"]
 
         # If username provided, look up the author_id

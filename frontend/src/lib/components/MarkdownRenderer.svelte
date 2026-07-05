@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { marked } from 'marked';
+	import DOMPurify from 'dompurify';
+	import { browser } from '$app/environment';
 
 	interface Props {
 		content: string;
@@ -14,7 +16,11 @@
 		gfm: true
 	});
 
-	let html = $derived(marked.parse(content || '') as string);
+	// marked 不會消毒 HTML，必須用 DOMPurify 清除惡意內容（防止儲存型 XSS）
+	// DOMPurify 需要瀏覽器 DOM，SSR 時輸出空字串，待客戶端 hydration 後渲染
+	let html = $derived(
+		browser ? DOMPurify.sanitize(marked.parse(content || '') as string) : ''
+	);
 </script>
 
 <div class="prose prose-lg max-w-none prose-headings:font-bold prose-a:text-primary-600 hover:prose-a:text-primary-800 prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-pre:text-gray-100 {className}">

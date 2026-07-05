@@ -19,6 +19,7 @@ GraphQL 的優勢：
 """
 
 import strawberry
+from strawberry.extensions import QueryDepthLimiter
 from typing import Optional, List
 from app.graphql.mutations.auth import register, login, AuthPayload
 from app.graphql.mutations.post import (
@@ -159,7 +160,12 @@ class Subscription(CommentSubscription, UserStatusSubscription, PostSubscription
 schema = strawberry.Schema(
     query=Query,
     mutation=Mutation,
-    subscription=Subscription
+    subscription=Subscription,
+    extensions=[
+        # 限制查詢深度，防止 user -> followers -> following -> ... 巢狀放大攻擊
+        # 前端最深的查詢約 6 層，10 留有足夠餘裕（introspection 查詢不受此限制）
+        QueryDepthLimiter(max_depth=10),
+    ]
 )
 
 """

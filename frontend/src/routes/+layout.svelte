@@ -4,6 +4,7 @@
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
 	import { userStatusStore } from '$lib/stores/userStatus.svelte';
+	import { followedFeed } from '$lib/stores/followedFeed.svelte';
 	import RealtimeNotification from '$lib/components/RealtimeNotification.svelte';
 	import {
 		PostPublishedStore,
@@ -62,13 +63,19 @@
 				const newPost = data.followedUserPosted;
 				if (newPost.id !== lastFollowedPostId) {
 					lastFollowedPostId = newPost.id;
+					// 寫入共用 store，讓 /following 頁面即時更新列表（不需自行重複訂閱）
+					followedFeed.latestPost = newPost;
 					handleFollowedUserPost(newPost);
 				}
 			}
 		},
 		onError: (error) => console.error('[FollowedUserPosted] Error:', error),
+		onStatusChange: (status) => {
+			followedFeed.status = status;
+		},
 		onCleanup: () => {
 			lastFollowedPostId = null;
+			followedFeed.reset();
 		}
 	});
 
@@ -424,7 +431,7 @@
 </div>
 
 <!-- 全站通知容器 -->
-<div class="notification-stack fixed top-4 right-4 z-[100] flex flex-col gap-2">
+<div class="notification-stack fixed top-4 right-4 z-[100] flex flex-col gap-2 w-full max-w-sm">
 	{#each notifications.notifications as notification (notification.id)}
 		<RealtimeNotification
 			message={notification.message}

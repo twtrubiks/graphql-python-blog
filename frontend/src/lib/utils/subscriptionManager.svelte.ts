@@ -30,6 +30,8 @@ export interface SubscriptionConfig<TData> {
 	onData: (data: TData) => void;
 	/** 錯誤處理回調 */
 	onError?: (error: unknown) => void;
+	/** 連線狀態變更回調 */
+	onStatusChange?: (status: 'idle' | 'connecting' | 'connected' | 'error') => void;
 	/** 清理回調（登出或元件卸載時） */
 	onCleanup?: () => void;
 	/** 是否需要認證 */
@@ -110,13 +112,16 @@ export function createSubscriptionManager<TData>(config: SubscriptionConfig<TDat
 
 		console.log(`[${config.name}] Starting subscription`);
 		isActive = true;
+		config.onStatusChange?.('connecting');
 
 		try {
 			await store.listen(params);
 			console.log(`[${config.name}] Subscription connected`);
+			config.onStatusChange?.('connected');
 		} catch (error) {
 			console.error(`[${config.name}] Failed to connect:`, error);
 			isActive = false;
+			config.onStatusChange?.('error');
 		}
 	}
 
@@ -146,6 +151,7 @@ export function createSubscriptionManager<TData>(config: SubscriptionConfig<TDat
 		isInitialized = false;
 		store = null;
 
+		config.onStatusChange?.('idle');
 		config.onCleanup?.();
 	}
 

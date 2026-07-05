@@ -3,6 +3,8 @@
 	import { page } from '$app/state';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
+	import { extractHoudiniError } from '$lib/utils/errorExtraction';
+	import { translateError } from '$lib/utils/errorTranslation';
 	import { goto } from '$app/navigation';
 	import { onMount, onDestroy } from 'svelte';
 	import MarkdownRenderer from '$lib/components/MarkdownRenderer.svelte';
@@ -219,6 +221,9 @@
 				if (result.data?.unfollowUser?.success) {
 					localIsFollowedByMe = false;
 					localFollowersCount -= 1;
+					// 同步回 post.author，避免 post 物件重建（如收到即時留言）時同步 effect 用舊值覆蓋
+					post.author.isFollowedByMe = false;
+					post.author.followersCount = localFollowersCount;
 					notifications.success('已取消追蹤');
 				} else {
 					notifications.error(result.data?.unfollowUser?.message || '取消追蹤失敗');
@@ -229,6 +234,8 @@
 				if (result.data?.followUser?.success) {
 					localIsFollowedByMe = true;
 					localFollowersCount += 1;
+					post.author.isFollowedByMe = true;
+					post.author.followersCount = localFollowersCount;
 					notifications.success('追蹤成功');
 				} else {
 					notifications.error(result.data?.followUser?.message || '追蹤失敗');
@@ -266,9 +273,13 @@
 				// 這樣可以避免重複，並確保所有用戶看到一致的結果
 				console.log('[AddComment] Comment sent successfully, waiting for subscription update');
 				newComment = '';
+			} else {
+				notifications.error('發表留言失敗，請稍後再試');
 			}
 		} catch (err) {
 			console.error('Failed to add comment:', err);
+			const errorMessage = extractHoudiniError(err);
+			notifications.error(errorMessage ? translateError(errorMessage) : '發表留言失敗，請稍後再試');
 		} finally {
 			isSubmittingComment = false;
 		}
@@ -291,6 +302,8 @@
 				if (result.data?.unlikePost?.success) {
 					post.isLiked = false;
 					post.likesCount -= 1;
+				} else {
+					notifications.error(result.data?.unlikePost?.message || '取消按讚失敗，請稍後再試');
 				}
 			} else {
 				// Houdini expects variables directly, not wrapped in a variables object
@@ -300,10 +313,14 @@
 				if (result.data?.likePost) {
 					post.isLiked = true;
 					post.likesCount += 1;
+				} else {
+					notifications.error('按讚失敗，請稍後再試');
 				}
 			}
 		} catch (err) {
 			console.error('Failed to toggle like:', err);
+			const errorMessage = extractHoudiniError(err);
+			notifications.error(errorMessage ? translateError(errorMessage) : '操作失敗，請稍後再試');
 		} finally {
 			isLiking = false;
 		}

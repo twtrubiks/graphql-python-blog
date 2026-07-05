@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { GetFollowingPostsStore, FollowedUserPostedStore, PostDeletedStore } from '$houdini';
+	import { GetFollowingPostsStore, PostDeletedStore } from '$houdini';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
+	import { followedFeed } from '$lib/stores/followedFeed.svelte';
 	import { useAuthGuard } from '$lib/utils/authGuard.svelte';
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, untrack } from 'svelte';
 
 	const postsStore = new GetFollowingPostsStore();
 
@@ -12,12 +13,9 @@
 	let isLoading = $state(true);
 	let postsData = $state<any>(null);
 
-	// Subscription 狀態 - 新文章
-	let followedPostsStore: FollowedUserPostedStore | null = null;
-	let isSubscriptionActive = $state(false);
-	let subscriptionStatus = $state<'idle' | 'connecting' | 'connected' | 'error'>('idle');
-	let lastPostId: string | null = null;
-	let storeUnsubscribe: (() => void) | null = null;
+	// 新文章訂閱由 +layout.svelte 統一建立（全站僅一條 FollowedUserPosted 訂閱），
+	// 此頁透過 followedFeed store 消費資料與連線狀態
+	let subscriptionStatus = $derived(followedFeed.status);
 
 	// Subscription 狀態 - 文章刪除
 	let postDeletedStore: PostDeletedStore | null = null;
@@ -26,41 +24,31 @@
 
 	useAuthGuard('請先登入才能查看追蹤動態');
 
+	// 清除進入頁面前殘留的舊文章（可能已在其他頁通知過，且會包含在初次 loadPosts 結果中），
+	// 只處理停留本頁期間新收到的文章。於 init 同步清除，確保早於下方消費 effect 首次執行。
+	followedFeed.latestPost = null;
+
 	// 載入文章
+	// untrack 避免 loadPosts 內讀取的 currentPage/limit 被追蹤，
+	// 否則換頁後 effect 會重跑造成雙重 fetch
 	$effect(() => {
 		if (auth.isAuthenticated) {
-			loadPosts();
+			untrack(() => loadPosts());
 		}
+	});
+
+	// 消費 layout 訂閱寫入的最新追蹤文章
+	$effect(() => {
+		const newPost = followedFeed.latestPost;
+		if (!newPost) return;
+
+		// 消費後清除，避免重複處理
+		followedFeed.latestPost = null;
+		untrack(() => handleNewPost(newPost));
 	});
 
 	onMount(() => {
 		if (!auth.isAuthenticated || !auth.user?.id) return;
-
-		// 初始化 subscription
-		followedPostsStore = new FollowedUserPostedStore();
-
-		// 監聽 subscription 資料
-		storeUnsubscribe = followedPostsStore.subscribe((value: any) => {
-			if (!value || !isSubscriptionActive) return;
-
-			if (value.data?.followedUserPosted) {
-				const newPost = value.data.followedUserPosted;
-
-				// 避免重複處理
-				if (newPost.id !== lastPostId) {
-					lastPostId = newPost.id;
-					handleNewPost(newPost);
-				}
-			}
-
-			if (value.error) {
-				console.error('[FollowedUserPosted] Error:', value.error);
-				subscriptionStatus = 'error';
-			}
-		});
-
-		// 啟動 subscription
-		startSubscription();
 
 		// 初始化文章刪除 subscription
 		postDeletedStore = new PostDeletedStore();
@@ -79,10 +67,6 @@
 		startDeleteSubscription();
 
 		return () => {
-			if (storeUnsubscribe) {
-				storeUnsubscribe();
-				storeUnsubscribe = null;
-			}
 			if (deleteStoreUnsubscribe) {
 				deleteStoreUnsubscribe();
 				deleteStoreUnsubscribe = null;
@@ -91,44 +75,15 @@
 	});
 
 	onDestroy(async () => {
-		if (storeUnsubscribe) {
-			storeUnsubscribe();
-			storeUnsubscribe = null;
-		}
 		if (deleteStoreUnsubscribe) {
 			deleteStoreUnsubscribe();
 			deleteStoreUnsubscribe = null;
-		}
-		if (followedPostsStore && isSubscriptionActive) {
-			await followedPostsStore.unlisten();
-			isSubscriptionActive = false;
-			subscriptionStatus = 'idle';
 		}
 		if (postDeletedStore && isDeleteSubscriptionActive) {
 			await postDeletedStore.unlisten();
 			isDeleteSubscriptionActive = false;
 		}
 	});
-
-	async function startSubscription() {
-		if (!followedPostsStore || isSubscriptionActive || !auth.user?.id) return;
-
-		console.log('[FollowedUserPosted] Starting subscription...');
-		subscriptionStatus = 'connecting';
-		isSubscriptionActive = true;
-
-		try {
-			await followedPostsStore.listen({
-				userId: auth.user.id
-			});
-			subscriptionStatus = 'connected';
-			console.log('[FollowedUserPosted] Successfully connected');
-		} catch (error) {
-			console.error('[FollowedUserPosted] Failed to connect:', error);
-			subscriptionStatus = 'error';
-			isSubscriptionActive = false;
-		}
-	}
 
 	function handleNewPost(newPost: any) {
 		console.log('[FollowedUserPosted] New post received:', newPost);

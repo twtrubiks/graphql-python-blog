@@ -71,8 +71,9 @@
 </script>
 
 {#if visible}
+	<!-- 定位交由外層 notification-stack 容器處理，避免多則通知固定在同一位置重疊 -->
 	<div
-		class="fixed top-4 right-4 max-w-sm w-full z-50"
+		class="w-full"
 		transition:fly={{ y: -20, duration: 300 }}
 	>
 		<div

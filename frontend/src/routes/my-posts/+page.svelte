@@ -3,6 +3,7 @@
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
 	import { useAuthGuard } from '$lib/utils/authGuard.svelte';
+	import { untrack } from 'svelte';
 
 	const postsStore = new GetMyPostsStore();
 	const deleteStore = new DeletePostStore();
@@ -21,9 +22,11 @@
 	useAuthGuard();
 
 	// 登入後載入文章
+	// untrack 避免 loadPosts 內讀取的 currentPage/limit 等狀態被追蹤，
+	// 否則換頁後 effect 會重跑造成雙重 fetch
 	$effect(() => {
 		if (auth.isAuthenticated) {
-			loadPosts();
+			untrack(() => loadPosts());
 		}
 	});
 
