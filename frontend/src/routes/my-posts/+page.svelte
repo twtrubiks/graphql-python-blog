@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { GetMyPostsStore, DeletePostStore, PublishPostStore, UnpublishPostStore } from '$houdini';
+	import { GetMyPostsStore, DeletePostStore, PublishPostStore, UnpublishPostStore, type PostStatus$options } from '$houdini';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
 	import { useAuthGuard } from '$lib/utils/authGuard.svelte';
@@ -17,7 +17,7 @@
 	let publishingPostId = $state<string | null>(null);
 
 	// 狀態篩選: 'all' | 'PUBLISHED' | 'DRAFT'
-	let statusFilter = $state<string>('all');
+	let statusFilter = $state<'all' | PostStatus$options>('all');
 
 	useAuthGuard();
 
@@ -51,7 +51,7 @@
 		}
 	}
 
-	function handleStatusChange(newStatus: string) {
+	function handleStatusChange(newStatus: 'all' | PostStatus$options) {
 		statusFilter = newStatus;
 		loadPosts(1);
 	}

@@ -454,7 +454,8 @@
 				input: { content: editingContent }
 			});
 
-			if (result.data?.updateComment?.success) {
+			const updatedComment = result.data?.updateComment?.comment;
+			if (result.data?.updateComment?.success && updatedComment) {
 				// 更新本地狀態
 				post = {
 					...post,
@@ -462,8 +463,8 @@
 						c.id === commentId
 							? {
 									...c,
-									content: result.data.updateComment.comment.content,
-									updatedAt: result.data.updateComment.comment.updatedAt
+									content: updatedComment.content,
+									updatedAt: updatedComment.updatedAt
 								}
 							: c
 					)

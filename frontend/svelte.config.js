@@ -18,7 +18,8 @@ const config = {
 			$components: './src/lib/components',
 			$stores: './src/lib/stores',
 			$utils: './src/lib/utils',
-			$houdini: path.resolve('.', '.houdini')
+			$houdini: path.resolve('.', '.houdini'),
+			'$houdini/*': path.resolve('.', '.houdini') + '/*'
 		}
 	}
 };

@@ -48,7 +48,7 @@
 		notFound = false;
 		try {
 			const result = await userProfileStore.fetch({
-				variables: { username: page.params.username }
+				variables: { username: page.params.username! }
 			});
 			userData = result.data?.user;
 			if (!userData) {
@@ -70,7 +70,7 @@
 		try {
 			const result = await userPostsStore.fetch({
 				variables: {
-					authorUsername: page.params.username,
+					authorUsername: page.params.username!,
 					page: pg,
 					limit
 				}

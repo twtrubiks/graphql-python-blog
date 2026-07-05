@@ -8,8 +8,8 @@
 - **Svelte 5** - 使用最新的 runes 語法 (`$state`, `$props`, `$effect`, `$derived`)
 - **TypeScript 6** - 類型安全
 - **Tailwind CSS 4** - 實用優先的 CSS 框架（CSS-first 設定）
-- **Vite 7** - 快速的建置工具
-- **Houdini v2.0.0-next.11** - GraphQL 客戶端（完整支援 Svelte 5）
+- **Vite 8** - 快速的建置工具
+- **Houdini v2.0.5** - GraphQL 客戶端（完整支援 Svelte 5）
 
 ## 快速開始
 
@@ -405,7 +405,7 @@ npm run codegen
 ```typescript
 import houdini from 'houdini/vite';
 // ...
-plugins: [houdini(), sveltekit()]
+plugins: [tailwindcss(), houdini(), sveltekit()]
 ```
 
 2. 重新執行 codegen：

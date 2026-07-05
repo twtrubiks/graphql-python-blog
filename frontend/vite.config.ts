@@ -1,9 +1,11 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import houdini from 'houdini/vite';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-	plugins: [houdini(), sveltekit()],
+	// vite 8 起 postcss.config.js 的 @tailwindcss/postcss 不再被載入，改用官方 vite plugin
+	plugins: [tailwindcss(), houdini(), sveltekit()],
 	server: {
 		port: 5173,
 		host: true,

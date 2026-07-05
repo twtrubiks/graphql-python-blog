@@ -6,10 +6,10 @@
 [![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-orange.svg)](https://www.sqlalchemy.org/)
 [![SvelteKit](https://img.shields.io/badge/SvelteKit-2.69-orange.svg)](https://svelte.dev/)
 [![Svelte](https://img.shields.io/badge/Svelte-5-red.svg)](https://svelte.dev/)
-[![Houdini](https://img.shields.io/badge/Houdini-2.0--next.11-purple.svg)](https://houdinigraphql.com/)
+[![Houdini](https://img.shields.io/badge/Houdini-2.0.5-purple.svg)](https://houdinigraphql.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-blue.svg)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-blue.svg)](https://tailwindcss.com/)
-[![Vite](https://img.shields.io/badge/Vite-7-purple.svg)](https://vite.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8-purple.svg)](https://vite.dev/)
 [![Node.js](https://img.shields.io/badge/Node.js-24+-green.svg)](https://nodejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-blue.svg)](https://www.postgresql.org/)
 [![WebSocket](https://img.shields.io/badge/WebSocket-Real--time-orange.svg)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
@@ -42,9 +42,9 @@
 ### 前端
 - **SvelteKit 2.69+** - 全端框架
 - **Svelte 5** - 使用最新的 Runes 系統
-- **Houdini v2.0.0-next.11** - GraphQL 客戶端（完整支援 Svelte 5）
+- **Houdini v2.0.5** - GraphQL 客戶端（完整支援 Svelte 5）
 - **Tailwind CSS 4** - 樣式框架（CSS-first 設定）
-- **Vite 7** - 建置工具
+- **Vite 8** - 建置工具
 
 ### 測試
 - **pytest** - 測試框架

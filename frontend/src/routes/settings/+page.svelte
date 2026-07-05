@@ -46,9 +46,9 @@
 				// 更新 auth store
 				auth.updateUser({
 					username: result.data.updateMe.username,
-					fullName: result.data.updateMe.fullName,
-					bio: result.data.updateMe.bio,
-					avatarUrl: result.data.updateMe.avatarUrl
+					fullName: result.data.updateMe.fullName ?? undefined,
+					bio: result.data.updateMe.bio ?? undefined,
+					avatarUrl: result.data.updateMe.avatarUrl ?? undefined
 				});
 				notifications.success('個人資料已更新');
 			} else if (result.errors) {

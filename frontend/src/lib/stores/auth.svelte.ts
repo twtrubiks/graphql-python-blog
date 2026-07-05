@@ -24,11 +24,12 @@ import { GetMeStore } from '$houdini';
 
 interface User {
 	id: string;
-	email: string;
+	// schema 上 email 為 nullable（非本人查詢時不回傳）
+	email: string | null;
 	username: string;
-	fullName?: string;
-	bio?: string;
-	avatarUrl?: string;
+	fullName?: string | null;
+	bio?: string | null;
+	avatarUrl?: string | null;
 	isActive?: boolean;
 	isSuperuser?: boolean;
 	createdAt?: string;
@@ -214,7 +215,8 @@ function createAuthStore() {
 						avatarUrl: serverUser.avatarUrl ?? undefined,
 						isActive: serverUser.isActive ?? undefined,
 						isSuperuser: serverUser.isSuperuser ?? undefined,
-						createdAt: serverUser.createdAt ?? undefined,
+						// DateTime scalar 會 unmarshal 成 Date，轉回字串以符合 localStorage 序列化格式
+					createdAt: serverUser.createdAt?.toISOString(),
 						followersCount: serverUser.followersCount ?? undefined,
 						followingCount: serverUser.followingCount ?? undefined
 					};

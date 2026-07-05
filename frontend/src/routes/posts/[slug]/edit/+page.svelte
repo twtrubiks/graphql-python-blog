@@ -64,7 +64,7 @@
 				}
 
 				hasPermission = true;
-				postId = post.id;
+				postId = String(post.id);
 				originalSlug = post.slug;
 				title = post.title;
 				content = post.content;
