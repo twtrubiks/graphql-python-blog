@@ -161,12 +161,13 @@ function scheduleReconnect(postId: string) {
 async function startSubscription(postId: string) {
   // Houdini 對相同變數重複 listen 會直接略過，重連前先 unlisten 重置其內部狀態
   await commentAddedStore.unlisten();
+  // await 期間文章已切換或元件已銷毀時放棄
+  if (currentPostId !== postId) return;
   await commentAddedStore.listen({ postId });
-  // 錯誤時 listen 也可能正常 resolve（錯誤走 store 的 errors 路徑），已排定重連就不覆寫狀態
-  if (!reconnectTimer) {
-    subscriptionStatus = 'connected';
-    reconnectAttempts = 0;
-  }
+  if (currentPostId !== postId) return;
+  // 錯誤時 listen 也可能正常 resolve（錯誤事後才走 store 的 errors 路徑），
+  // 不能在這裡重置 reconnectAttempts，否則失敗的重連會不斷歸零、永遠達不到重試上限
+  if (!reconnectTimer) subscriptionStatus = 'connected';
 }
 
 // 開始監聽（當 postId 變化時）
@@ -182,8 +183,10 @@ $effect(() => {
 onMount(() => {
   storeUnsubscribe = commentAddedStore.subscribe((value) => {
     if (value.data?.commentAdded) {
+      // 連線其實活著：重置計數並取消已排定的重連
       subscriptionStatus = 'connected';
       reconnectAttempts = 0;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
       handleNewComment({ commentAdded: value.data.commentAdded });
     }
     // 注意：Houdini 的錯誤欄位是 errors「陣列」（成功時為空陣列），沒有 value.error
@@ -249,7 +252,7 @@ onDestroy(async () => {
 
 ## 連線狀態指示器
 
-前端實作了視覺化的連線狀態（參考 `+page.svelte:714-741`）：
+前端實作了視覺化的連線狀態（參考 `+page.svelte:718-745`）：
 
 | 狀態 | 顯示 |
 |-----|------|
@@ -260,10 +263,11 @@ onDestroy(async () => {
 
 ### 斷線重連
 
-連線失敗時會自動重連，最多 3 次，間隔 2s → 4s → 6s 遞增；重連成功或收到新資料時重置計數。實作上有兩個 Houdini 的陷阱要注意：
+連線失敗時會自動重連，最多 3 次，間隔 2s → 4s → 6s 遞增；只有**真正收到新資料**時才重置計數。實作上有三個陷阱要注意：
 
 1. **錯誤欄位是 `errors` 陣列**（成功的訊息也會帶空陣列），`value.error` 這個欄位不存在，判斷時必須用 `value.errors?.length`。
 2. **對相同變數重複呼叫 `listen()` 會被 Houdini 內部略過**（`variablesChanged` + session 比對），因此重連前必須先 `await unlisten()` 重置其內部狀態，否則重連是 no-op。
+3. **`listen()` resolve 不代表連線成功**（失敗時錯誤事後才走 store 的 `errors` 路徑），因此重試計數不能在 resolve 時歸零，否則失敗的重連會不斷重置計數、永遠達不到重試上限；此外 `await` 期間文章可能已切換或元件已銷毀，續行前要再檢查 `currentPostId`。
 
 ---
 
@@ -282,7 +286,7 @@ frontend/
 ├── src/lib/graphql/subscriptions/
 │   └── CommentAdded.gql        # GraphQL 定義
 └── src/routes/posts/[slug]/
-    └── +page.svelte:54-212     # 訂閱生命週期管理（含斷線重連）
+    └── +page.svelte:54-216     # 訂閱生命週期管理（含斷線重連）
 ```
 
 ---

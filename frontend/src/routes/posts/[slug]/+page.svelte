@@ -90,16 +90,19 @@
 		try {
 			// Houdini 對相同變數重複 listen 會直接略過，重連前先 unlisten 重置其內部狀態
 			await commentAddedStore.unlisten();
+			// await 期間文章已切換或元件已銷毀（onDestroy 會清空 currentPostId）時放棄
+			if (currentPostId !== postId) return;
 			isSubscriptionActive = true;
 			// 觸發 subscription 開始監聽
 			await commentAddedStore.listen({
 				postId: postId
 			});
-			// 連線失敗時 listen 也可能正常 resolve（錯誤走 store 的 errors 路徑並排定重連），
-			// 已排定重連時不要覆寫狀態
+			if (currentPostId !== postId) return;
+			// 連線失敗時 listen 也可能正常 resolve（錯誤事後才走 store 的 errors 路徑），
+			// 因此這裡不能重置 reconnectAttempts —— 失敗的重連也會走到這裡，一旦歸零
+			// 就永遠達不到重試上限；計數只在真正收到資料時歸零
 			if (!reconnectTimer) {
 				subscriptionStatus = 'connected';
-				reconnectAttempts = 0;
 				console.log('[Subscription] Successfully connected for post:', postId);
 			}
 		} catch (error) {
@@ -161,9 +164,10 @@
 
 			// 檢查是否有新評論
 			if (value.data?.commentAdded) {
-				// 收到資料代表連線正常
+				// 收到資料代表連線正常：重置重連計數，並取消已排定的重連
 				subscriptionStatus = 'connected';
 				reconnectAttempts = 0;
+				clearReconnectTimer();
 				const newComment = value.data.commentAdded;
 
 				// 避免重複處理同一則評論
