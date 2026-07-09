@@ -1041,11 +1041,9 @@ class TestDeletePostMutation:
         )
         post = result.scalar_one_or_none()
 
-        # 如果實作軟刪除，文章應該存在但有刪除標記
-        if post:
-            # 檢查是否有 deleted_at 欄位或 is_deleted 標記
-            assert hasattr(post, 'deleted_at') and post.deleted_at is not None or \
-                   hasattr(post, 'is_deleted') and post.is_deleted is True
+        # 軟刪除：文章應該存在但有刪除標記
+        assert post is not None
+        assert post.deleted_at is not None
 
     @pytest.mark.asyncio
     async def test_deleted_posts_not_in_list(self, authenticated_client, test_session):

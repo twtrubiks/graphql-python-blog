@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, DateTime, Boolean
+from sqlalchemy import Column, Integer, DateTime
 from sqlalchemy.ext.declarative import declared_attr
 from app.core.database import Base
 
@@ -22,16 +22,3 @@ class BaseModel(Base):
 
     def __repr__(self):
         return f"<{self.__class__.__name__}(id={self.id})>"
-
-
-class SoftDeleteMixin:
-    deleted_at = Column(DateTime(timezone=True), nullable=True, default=None)
-    is_deleted = Column(Boolean, default=False, nullable=False)
-
-    def soft_delete(self):
-        self.deleted_at = utc_now()
-        self.is_deleted = True
-
-    def restore(self):
-        self.deleted_at = None
-        self.is_deleted = False

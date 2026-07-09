@@ -173,14 +173,7 @@ async def delete_post(
     follower_ids = await FollowService.get_follower_ids(session, author_id)
 
     # Implement soft delete
-    # Check if Post model has soft delete fields
-    if hasattr(Post, 'deleted_at'):
-        post.deleted_at = datetime.now(timezone.utc)
-    elif hasattr(Post, 'is_deleted'):
-        post.is_deleted = True
-    else:
-        # If no soft delete fields, do hard delete
-        await session.delete(post)
+    post.deleted_at = datetime.now(timezone.utc)
 
     await session.commit()
 
