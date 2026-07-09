@@ -352,7 +352,7 @@ sequenceDiagram
 
 - `commentAdded(postId: ID!)` - 文章新評論即時通知
 - `userStatusChanged(userId: ID!, username: String!)` - 用戶上線/離線狀態追蹤
-- `postPublished` - 新文章發布通知
+- `postPublished` - 新文章發布事件（前端用於列表「有新文章」提示條，不彈通知）
 - `followedUserPosted(userId: ID!)` - 追蹤用戶發文通知（需傳入當前用戶 ID）
 - `postDeleted(userId: ID!)` - 文章刪除即時更新（需傳入當前用戶 ID）
 

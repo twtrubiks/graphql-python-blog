@@ -4,6 +4,8 @@
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
 	import TagFilter from '$lib/components/TagFilter.svelte';
+	import NewPostsBanner from '$lib/components/NewPostsBanner.svelte';
+	import { postFeed } from '$lib/stores/postFeed.svelte';
 
 	const postsStore = new GetPostsStore();
 	const taggedPostsStore = new GetPostsByTagsStore();
@@ -75,7 +77,8 @@
 		reqAll: boolean = requireAll,
 		pg: number = currentPage,
 		lim: number = limit,
-		search: string = searchQuery
+		search: string = searchQuery,
+		policy?: 'NetworkOnly'
 	) {
 		isLoading = true;
 		try {
@@ -89,7 +92,8 @@
 						requireAll: reqAll,
 						page: pg,
 						limit: lim
-					}
+					},
+					policy
 				});
 				postsData = result.data?.postsByTags;
 			} else {
@@ -99,10 +103,13 @@
 						page: pg,
 						limit: lim,
 						search: search || null
-					}
+					},
+					policy
 				});
 				postsData = result.data?.posts;
 			}
+			// 列表已重新載入，清除「有新文章」提示
+			postFeed.clear();
 		} catch (error) {
 			console.error('Failed to load posts:', error);
 		} finally {
@@ -263,6 +270,12 @@
 			</span>
 		</div>
 	{/if}
+
+	<!-- 有新文章提示條（新文章不在 Houdini 快取內，需強制走網路） -->
+	<NewPostsBanner
+		count={postFeed.pendingCount}
+		onRefresh={() => loadPosts(selectedTags, requireAll, currentPage, limit, searchQuery, 'NetworkOnly')}
+	/>
 
 	<!-- Posts Grid -->
 	{#if isLoading}

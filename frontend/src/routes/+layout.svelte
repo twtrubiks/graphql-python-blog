@@ -5,6 +5,7 @@
 	import { notifications } from '$lib/stores/notifications.svelte';
 	import { userStatusStore } from '$lib/stores/userStatus.svelte';
 	import { followedFeed } from '$lib/stores/followedFeed.svelte';
+	import { postFeed } from '$lib/stores/postFeed.svelte';
 	import RealtimeNotification from '$lib/components/RealtimeNotification.svelte';
 	import {
 		PostPublishedStore,
@@ -35,6 +36,8 @@
 	// ===== 使用訂閱管理器 =====
 
 	// PostPublished 訂閱管理器（公開，不需認證）
+	// 全站廣播事件只用於文章列表即時刷新提示（含作者本人），
+	// toast 通知由 followedUserPosted 推給追蹤者
 	const postPublishedManager = createSubscriptionManager<{ postPublished?: any }>({
 		name: 'PostPublished',
 		createStore: () => new PostPublishedStore(),
@@ -45,7 +48,7 @@
 				const post = data.postPublished;
 				if (post.id !== lastPostId) {
 					lastPostId = post.id;
-					handleNewPost(post);
+					postFeed.notifyNewPost();
 				}
 			}
 		},
@@ -175,34 +178,6 @@
 	});
 
 	// ===== 事件處理函數 =====
-
-	/**
-	 * 處理新文章發布事件
-	 */
-	function handleNewPost(post: any) {
-		// 排除自己發的文章（不通知作者本人）
-		if (auth.user?.id && post.author?.id === auth.user.id) {
-			console.log('[PostPublished] Skipping notification for own post');
-			return;
-		}
-
-		const authorName = post.author?.fullName || post.author?.username || '某用戶';
-		console.log('[PostPublished] New post published:', post);
-
-		// 顯示通知
-		notifications.info(`${authorName} 發表了新文章：${post.title}`, {
-			duration: 8000,
-			link: {
-				text: '立即查看',
-				href: `/posts/${post.slug || post.id}`
-			}
-		});
-
-		// 如果在文章列表頁，可以考慮重新載入
-		if (page.url.pathname === '/posts' || page.url.pathname === '/') {
-			console.log('[Info] New post available. Consider refreshing the list.');
-		}
-	}
 
 	/**
 	 * 處理追蹤用戶發文事件

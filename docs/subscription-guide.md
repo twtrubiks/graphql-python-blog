@@ -295,7 +295,7 @@ frontend/
 
 本專案還實作了以下 subscription，皆遵循相同的事件管理器模式：
 
-### postPublished - 新文章發布通知
+### postPublished - 新文章發布事件（列表即時刷新）
 
 ```graphql
 subscription PostPublished {
@@ -309,6 +309,11 @@ subscription PostPublished {
 ```
 
 **檔案位置**：`backend/app/graphql/subscriptions/post.py`
+
+**特點**：
+- 公開訂閱（不需認證），任何人發文都會對所有連線廣播
+- 前端不會為此事件彈出 toast 通知，只在文章列表頁與首頁顯示「有 N 篇新文章」提示條（`postFeed` store + `NewPostsBanner` 組件），點擊後重新載入列表
+- toast 通知僅由 `followedUserPosted` 推送給該作者的追蹤者
 
 ### followedUserPosted - 追蹤用戶發文通知
 

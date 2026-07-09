@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { PUBLIC_APP_NAME, PUBLIC_APP_DESCRIPTION } from '$env/static/public';
 	import { GetPostsStore } from '$houdini';
+	import NewPostsBanner from '$lib/components/NewPostsBanner.svelte';
+	import { postFeed } from '$lib/stores/postFeed.svelte';
 
 	// 建立 Houdini stores
 	const postsStore = new GetPostsStore();
@@ -14,16 +16,19 @@
 		loadPosts();
 	});
 
-	async function loadPosts() {
+	async function loadPosts(policy?: 'NetworkOnly') {
 		isLoading = true;
 		try {
 			const result = await postsStore.fetch({
 				variables: {
 					page: 1,
 					limit: 6 // 首頁顯示 6 篇精選文章
-				}
+				},
+				policy
 			});
 			postsData = result.data?.posts;
+			// 列表已重新載入，清除「有新文章」提示
+			postFeed.clear();
 		} catch (error) {
 			console.error('Failed to load posts:', error);
 		} finally {
@@ -72,6 +77,10 @@
 	<!-- Featured Posts -->
 	<section>
 		<h2 class="text-3xl font-bold mb-6">精選文章</h2>
+
+		<!-- 有新文章提示條（新文章不在 Houdini 快取內，需強制走網路） -->
+		<NewPostsBanner count={postFeed.pendingCount} onRefresh={() => loadPosts('NetworkOnly')} />
+
 		{#if isLoading}
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 				{#each [1, 2, 3] as _}
