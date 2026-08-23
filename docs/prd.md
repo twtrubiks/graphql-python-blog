@@ -145,6 +145,8 @@ type Mutation {
 type Subscription {
   # 即時更新
   commentAdded(postId: ID!): Comment!
+  commentUpdated(postId: ID!): Comment!
+  commentDeleted(postId: ID!): CommentDeletedPayload!  # { commentId, postId, totalComments }
   postPublished(authorId: ID): Post!
   followedUserPosted: Post!
   postDeleted: ID!

@@ -1,0 +1,5 @@
+subscription CommentUpdated($postId: ID!) {
+  commentUpdated(postId: $postId) {
+    ...CommentInfo @mask_disable
+  }
+}

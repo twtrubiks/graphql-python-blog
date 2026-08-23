@@ -60,8 +60,9 @@
 				handlePostDeleted(deletedPostId);
 			}
 
-			if (value.error) {
-				console.error('[PostDeleted] Error:', value.error);
+			// Houdini subscription store 只有 errors 陣列（成功時也會帶空陣列），沒有 error 欄位
+			if (value.errors?.length) {
+				console.error('[PostDeleted] Error:', value.errors);
 			}
 		});
 		startDeleteSubscription();

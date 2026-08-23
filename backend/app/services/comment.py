@@ -121,8 +121,8 @@ class CommentService:
         db: AsyncSession,
         comment_id: int,
         user_id: int
-    ) -> bool:
-        """刪除評論（軟刪除）"""
+    ) -> Comment:
+        """刪除評論（軟刪除），回傳被刪除的評論供呼叫端發布事件"""
         # 獲取評論
         comment = await db.get(Comment, comment_id, options=[selectinload(Comment.post)])
         if not comment:
@@ -140,7 +140,7 @@ class CommentService:
         comment.deleted_at = datetime.now(timezone.utc)
         await db.commit()
 
-        return True
+        return comment
 
     @staticmethod
     async def get_comment_by_id(

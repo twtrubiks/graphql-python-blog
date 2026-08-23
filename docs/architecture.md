@@ -197,6 +197,8 @@ classDiagram
     class Subscription {
         <<GraphQL Root>>
         +comment_added(postId): Comment!
+        +comment_updated(postId): Comment!
+        +comment_deleted(postId): CommentDeletedPayload!
         +user_status_changed(userId, username): UserStatusChange!
         +post_published(): PostType!
         +followed_user_posted(userId): PostType!

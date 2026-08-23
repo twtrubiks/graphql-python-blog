@@ -1,10 +1,12 @@
 import pytest
+import asyncio
 from datetime import datetime, timezone
 from httpx import AsyncClient
 from app.models.comment import Comment
 from app.models.post import Post, PostStatus
 from app.models.user import User
 from app.core.security import get_password_hash
+from app.graphql.subscriptions.comment import CommentUpdatedEvent, CommentDeletedEvent
 
 
 @pytest.mark.asyncio
@@ -349,6 +351,74 @@ class TestDeleteCommentMutation:
             assert data["success"] is False
             assert "permission" in data["message"].lower() or "權限" in data["message"].lower()
     
+    async def test_delete_comment_publishes_deleted_event(self, authenticated_client: AsyncClient, test_session, test_user, test_post):
+        """刪除評論後應推送 commentDeleted 事件（含剩餘留言數）給該文章的訂閱者"""
+        kept = Comment(content="保留的評論", user_id=test_user.id, post_id=test_post.id)
+        target = Comment(content="要刪的評論", user_id=test_user.id, post_id=test_post.id)
+        test_session.add_all([kept, target])
+        await test_session.commit()
+        await test_session.refresh(target)
+
+        queue = CommentDeletedEvent.subscribe(str(test_post.id))
+        try:
+            mutation = """
+            mutation DeleteComment($commentId: ID!) {
+                deleteComment(commentId: $commentId) { success }
+            }
+            """
+            response = await authenticated_client.post(
+                "/graphql",
+                json={"query": mutation, "variables": {"commentId": str(target.id)}}
+            )
+            assert response.status_code == 200
+            assert response.json()["data"]["deleteComment"]["success"] is True
+
+            event = await asyncio.wait_for(queue.get(), timeout=1.0)
+            assert event.comment_id == str(target.id)
+            assert event.post_id == str(test_post.id)
+            # 刪除後剩 1 則未刪除的評論
+            assert event.total_comments == 1
+        finally:
+            CommentDeletedEvent.unsubscribe(str(test_post.id), queue)
+
+    async def test_failed_delete_does_not_publish_event(self, authenticated_client: AsyncClient, test_session, test_user, test_post):
+        """刪除失敗（無權限）時不應推送任何事件"""
+        other_user = User(
+            email="stranger@example.com",
+            username="stranger",
+            hashed_password=get_password_hash("password")
+        )
+        test_session.add(other_user)
+        await test_session.commit()
+
+        other_post = Post(
+            title="別人的文章", content="...", slug="others-post",
+            author_id=other_user.id, status=PostStatus.PUBLISHED
+        )
+        test_session.add(other_post)
+        await test_session.commit()
+
+        comment = Comment(content="別人的評論", user_id=other_user.id, post_id=other_post.id)
+        test_session.add(comment)
+        await test_session.commit()
+        await test_session.refresh(comment)
+
+        queue = CommentDeletedEvent.subscribe(str(other_post.id))
+        try:
+            mutation = """
+            mutation DeleteComment($commentId: ID!) {
+                deleteComment(commentId: $commentId) { success }
+            }
+            """
+            response = await authenticated_client.post(
+                "/graphql",
+                json={"query": mutation, "variables": {"commentId": str(comment.id)}}
+            )
+            assert "errors" in response.json()
+            assert queue.empty()
+        finally:
+            CommentDeletedEvent.unsubscribe(str(other_post.id), queue)
+
     async def test_delete_nonexistent_comment(self, authenticated_client: AsyncClient):
         """測試刪除不存在的評論"""
         mutation = """
@@ -558,6 +628,64 @@ class TestUpdateCommentMutation:
         # 即使是文章作者，也不能編輯別人的評論
         assert errors is not None
         assert "權限" in errors[0]["message"] or "permission" in errors[0]["message"].lower()
+
+    async def test_update_comment_publishes_updated_event(self, authenticated_client: AsyncClient, test_session, test_user, test_post):
+        """編輯評論後應推送 commentUpdated 事件（含新內容與作者）給該文章的訂閱者"""
+        comment = Comment(content="原始內容", user_id=test_user.id, post_id=test_post.id)
+        test_session.add(comment)
+        await test_session.commit()
+        await test_session.refresh(comment)
+
+        queue = CommentUpdatedEvent.subscribe(str(test_post.id))
+        try:
+            mutation = """
+            mutation UpdateComment($commentId: ID!, $input: UpdateCommentInput!) {
+                updateComment(commentId: $commentId, input: $input) { success }
+            }
+            """
+            response = await authenticated_client.post(
+                "/graphql",
+                json={
+                    "query": mutation,
+                    "variables": {"commentId": str(comment.id), "input": {"content": "修改後內容"}}
+                }
+            )
+            assert response.status_code == 200
+            assert response.json()["data"]["updateComment"]["success"] is True
+
+            event = await asyncio.wait_for(queue.get(), timeout=1.0)
+            assert event.id == str(comment.id)
+            assert event.content == "修改後內容"
+            assert event.author is not None
+            assert event.author.username == test_user.username
+        finally:
+            CommentUpdatedEvent.unsubscribe(str(test_post.id), queue)
+
+    async def test_failed_update_does_not_publish_event(self, authenticated_client: AsyncClient, test_session, test_user, test_post):
+        """編輯失敗（內容為空）時不應推送任何事件"""
+        comment = Comment(content="原始內容", user_id=test_user.id, post_id=test_post.id)
+        test_session.add(comment)
+        await test_session.commit()
+        await test_session.refresh(comment)
+
+        queue = CommentUpdatedEvent.subscribe(str(test_post.id))
+        try:
+            mutation = """
+            mutation UpdateComment($commentId: ID!, $input: UpdateCommentInput!) {
+                updateComment(commentId: $commentId, input: $input) { success }
+            }
+            """
+            response = await authenticated_client.post(
+                "/graphql",
+                json={
+                    "query": mutation,
+                    "variables": {"commentId": str(comment.id), "input": {"content": "   "}}
+                }
+            )
+            assert "errors" in response.json()
+            assert queue.empty()
+        finally:
+            CommentUpdatedEvent.unsubscribe(str(test_post.id), queue)
 
     async def test_update_nonexistent_comment(self, authenticated_client: AsyncClient):
         """測試編輯不存在的評論"""

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { GetPostStore, AddCommentStore, LikePostStore, UnlikePostStore, CommentAddedStore, DeleteCommentStore, DeletePostStore, FollowUserStore, UnfollowUserStore, UpdateCommentStore } from '$houdini';
+	import { GetPostStore, AddCommentStore, LikePostStore, UnlikePostStore, CommentAddedStore, CommentUpdatedStore, CommentDeletedStore, DeleteCommentStore, DeletePostStore, FollowUserStore, UnfollowUserStore, UpdateCommentStore } from '$houdini';
 	import { page } from '$app/state';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { notifications } from '$lib/stores/notifications.svelte';
@@ -14,6 +14,10 @@
 	const likePostStore = new LikePostStore();
 	const unlikePostStore = new UnlikePostStore();
 	const commentAddedStore = new CommentAddedStore();
+	const commentUpdatedStore = new CommentUpdatedStore();
+	const commentDeletedStore = new CommentDeletedStore();
+	// 三條評論訂閱共用同一個 postId、同一套 listen/unlisten/重連流程
+	const commentStores = [commentAddedStore, commentUpdatedStore, commentDeletedStore];
 	const deleteCommentStore = new DeleteCommentStore();
 	const deletePostStore = new DeletePostStore();
 	const updateCommentStore = new UpdateCommentStore();
@@ -55,7 +59,7 @@
 	let subscriptionStatus = $state<'idle' | 'connecting' | 'connected' | 'error'>('idle');
 	let isSubscriptionActive = $state(false);
 	let lastCommentId = $state<string | null>(null);
-	let storeUnsubscribe: (() => void) | null = null;
+	let storeUnsubscribes: (() => void)[] = [];
 	let currentPostId = $state<string | null>(null);
 
 	// 重連機制
@@ -89,14 +93,12 @@
 	async function startSubscription(postId: string) {
 		try {
 			// Houdini 對相同變數重複 listen 會直接略過，重連前先 unlisten 重置其內部狀態
-			await commentAddedStore.unlisten();
+			await Promise.all(commentStores.map((store) => store.unlisten()));
 			// await 期間文章已切換或元件已銷毀（onDestroy 會清空 currentPostId）時放棄
 			if (currentPostId !== postId) return;
 			isSubscriptionActive = true;
-			// 觸發 subscription 開始監聽
-			await commentAddedStore.listen({
-				postId: postId
-			});
+			// 觸發 subscription 開始監聽（新增 / 編輯 / 刪除 三條）
+			await Promise.all(commentStores.map((store) => store.listen({ postId })));
 			if (currentPostId !== postId) return;
 			// 連線失敗時 listen 也可能正常 resolve（錯誤事後才走 store 的 errors 路徑），
 			// 因此這裡不能重置 reconnectAttempts —— 失敗的重連也會走到這裡，一旦歸零
@@ -155,48 +157,67 @@
 		startSubscription(postId);
 	});
 
+	// 收到資料代表連線正常：重置重連計數，並取消已排定的重連
+	function markSubscriptionConnected() {
+		subscriptionStatus = 'connected';
+		reconnectAttempts = 0;
+		clearReconnectTimer();
+	}
+
+	// 處理錯誤（Houdini 的欄位是 errors 陣列，成功時為空陣列；
+	// 以陣列參照去重，避免 fetching 變化重新發送舊值時重複觸發）
+	function handleSubscriptionErrors(errors: unknown[] | null | undefined) {
+		if (!errors?.length || errors === lastHandledErrors) return;
+		lastHandledErrors = errors;
+		console.error('[Subscription] Error:', errors);
+		subscriptionStatus = 'error';
+		// 連線中斷時嘗試重連（scheduleReconnect 內有去重，三條訂閱同時報錯也只排一次）
+		if (currentPostId) {
+			scheduleReconnect(currentPostId);
+		}
+	}
+
 	// 監聽 subscription store 資料變化
 	onMount(() => {
 		// 使用 onMount 來建立 store subscription，避免重複建立
-		storeUnsubscribe = commentAddedStore.subscribe((value: any) => {
-			// 只檢查 value 是否存在，不檢查 isSubscriptionActive
-			if (!value) return;
-
-			// 檢查是否有新評論
-			if (value.data?.commentAdded) {
-				// 收到資料代表連線正常：重置重連計數，並取消已排定的重連
-				subscriptionStatus = 'connected';
-				reconnectAttempts = 0;
-				clearReconnectTimer();
-				const newComment = value.data.commentAdded;
-
-				// 避免重複處理同一則評論
-				if (newComment.id !== lastCommentId) {
-					lastCommentId = newComment.id;
-					console.log('[Subscription] Processing new comment:', newComment.id);
-					handleNewComment({ commentAdded: newComment });
+		storeUnsubscribes = [
+			commentAddedStore.subscribe((value: any) => {
+				if (!value) return;
+				if (value.data?.commentAdded) {
+					markSubscriptionConnected();
+					const newComment = value.data.commentAdded;
+					// 避免重複處理同一則評論
+					if (newComment.id !== lastCommentId) {
+						lastCommentId = newComment.id;
+						console.log('[Subscription] Processing new comment:', newComment.id);
+						handleNewComment({ commentAdded: newComment });
+					}
 				}
-			}
-
-			// 處理錯誤（Houdini 的欄位是 errors 陣列，成功時為空陣列；
-			// 以陣列參照去重，避免 fetching 變化重新發送舊值時重複觸發）
-			if (value.errors?.length && value.errors !== lastHandledErrors) {
-				lastHandledErrors = value.errors;
-				console.error('[Subscription] Error:', value.errors);
-				subscriptionStatus = 'error';
-				// 連線中斷時嘗試重連
-				if (currentPostId) {
-					scheduleReconnect(currentPostId);
+				handleSubscriptionErrors(value.errors);
+			}),
+			commentUpdatedStore.subscribe((value: any) => {
+				if (!value) return;
+				if (value.data?.commentUpdated) {
+					markSubscriptionConnected();
+					// 套用相同內容是冪等的，store 重新發送舊值也不會造成副作用
+					handleUpdatedComment(value.data.commentUpdated);
 				}
-			}
-		});
+				handleSubscriptionErrors(value.errors);
+			}),
+			commentDeletedStore.subscribe((value: any) => {
+				if (!value) return;
+				if (value.data?.commentDeleted) {
+					markSubscriptionConnected();
+					handleDeletedComment(value.data.commentDeleted);
+				}
+				handleSubscriptionErrors(value.errors);
+			})
+		];
 
 		return () => {
 			// onMount 的 cleanup
-			if (storeUnsubscribe) {
-				storeUnsubscribe();
-				storeUnsubscribe = null;
-			}
+			storeUnsubscribes.forEach((unsubscribe) => unsubscribe());
+			storeUnsubscribes = [];
 		};
 	});
 
@@ -204,12 +225,10 @@
 		// 元件銷毀時停止訂閱與重連
 		clearReconnectTimer();
 		currentPostId = null;
-		if (storeUnsubscribe) {
-			storeUnsubscribe();
-			storeUnsubscribe = null;
-		}
-		if (isSubscriptionActive && commentAddedStore.unlisten) {
-			await commentAddedStore.unlisten();
+		storeUnsubscribes.forEach((unsubscribe) => unsubscribe());
+		storeUnsubscribes = [];
+		if (isSubscriptionActive) {
+			await Promise.all(commentStores.map((store) => store.unlisten()));
 			isSubscriptionActive = false;
 			subscriptionStatus = 'idle';
 		}
@@ -408,6 +427,51 @@
 			);
 		} else {
 			console.log('[Notification] Not showing notification (own comment or missing author)');
+		}
+	}
+
+	// 處理評論編輯事件：以 id 覆蓋內容與更新時間
+	function handleUpdatedComment(updated: any) {
+		if (!updated?.id || !post?.comments) return;
+		const target = post.comments.find((c: any) => c.id === updated.id);
+		// 不在列表中（尚未載入）或內容已相同（自己編輯時本地已先更新）則不動
+		if (!target || (target.content === updated.content && target.updatedAt === updated.updatedAt)) {
+			return;
+		}
+		console.log('[Subscription] Processing updated comment:', updated.id);
+		post = {
+			...post,
+			comments: post.comments.map((c: any) =>
+				c.id === updated.id ? { ...c, content: updated.content, updatedAt: updated.updatedAt } : c
+			)
+		};
+		// 正在編輯的評論被（自己在另一個分頁）改掉時，帶入最新內容避免覆蓋
+		if (editingCommentId === updated.id) {
+			editingContent = updated.content;
+		}
+	}
+
+	// 處理評論刪除事件：標記為已刪除，留言數採用伺服器回傳的絕對值
+	function handleDeletedComment(payload: any) {
+		if (!payload?.commentId || !post) return;
+		const commentId = String(payload.commentId);
+		const comments = post.comments || [];
+		const target = comments.find((c: any) => c.id === commentId);
+		const alreadyDeleted = !target || target.isDeleted;
+		const totalComments = payload.totalComments ?? post.totalComments;
+		// 已標記過且留言數一致（自己刪除時本地已先更新）則不動
+		if (alreadyDeleted && totalComments === post.totalComments) {
+			return;
+		}
+		console.log('[Subscription] Processing deleted comment:', commentId);
+		post = {
+			...post,
+			comments: comments.map((c: any) => (c.id === commentId ? { ...c, isDeleted: true } : c)),
+			totalComments
+		};
+		// 正在編輯的評論被刪除時關閉編輯框
+		if (editingCommentId === commentId) {
+			cancelEditComment();
 		}
 	}
 

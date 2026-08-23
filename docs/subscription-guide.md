@@ -1,6 +1,6 @@
 # GraphQL Subscription 實作指南
 
-本專案使用 `commentAdded` subscription 實現即時評論通知。
+本專案以 `commentAdded` / `commentUpdated` / `commentDeleted` 三個 subscription 實現留言區的即時同步（新增、編輯、刪除）。本文以 `commentAdded` 為主線說明，另外兩個共用同一套事件管理器與前端重連流程，差異見文末「commentUpdated / commentDeleted」一節。
 
 ---
 
@@ -42,13 +42,19 @@
 | `backend/app/graphql/subscriptions/comment.py` | 事件管理器 + Subscription Resolver |
 | `backend/app/graphql/mutations/comment.py` | 在 mutation 中發布事件 |
 
-### 1. 事件管理器 (CommentEvent)
+### 1. 事件管理器 (PostScopedEvent → CommentEvent)
+
+三個留言事件都以「文章 ID」為主題，共用 `PostScopedEvent` 基底；每個子類別透過 `__init_subclass__` 取得**各自獨立**的 `_subscribers`，所以 `commentAdded` 的訂閱者不會收到編輯/刪除事件。
 
 ```python
 # backend/app/graphql/subscriptions/comment.py
 
-class CommentEvent:
-    _subscribers: dict[str, list[asyncio.Queue]] = {}
+class PostScopedEvent(Generic[T]):
+    _subscribers: dict[str, list[asyncio.Queue]]
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls._subscribers = {}   # 每個子類別一份，channel 互相隔離
 
     @classmethod
     def subscribe(cls, post_id: str) -> asyncio.Queue:
@@ -69,11 +75,16 @@ class CommentEvent:
                 del cls._subscribers[post_id]
 
     @classmethod
-    async def publish(cls, post_id: str, comment: Comment):
-        """發布新評論事件給所有訂閱者"""
+    async def publish(cls, post_id: str, payload: T):
+        """發布事件給該文章的所有訂閱者"""
         if post_id in cls._subscribers:
             for queue in cls._subscribers[post_id]:
-                await queue.put(comment)
+                await queue.put(payload)
+
+
+class CommentEvent(PostScopedEvent[Comment]): ...          # commentAdded
+class CommentUpdatedEvent(PostScopedEvent[Comment]): ...   # commentUpdated
+class CommentDeletedEvent(PostScopedEvent[CommentDeletedPayload]): ...  # commentDeleted
 ```
 
 ### 2. Subscription Resolver
@@ -112,8 +123,10 @@ await CommentEvent.publish(str(post_id), comment_type)
 
 | 檔案 | 職責 |
 |-----|------|
-| `frontend/src/lib/graphql/subscriptions/CommentAdded.gql` | GraphQL subscription 定義 |
-| `frontend/src/routes/posts/[slug]/+page.svelte` | 訂閱生命週期管理 |
+| `frontend/src/lib/graphql/subscriptions/CommentAdded.gql` | 新增留言 subscription 定義 |
+| `frontend/src/lib/graphql/subscriptions/CommentUpdated.gql` | 編輯留言 subscription 定義 |
+| `frontend/src/lib/graphql/subscriptions/CommentDeleted.gql` | 刪除留言 subscription 定義 |
+| `frontend/src/routes/posts/[slug]/+page.svelte` | 三條訂閱共用的生命週期管理 |
 
 ### 1. GraphQL 定義
 
@@ -136,9 +149,13 @@ subscription CommentAdded($postId: ID!) {
 ```typescript
 // frontend/src/routes/posts/[slug]/+page.svelte
 
-import { CommentAddedStore } from '$houdini';
+import { CommentAddedStore, CommentUpdatedStore, CommentDeletedStore } from '$houdini';
 
 const commentAddedStore = new CommentAddedStore();
+const commentUpdatedStore = new CommentUpdatedStore();
+const commentDeletedStore = new CommentDeletedStore();
+// 三條訂閱共用同一個 postId 與同一套 listen/unlisten/重連流程
+const commentStores = [commentAddedStore, commentUpdatedStore, commentDeletedStore];
 
 // 狀態管理
 let subscriptionStatus = $state<'idle' | 'connecting' | 'connected' | 'error'>('idle');
@@ -160,10 +177,10 @@ function scheduleReconnect(postId: string) {
 
 async function startSubscription(postId: string) {
   // Houdini 對相同變數重複 listen 會直接略過，重連前先 unlisten 重置其內部狀態
-  await commentAddedStore.unlisten();
+  await Promise.all(commentStores.map((store) => store.unlisten()));
   // await 期間文章已切換或元件已銷毀時放棄
   if (currentPostId !== postId) return;
-  await commentAddedStore.listen({ postId });
+  await Promise.all(commentStores.map((store) => store.listen({ postId })));
   if (currentPostId !== postId) return;
   // 錯誤時 listen 也可能正常 resolve（錯誤事後才走 store 的 errors 路徑），
   // 不能在這裡重置 reconnectAttempts，否則失敗的重連會不斷歸零、永遠達不到重試上限
@@ -179,36 +196,60 @@ $effect(() => {
   startSubscription(currentPostId);
 });
 
+// 收到任何一條訂閱的資料都代表連線活著：重置計數並取消已排定的重連
+function markSubscriptionConnected() {
+  subscriptionStatus = 'connected';
+  reconnectAttempts = 0;
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+}
+
+// 注意：Houdini 的錯誤欄位是 errors「陣列」（成功時為空陣列），沒有 value.error
+function handleSubscriptionErrors(errors) {
+  if (!errors?.length || errors === lastHandledErrors) return;
+  lastHandledErrors = errors;
+  subscriptionStatus = 'error';
+  if (currentPostId) scheduleReconnect(currentPostId);  // 內部去重，三條同時報錯只排一次
+}
+
 // 監聽資料變化
 onMount(() => {
-  storeUnsubscribe = commentAddedStore.subscribe((value) => {
-    if (value.data?.commentAdded) {
-      // 連線其實活著：重置計數並取消已排定的重連
-      subscriptionStatus = 'connected';
-      reconnectAttempts = 0;
-      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-      handleNewComment({ commentAdded: value.data.commentAdded });
-    }
-    // 注意：Houdini 的錯誤欄位是 errors「陣列」（成功時為空陣列），沒有 value.error
-    if (value.errors?.length) {
-      subscriptionStatus = 'error';
-      if (currentPostId) scheduleReconnect(currentPostId);
-    }
-  });
+  storeUnsubscribes = [
+    commentAddedStore.subscribe((value) => {
+      if (value.data?.commentAdded) {
+        markSubscriptionConnected();
+        handleNewComment({ commentAdded: value.data.commentAdded });
+      }
+      handleSubscriptionErrors(value.errors);
+    }),
+    commentUpdatedStore.subscribe((value) => {
+      if (value.data?.commentUpdated) {
+        markSubscriptionConnected();
+        handleUpdatedComment(value.data.commentUpdated);   // 以 id 覆蓋 content / updatedAt
+      }
+      handleSubscriptionErrors(value.errors);
+    }),
+    commentDeletedStore.subscribe((value) => {
+      if (value.data?.commentDeleted) {
+        markSubscriptionConnected();
+        handleDeletedComment(value.data.commentDeleted);   // 標記 isDeleted、套用伺服器的 totalComments
+      }
+      handleSubscriptionErrors(value.errors);
+    })
+  ];
 });
 
 // 清理
 onDestroy(async () => {
   if (reconnectTimer) clearTimeout(reconnectTimer);
   currentPostId = null;  // 讓已排定的重連 timer 觸發時直接放棄
-  storeUnsubscribe?.();
-  await commentAddedStore.unlisten?.();
+  storeUnsubscribes.forEach((unsubscribe) => unsubscribe());
+  await Promise.all(commentStores.map((store) => store.unlisten()));
 });
 ```
 
-### 3. 與 addComment mutation 的分工
+### 3. 與 mutation 的分工
 
-自己的留言**不依賴 subscription 回填**：`handleAddComment` 在 mutation 成功後，直接用回傳的 comment 呼叫 `handleNewComment` 做本地插入，因此即使 WebSocket 斷線（被防火牆/代理阻擋等），留言仍會立即顯示。subscription 定位為「別人留言」的即時管道；當訂閱把自己剛發的留言推回來時，`handleNewComment` 內的 id 去重會擋掉重複插入。
+自己的操作**不依賴 subscription 回填**：`handleAddComment` / `handleUpdateComment` / `handleDeleteComment` 在 mutation 成功後直接更新本地狀態，因此即使 WebSocket 斷線（被防火牆/代理阻擋等），畫面仍會立即反映。subscription 定位為「別人的操作」的即時管道；當訂閱把自己剛做的操作推回來時，三個 handler 都是冪等的：`handleNewComment` 以 id 去重，`handleUpdatedComment` 發現內容已相同就不動，`handleDeletedComment` 發現已標記且留言數一致就不動。
 
 ---
 
@@ -235,8 +276,9 @@ onDestroy(async () => {
 │           │                                             │
 │           ▼                                             │
 │  ┌─────────────────┐                                    │
-│  │ 收到新評論       │  → handleNewComment()              │
-│  │ 更新 UI         │  → 顯示通知                         │
+│  │ 收到新評論       │  → handleNewComment()   + 顯示通知  │
+│  │ 收到編輯事件     │  → handleUpdatedComment()          │
+│  │ 收到刪除事件     │  → handleDeletedComment()          │
 │  └────────┬────────┘                                    │
 │           │                                             │
 │           ▼                                             │
@@ -277,17 +319,47 @@ onDestroy(async () => {
 backend/
 ├── app/graphql/
 │   ├── subscriptions/
-│   │   └── comment.py          # CommentEvent + CommentSubscription
+│   │   └── comment.py          # PostScopedEvent + 三個事件管理器 + CommentSubscription
 │   ├── mutations/
-│   │   └── comment.py:45       # 發布事件
+│   │   └── comment.py          # add/update/delete 各自發布事件
 │   └── schema.py               # 整合 Subscription 類
 
 frontend/
 ├── src/lib/graphql/subscriptions/
-│   └── CommentAdded.gql        # GraphQL 定義
+│   ├── CommentAdded.gql        # 新增
+│   ├── CommentUpdated.gql      # 編輯
+│   └── CommentDeleted.gql      # 刪除
 └── src/routes/posts/[slug]/
-    └── +page.svelte:54-216     # 訂閱生命週期管理（含斷線重連）
+    └── +page.svelte            # 三條訂閱共用的生命週期管理（含斷線重連）
 ```
+
+---
+
+## commentUpdated / commentDeleted - 留言編輯與刪除
+
+與 `commentAdded` 同樣以 `postId` 為主題、同樣在文章詳情頁訂閱，差別只在 payload 與前端處理方式。
+
+```graphql
+subscription CommentUpdated($postId: ID!) {
+  commentUpdated(postId: $postId) {
+    ...CommentInfo @mask_disable      # 完整留言，前端以 id 覆蓋 content / updatedAt
+  }
+}
+
+subscription CommentDeleted($postId: ID!) {
+  commentDeleted(postId: $postId) {
+    commentId
+    postId
+    totalComments                     # 伺服器計算的絕對值，前端不自行 -1
+  }
+}
+```
+
+**設計重點**：
+- `deleteComment` 不推送整個留言，只推 `CommentDeletedPayload { commentId, postId, totalComments }`；留言數由伺服器在刪除後重新計算，多個客戶端各自 `-1` 會因時序而不一致。
+- `CommentService.delete_comment` 回傳被刪除的 `Comment`（而非 `bool`），mutation 才拿得到 `post_id` 來發布事件。
+- 前端的刪除 handler 會把留言標記 `isDeleted: true`（與本地刪除一致，列表以 `{#if !comment.isDeleted}` 過濾），若該留言正在被編輯會關閉編輯框；編輯 handler 若發現該留言正在編輯中，會把最新內容帶入編輯框避免蓋掉別人的修改。
+- 刻意**不做** Like 的即時訂閱：讚數不是協作狀態、出現在 8 個頁面（列表頁做 per-post 訂閱不划算），且詳情頁現有樂觀更新會與事件重複計算，價值低於成本。
 
 ---
 

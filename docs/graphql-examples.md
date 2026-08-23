@@ -163,6 +163,26 @@ subscription OnCommentAdded {
 }
 ```
 
+```graphql
+# 留言被編輯（推送完整留言，以 id 覆蓋內容）
+subscription OnCommentUpdated {
+  commentUpdated(postId: "1") {
+    id
+    content
+    updatedAt
+  }
+}
+
+# 留言被刪除（只推送 ID 與伺服器重新計算的留言數）
+subscription OnCommentDeleted {
+  commentDeleted(postId: "1") {
+    commentId
+    postId
+    totalComments
+  }
+}
+```
+
 WebSocket 端點：`ws://localhost:8000/graphql`
 
 ## 錯誤處理

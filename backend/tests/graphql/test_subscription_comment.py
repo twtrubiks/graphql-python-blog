@@ -67,7 +67,13 @@ import pytest
 import asyncio
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
-from app.graphql.subscriptions.comment import CommentEvent, CommentSubscription
+from app.graphql.subscriptions.comment import (
+    CommentEvent,
+    CommentUpdatedEvent,
+    CommentDeletedEvent,
+    CommentDeletedPayload,
+    CommentSubscription,
+)
 from app.graphql.types.comment import Comment
 
 
@@ -276,3 +282,161 @@ class TestCommentSubscription:
         # 清理
         await publish_task
         await subscription_gen.aclose()
+
+def _make_comment(comment_id: str = "comment1", content: str = "content") -> Comment:
+    return Comment(
+        id=comment_id,
+        content=content,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+
+@pytest.mark.asyncio
+class TestCommentUpdatedSubscription:
+    """
+    測試評論編輯即時通知
+
+    與 commentAdded 共用同一套「以 post_id 為主題」的 pub/sub 模式，
+    但使用獨立的 channel，避免新增與編輯事件互相干擾。
+    """
+
+    async def test_updated_event_delivered_to_subscribers(self):
+        """訂閱者應收到該文章的評論編輯事件"""
+        post_id = "1"
+        updated = _make_comment("c1", "edited content")
+
+        queue = CommentUpdatedEvent.subscribe(post_id)
+        await CommentUpdatedEvent.publish(post_id, updated)
+
+        received = await asyncio.wait_for(queue.get(), timeout=1.0)
+        assert received.id == "c1"
+        assert received.content == "edited content"
+
+        CommentUpdatedEvent.unsubscribe(post_id, queue)
+        assert post_id not in CommentUpdatedEvent._subscribers
+
+    async def test_updated_event_isolated_by_post(self):
+        """只收到訂閱文章的編輯事件"""
+        queue = CommentUpdatedEvent.subscribe("1")
+
+        await CommentUpdatedEvent.publish("1", _make_comment("c1"))
+        await CommentUpdatedEvent.publish("2", _make_comment("c2"))
+
+        received = await asyncio.wait_for(queue.get(), timeout=1.0)
+        assert received.id == "c1"
+        assert queue.empty()
+
+        CommentUpdatedEvent.unsubscribe("1", queue)
+
+    async def test_updated_channel_isolated_from_added_channel(self):
+        """commentAdded 的訂閱者不應收到編輯事件（channel 隔離）"""
+        post_id = "1"
+        added_queue = CommentEvent.subscribe(post_id)
+        updated_queue = CommentUpdatedEvent.subscribe(post_id)
+
+        await CommentUpdatedEvent.publish(post_id, _make_comment("c1"))
+
+        received = await asyncio.wait_for(updated_queue.get(), timeout=1.0)
+        assert received.id == "c1"
+        assert added_queue.empty(), "commentAdded 訂閱者不應收到編輯事件"
+
+        CommentEvent.unsubscribe(post_id, added_queue)
+        CommentUpdatedEvent.unsubscribe(post_id, updated_queue)
+
+    async def test_comment_updated_resolver(self):
+        """GraphQL subscription resolver 應 yield 編輯後的評論"""
+        subscription = CommentSubscription()
+        post_id = "test_post_updated"
+        updated = _make_comment("c1", "edited via resolver")
+
+        gen = subscription.comment_updated(post_id)
+
+        async def publish_after_delay():
+            await asyncio.sleep(0.1)
+            await CommentUpdatedEvent.publish(post_id, updated)
+
+        task = asyncio.create_task(publish_after_delay())
+        received = await anext(gen)
+        assert received.id == "c1"
+        assert received.content == "edited via resolver"
+
+        await task
+        await gen.aclose()
+        assert post_id not in CommentUpdatedEvent._subscribers
+
+
+@pytest.mark.asyncio
+class TestCommentDeletedSubscription:
+    """
+    測試評論刪除即時通知
+
+    刪除事件不需要整個評論物件，只推送 commentId / postId / totalComments，
+    前端據此把對應留言標記為已刪除並更新留言數。
+    """
+
+    async def test_deleted_event_delivered_to_subscribers(self):
+        """訂閱者應收到該文章的評論刪除事件"""
+        post_id = "1"
+        payload = CommentDeletedPayload(comment_id="c1", post_id=post_id, total_comments=4)
+
+        queue = CommentDeletedEvent.subscribe(post_id)
+        await CommentDeletedEvent.publish(post_id, payload)
+
+        received = await asyncio.wait_for(queue.get(), timeout=1.0)
+        assert received.comment_id == "c1"
+        assert received.post_id == post_id
+        assert received.total_comments == 4
+
+        CommentDeletedEvent.unsubscribe(post_id, queue)
+        assert post_id not in CommentDeletedEvent._subscribers
+
+    async def test_deleted_event_isolated_by_post(self):
+        """只收到訂閱文章的刪除事件"""
+        queue = CommentDeletedEvent.subscribe("1")
+
+        await CommentDeletedEvent.publish("1", CommentDeletedPayload(comment_id="c1", post_id="1", total_comments=0))
+        await CommentDeletedEvent.publish("2", CommentDeletedPayload(comment_id="c2", post_id="2", total_comments=0))
+
+        received = await asyncio.wait_for(queue.get(), timeout=1.0)
+        assert received.comment_id == "c1"
+        assert queue.empty()
+
+        CommentDeletedEvent.unsubscribe("1", queue)
+
+    async def test_deleted_channel_isolated_from_added_channel(self):
+        """commentAdded 的訂閱者不應收到刪除事件（channel 隔離）"""
+        post_id = "1"
+        added_queue = CommentEvent.subscribe(post_id)
+        deleted_queue = CommentDeletedEvent.subscribe(post_id)
+
+        await CommentDeletedEvent.publish(post_id, CommentDeletedPayload(comment_id="c1", post_id=post_id, total_comments=0))
+
+        received = await asyncio.wait_for(deleted_queue.get(), timeout=1.0)
+        assert received.comment_id == "c1"
+        assert added_queue.empty(), "commentAdded 訂閱者不應收到刪除事件"
+
+        CommentEvent.unsubscribe(post_id, added_queue)
+        CommentDeletedEvent.unsubscribe(post_id, deleted_queue)
+
+    async def test_comment_deleted_resolver(self):
+        """GraphQL subscription resolver 應 yield 刪除事件 payload"""
+        subscription = CommentSubscription()
+        post_id = "test_post_deleted"
+        payload = CommentDeletedPayload(comment_id="c9", post_id=post_id, total_comments=2)
+
+        gen = subscription.comment_deleted(post_id)
+
+        async def publish_after_delay():
+            await asyncio.sleep(0.1)
+            await CommentDeletedEvent.publish(post_id, payload)
+
+        task = asyncio.create_task(publish_after_delay())
+        received = await anext(gen)
+        assert received.comment_id == "c9"
+        assert received.post_id == post_id
+        assert received.total_comments == 2
+
+        await task
+        await gen.aclose()
+        assert post_id not in CommentDeletedEvent._subscribers

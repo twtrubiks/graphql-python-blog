@@ -4,7 +4,12 @@ from app.core.deps import get_current_user_id
 from app.services.comment import CommentService
 from app.graphql.types.comment import Comment as CommentType, CommentMutationResponse, UpdateCommentInput
 from app.graphql.utils import convert_model_to_graphql
-from app.graphql.subscriptions.comment import CommentEvent
+from app.graphql.subscriptions.comment import (
+    CommentEvent,
+    CommentUpdatedEvent,
+    CommentDeletedEvent,
+    CommentDeletedPayload,
+)
 
 
 @strawberry.type
@@ -67,16 +72,27 @@ class CommentMutation:
         db: AsyncSession = info.context.get("db_session")
         
         try:
-            # 刪除評論
-            success = await CommentService.delete_comment(
+            # 刪除評論（軟刪除）
+            comment = await CommentService.delete_comment(
                 db=db,
                 comment_id=int(comment_id),
                 user_id=user_id
             )
-            
+
+            # 發送即時通知給訂閱者；留言數由伺服器計算絕對值，避免前端各自 -1 造成不同步
+            total_comments = await CommentService.get_comment_count(db, comment.post_id)
+            await CommentDeletedEvent.publish(
+                str(comment.post_id),
+                CommentDeletedPayload(
+                    comment_id=str(comment.id),
+                    post_id=str(comment.post_id),
+                    total_comments=total_comments,
+                ),
+            )
+
             return CommentMutationResponse(
-                success=success,
-                message="評論已成功刪除" if success else "刪除失敗"
+                success=True,
+                message="評論已成功刪除"
             )
             
         except ValueError as e:
@@ -115,6 +131,9 @@ class CommentMutation:
             comment_type = convert_model_to_graphql(comment, CommentType)
             comment_type.author = comment.author
             comment_type.post = comment.post
+
+            # 發送即時通知給訂閱者
+            await CommentUpdatedEvent.publish(str(comment.post_id), comment_type)
 
             return CommentMutationResponse(
                 success=True,

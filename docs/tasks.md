@@ -325,6 +325,8 @@
   - 測試只接收訂閱文章的評論
   - 測試多用戶同時訂閱
 - [x] 實作：commentAdded subscription resolver
+- [x] 📝 TDD 測試：評論編輯 / 刪除即時通知（channel 隔離、mutation 發布事件、失敗不發布）
+- [x] 實作：commentUpdated / commentDeleted subscription resolver（共用 PostScopedEvent 基底）
 - [x] 📝 TDD 測試：簡單的用戶上線狀態
   - 測試用戶上線狀態變更通知
   - 測試用戶離線狀態變更通知
@@ -423,6 +425,7 @@
 ### 6.7 GraphQL Subscriptions 整合
 - [x] 設置 WebSocket 連線到 GraphQL endpoint
 - [x] 實作 commentAdded subscription 監聽
+- [x] 實作 commentUpdated / commentDeleted subscription 監聽（與 commentAdded 共用重連流程）
 - [x] 實作 postPublished subscription 監聽
 - [x] UI 即時更新顯示
 
