@@ -1,0 +1,7 @@
+subscription CommentDeleted($postId: ID!) {
+  commentDeleted(postId: $postId) {
+    commentId
+    postId
+    totalComments
+  }
+}

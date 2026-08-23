@@ -43,7 +43,7 @@ export interface SubscriptionConfig<TData> {
  * 使用泛型以適配不同的 Houdini store 類型
  */
 interface HoudiniSubscriptionStore {
-	subscribe: (callback: (value: { data?: unknown; error?: unknown }) => void) => () => void;
+	subscribe: (callback: (value: { data?: unknown; errors?: unknown[] | null }) => void) => () => void;
 	listen: (...args: any[]) => Promise<void>;
 	unlisten: () => Promise<void>;
 }
@@ -59,6 +59,8 @@ export function createSubscriptionManager<TData>(config: SubscriptionConfig<TDat
 	let unsubscribe: (() => void) | null = null;
 	let isActive = $state(false);
 	let isInitialized = $state(false);
+	// 以陣列參照去重，避免 store 因 fetching 變化重新發送舊值時重複觸發 onError
+	let lastHandledErrors: unknown = null;
 
 	/**
 	 * 初始化訂閱
@@ -89,8 +91,11 @@ export function createSubscriptionManager<TData>(config: SubscriptionConfig<TDat
 				config.onData(value.data as TData);
 			}
 
-			if (value.error && config.onError) {
-				config.onError(value.error);
+			// Houdini subscription store 的錯誤欄位是 errors 陣列（成功的 next 也會帶空陣列），
+			// 沒有 error 單數欄位，必須用 length 判斷
+			if (value.errors?.length && value.errors !== lastHandledErrors) {
+				lastHandledErrors = value.errors;
+				config.onError?.(value.errors);
 			}
 		});
 
