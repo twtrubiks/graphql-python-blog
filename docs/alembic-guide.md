@@ -166,7 +166,7 @@ alembic upgrade head
 
 **解決**:
 
-1. 確認 PostgreSQL 服務運行中: `docker-compose up -d`
+1. 確認 PostgreSQL 服務運行中: `docker compose up -d`
 2. 檢查 `.env` 檔案的資料庫連線設定
 
 ### Q3: 自動偵測沒有找到變更

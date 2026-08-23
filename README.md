@@ -104,7 +104,7 @@
 db `blog_db`
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 後端
