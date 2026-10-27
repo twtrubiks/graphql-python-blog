@@ -1,5 +1,6 @@
-from typing import List, Union
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import json
+from typing import Annotated, Any, List
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from pydantic import field_validator, computed_field
 
 
@@ -25,7 +26,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 天
 
-    CORS_ORIGINS: List[str] = [
+    # NoDecode：環境變數交給下面的 validator 解析，否則 pydantic-settings 會先當成 JSON，
+    # 逗號分隔的寫法會在啟動時直接失敗
+    CORS_ORIGINS: Annotated[List[str], NoDecode] = [
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:8000",
@@ -37,12 +40,13 @@ class Settings(BaseSettings):
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
-        if isinstance(v, str) and not v.startswith("["):
+    def assemble_cors_origins(cls, v: Any) -> Any:
+        """字串可以是逗號分隔（a, b）或 JSON 陣列（["a", "b"]）；其他型別交給 pydantic 檢查"""
+        if isinstance(v, str):
+            if v.startswith("["):
+                return json.loads(v)
             return [i.strip() for i in v.split(",")]
-        elif isinstance(v, (list, str)):
-            return v
-        raise ValueError(v)
+        return v
 
     @computed_field
     @property
