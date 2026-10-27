@@ -61,17 +61,19 @@ async def update_me(
     )
     user = result.scalar_one()
 
-    # 檢查 username 唯一性
-    if input.username and input.username != user.username:
-        if not input.username.strip():
+    # 檢查 username 唯一性（先 strip 再比對，避免 " alice " 繞過檢查後撞上資料庫的 unique 限制）
+    if input.username:
+        new_username = input.username.strip()
+        if not new_username:
             raise ValueError("Username cannot be empty")
 
-        existing = await db_session.execute(
-            select(User).where(User.username == input.username)
-        )
-        if existing.scalar_one_or_none():
-            raise ValueError("Username already taken")
-        user.username = input.username.strip()
+        if new_username != user.username:
+            existing = await db_session.execute(
+                select(User).where(User.username == new_username)
+            )
+            if existing.scalar_one_or_none():
+                raise ValueError("Username already taken")
+            user.username = new_username
 
     # 更新欄位
     if input.full_name is not None:
