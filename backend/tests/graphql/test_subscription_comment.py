@@ -46,7 +46,7 @@ Subscription 是 GraphQL 的第三種操作類型（另外兩種是 Query 和 Mu
 
 ## 相關檔案
 - app/graphql/subscriptions/comment.py - CommentEvent 實作
-- tests/graphql/test_subscription_websocket.py - WebSocket 連線測試
+- tests/graphql/test_websocket_auth.py - 真正的 WebSocket 連線與 connectionParams 認證
 - docs/graphql-examples.md - Subscription 使用範例
 
 ## 前端使用範例
@@ -68,6 +68,7 @@ import asyncio
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 from app.graphql.subscriptions.comment import (
+    PostScopedEvent,
     CommentEvent,
     CommentUpdatedEvent,
     CommentDeletedEvent,
@@ -279,9 +280,10 @@ class TestCommentSubscription:
         assert received_comment.id == test_comment.id
         assert received_comment.content == test_comment.content
         
-        # 清理
+        # 清理：client 斷線（aclose）時 resolver 必須取消訂閱，否則佇列會無限累積
         await publish_task
         await subscription_gen.aclose()
+        assert post_id not in CommentEvent._subscribers
 
 def _make_comment(comment_id: str = "comment1", content: str = "content") -> Comment:
     return Comment(
@@ -440,3 +442,19 @@ class TestCommentDeletedSubscription:
         await task
         await gen.aclose()
         assert post_id not in CommentDeletedEvent._subscribers
+
+
+@pytest.mark.asyncio
+async def test_each_event_class_has_its_own_subscribers():
+    """__init_subclass__ 讓每個事件子類別有自己的訂閱者字典，訂閱 A 事件不會收到 B 事件"""
+    class FirstEvent(PostScopedEvent):
+        pass
+
+    class SecondEvent(PostScopedEvent):
+        pass
+
+    FirstEvent.subscribe("1")
+
+    assert list(FirstEvent._subscribers) == ["1"]
+    assert SecondEvent._subscribers == {}
+

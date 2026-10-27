@@ -200,3 +200,35 @@ class TestPostTagsQuery:
         data = response.json()["data"]["post"]
         assert data["title"] == "Post without tags"
         assert data["tags"] == []
+
+class TestAllTagsQuery:
+    """測試根層級的 tags query（前端 GetAllTags.gql 使用）"""
+
+    @pytest.mark.asyncio
+    async def test_all_tags_sorted_by_name(
+        self,
+        client: AsyncClient,
+        test_session: AsyncSession
+    ):
+        """回傳所有標籤，依名稱排序，不需要登入"""
+        test_session.add_all([
+            Tag(name="python", slug="python"),
+            Tag(name="asyncio", slug="asyncio"),
+            Tag(name="django", slug="django"),
+        ])
+        await test_session.commit()
+
+        response = await client.post("/graphql", json={"query": "{ tags { name slug } }"})
+
+        assert response.status_code == 200
+        assert response.json()["data"]["tags"] == [
+            {"name": "asyncio", "slug": "asyncio"},
+            {"name": "django", "slug": "django"},
+            {"name": "python", "slug": "python"},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_all_tags_empty(self, client: AsyncClient):
+        response = await client.post("/graphql", json={"query": "{ tags { name } }"})
+
+        assert response.json()["data"]["tags"] == []

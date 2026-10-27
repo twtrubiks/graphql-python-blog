@@ -97,9 +97,7 @@ class TestFollowingPostsQuery:
         assert response.status_code == 200
         data = response.json()
         assert "errors" in data
-        # 可能是 "not authenticated" 或 "Authentication required"
-        error_msg = data["errors"][0]["message"].lower()
-        assert "authentic" in error_msg
+        assert data["errors"][0]["message"] == "Authentication required"
 
     @pytest.mark.asyncio
     async def test_following_posts_pagination(

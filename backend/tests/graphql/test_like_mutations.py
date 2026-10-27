@@ -62,7 +62,7 @@ class TestLikePostMutation:
         assert response2.status_code == 200
         data = response2.json()["data"]["likePost"]
         assert data["success"] is False
-        assert "已經按讚" in data["message"] or "already liked" in data["message"].lower()
+        assert data["message"] == "您已經按讚過這篇文章"
 
     async def test_like_nonexistent_post(self, authenticated_client: AsyncClient):
         """測試按讚不存在的文章"""
@@ -85,7 +85,7 @@ class TestLikePostMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "不存在" in errors[0]["message"] or "not found" in errors[0]["message"].lower()
+        assert errors[0]["message"] == "文章不存在"
 
     async def test_like_soft_deleted_post_fails(self, authenticated_client: AsyncClient, test_session, test_post):
         """測試按讚已軟刪除的文章會失敗"""
@@ -112,7 +112,7 @@ class TestLikePostMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "不存在" in errors[0]["message"] or "not found" in errors[0]["message"].lower()
+        assert errors[0]["message"] == "文章不存在"
 
     async def test_like_post_without_auth(self, client: AsyncClient, test_post):
         """測試未登入無法按讚"""
@@ -135,7 +135,7 @@ class TestLikePostMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "登入" in errors[0]["message"] or "authentication" in errors[0]["message"].lower()
+        assert errors[0]["message"] == "需要登入才能按讚"
 
 
 @pytest.mark.asyncio
@@ -174,6 +174,16 @@ class TestUnlikePostMutation:
         assert data["success"] is True
         assert data["message"] == "取消按讚成功"
 
+        # 用新的請求重新查詢，確認按讚紀錄真的被刪除
+        response = await authenticated_client.post(
+            "/graphql",
+            json={
+                "query": "query GetPost($id: ID!) { post(id: $id) { likesCount isLiked } }",
+                "variables": {"id": str(test_post.id)}
+            }
+        )
+        assert response.json()["data"]["post"] == {"likesCount": 0, "isLiked": False}
+
     async def test_unlike_not_liked_post(self, authenticated_client: AsyncClient, test_post):
         """測試取消未按讚的文章"""
         mutation = """
@@ -195,7 +205,7 @@ class TestUnlikePostMutation:
         assert response.status_code == 200
         data = response.json()["data"]["unlikePost"]
         assert data["success"] is False
-        assert "沒有按讚" in data["message"] or "not liked" in data["message"].lower()
+        assert data["message"] == "您沒有按讚過這篇文章"
 
     async def test_unlike_nonexistent_post(self, authenticated_client: AsyncClient):
         """測試取消按讚不存在的文章"""
@@ -218,4 +228,36 @@ class TestUnlikePostMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "不存在" in errors[0]["message"] or "not found" in errors[0]["message"].lower()
+        assert errors[0]["message"] == "文章不存在"
+
+    async def test_unlike_post_without_auth(self, client: AsyncClient, test_session, test_user, test_post):
+        """unlikePost 沒有掛 IsAuthenticated，未登入要由 resolver 擋下"""
+        test_session.add(Like(user_id=test_user.id, post_id=test_post.id))
+        await test_session.commit()
+
+        mutation = """
+        mutation UnlikePost($postId: ID!) {
+            unlikePost(postId: $postId) {
+                success
+                message
+            }
+        }
+        """
+
+        response = await client.post(
+            "/graphql",
+            json={"query": mutation, "variables": {"postId": str(test_post.id)}}
+        )
+
+        errors = response.json().get("errors")
+        assert errors is not None
+        assert errors[0]["message"] == "需要登入才能取消按讚"
+
+        response = await client.post(
+            "/graphql",
+            json={
+                "query": "query GetPost($id: ID!) { post(id: $id) { likesCount } }",
+                "variables": {"id": str(test_post.id)}
+            }
+        )
+        assert response.json()["data"]["post"] == {"likesCount": 1}

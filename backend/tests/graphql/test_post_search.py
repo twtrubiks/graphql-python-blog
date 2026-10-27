@@ -132,16 +132,20 @@ class TestPostSearch:
         assert posts["edges"][0]["node"]["title"] == "文章一"
 
     @pytest.mark.asyncio
-    async def test_search_posts_case_insensitive(self, client, test_session):
-        """測試：搜尋不區分大小寫"""
+    @pytest.mark.parametrize("title, content", [
+        ("DOCKER 容器化部署", "部署流程"),
+        ("容器化部署", "使用 DOCKER 進行部署"),
+    ], ids=["title", "content"])
+    async def test_search_posts_case_insensitive(self, client, test_session, title, content):
+        """測試：搜尋不區分大小寫（標題與內容分開驗證，只有一欄含關鍵字）"""
         # Arrange
         user = await UserFactory.create(test_session)
 
         await PostFactory.create(
             test_session,
             author_id=user.id,
-            title="DOCKER 容器化部署",
-            content="使用 Docker 進行部署",
+            title=title,
+            content=content,
             status=PostStatus.PUBLISHED
         )
         await test_session.commit()

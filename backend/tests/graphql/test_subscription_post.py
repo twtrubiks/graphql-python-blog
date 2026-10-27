@@ -210,6 +210,7 @@ class TestPostPublishedSubscription:
         )
 
         # 📝 開始訂閱
+        subscribers_before = list(PostEvent._subscribers)
         subscription_gen = subscription.post_published()
 
         # 📝 在延遲後發布文章
@@ -225,9 +226,11 @@ class TestPostPublishedSubscription:
         assert received_post.id == test_post.id
         assert received_post.title == test_post.title
 
-        # 📝 清理
+        # 📝 清理：client 斷線（aclose）時 resolver 必須取消訂閱，否則佇列會無限累積
         await publish_task
+        assert len(PostEvent._subscribers) == len(subscribers_before) + 1
         await subscription_gen.aclose()
+        assert PostEvent._subscribers == subscribers_before
 
     async def test_unsubscribe_nonexistent_queue(self):
         """

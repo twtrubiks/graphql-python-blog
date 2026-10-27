@@ -41,13 +41,9 @@ class TestAuthDirective:
         assert response.status_code == 200
         data = response.json()
 
-        # 應該返回錯誤或 null
-        assert "errors" in data or data["data"]["me"] is None
-
-        # 如果有錯誤訊息，應該提到認證
-        if "errors" in data:
-            error_message = data["errors"][0]["message"].lower()
-            assert "auth" in error_message or "permission" in error_message
+        # 應該被 IsAuthenticated 擋下：回傳認證錯誤，且 me 為 null
+        assert data["data"]["me"] is None
+        assert data["errors"][0]["message"] == "Authentication required"
 
     async def test_authenticated_user_can_access_own_data(
         self,
@@ -126,12 +122,11 @@ class TestAuthDirective:
         assert response.status_code == 200
         data = response.json()
 
-        # 應該能看到 username 但不能看到 email（或 email 為 null）
-        if "errors" not in data and data["data"]["user"]:
-            user_data = data["data"]["user"]
-            assert user_data["username"] == "otheruser"
-            # email 應該被隱藏或返回 null（取決於實作）
-            # 這裡的預期行為是：非擁有者不能看到 email
+        # 應該能看到 username，但非擁有者看不到 email（IsOwnerOrSuperuser 以 fail_silently 回傳 null）
+        assert "errors" not in data
+        user_data = data["data"]["user"]
+        assert user_data["username"] == "otheruser"
+        assert user_data["email"] is None
 
     async def test_superuser_can_access_all_users_data(
         self,
@@ -182,15 +177,11 @@ class TestAuthDirective:
         # 驗證結果
         data = response.json()
 
-        # 超級用戶應該能看到所有用戶的完整資料
-        if "errors" not in data and data["data"]["users"]:
-            users = data["data"]["users"]
-            assert len(users) >= 2  # 至少有 2 個用戶
-
-            # 應該能看到所有用戶的 email
-            for user in users:
-                if user["username"] in ["admin", "normaluser"]:
-                    assert user["email"] is not None
+        # 超級用戶應該能看到所有用戶的完整資料（包含他人的 email）
+        assert "errors" not in data
+        emails = {user["username"]: user["email"] for user in data["data"]["users"]}
+        assert emails["admin"] == "admin@example.com"
+        assert emails["normaluser"] == "normal@example.com"
 
     async def test_owner_can_update_own_post(
         self,
@@ -244,10 +235,10 @@ class TestAuthDirective:
         data = response.json()
 
         # 擁有者應該能成功更新
-        if "errors" not in data and data["data"]["updatePost"]:
-            updated_post = data["data"]["updatePost"]
-            assert updated_post["title"] == "Updated Post"
-            assert updated_post["content"] == "Updated content"
+        assert "errors" not in data
+        updated_post = data["data"]["updatePost"]
+        assert updated_post["title"] == "Updated Post"
+        assert updated_post["content"] == "Updated content"
 
     async def test_non_owner_cannot_update_others_post(
         self,
@@ -309,12 +300,9 @@ class TestAuthDirective:
         # 驗證結果
         data = response.json()
 
-        # 應該返回權限錯誤
-        assert "errors" in data or data["data"]["updatePost"] is None
-
-        if "errors" in data:
-            error_message = data["errors"][0]["message"].lower()
-            assert "permission" in error_message or "authorized" in error_message or "owner" in error_message
+        # 應該返回權限錯誤（updatePost 為 non-null 欄位，錯誤時整個 data 為 null）
+        assert data["data"] is None
+        assert data["errors"][0]["message"] == "You don't have permission to edit this post"
 
     async def test_authenticated_user_required_for_mutations(
         self,
@@ -350,12 +338,9 @@ class TestAuthDirective:
         # 驗證結果
         data = response.json()
 
-        # 應該返回認證錯誤
-        assert "errors" in data or data["data"]["createPost"] is None
-
-        if "errors" in data:
-            error_message = data["errors"][0]["message"].lower()
-            assert "auth" in error_message or "permission" in error_message
+        # 應該返回認證錯誤（createPost 為 non-null 欄位，錯誤時整個 data 為 null）
+        assert data["data"] is None
+        assert data["errors"][0]["message"] == "Authentication required"
 
     async def test_public_fields_accessible_without_auth(
         self,

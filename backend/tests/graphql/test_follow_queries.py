@@ -1,7 +1,11 @@
 """追蹤功能 GraphQL queries 測試"""
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from httpx import AsyncClient
 from app.core.security import create_access_token
+from app.models.follow import Follow
+from app.models.user import User
 
 
 USER_WITH_FOLLOWERS_QUERY = """
@@ -159,8 +163,56 @@ class TestFollowQueries:
         assert response.status_code == 200
         data = response.json()["data"]["user"]
 
-        # 可以看到追蹤數據
-        assert "followersCount" in data
-        assert "followingCount" in data
-        assert "followers" in data
-        assert "following" in data
+        # 可以看到追蹤數據；沒有追蹤關係時數量是 0、列表是空的
+        assert data["followersCount"] == 0
+        assert data["followingCount"] == 0
+        assert data["followers"] == []
+        assert data["following"] == []
+    async def test_lists_newest_first(self, client: AsyncClient, test_session, test_user, user_factory):
+        """followers / following 由新到舊排列；同時建立的，id 較大（較晚寫入）的在前"""
+        a, b, c = [await user_factory.create() for _ in range(3)]
+        now = datetime.now(timezone.utc)
+        earlier = now - timedelta(minutes=1)
+        # 依序寫入，id 遞增：a 與 b 同時，c 較早
+        test_session.add_all([
+            Follow(follower_id=a.id, followed_id=test_user.id, created_at=now),
+            Follow(follower_id=b.id, followed_id=test_user.id, created_at=now),
+            Follow(follower_id=c.id, followed_id=test_user.id, created_at=earlier),
+            Follow(follower_id=test_user.id, followed_id=a.id, created_at=now),
+            Follow(follower_id=test_user.id, followed_id=b.id, created_at=now),
+            Follow(follower_id=test_user.id, followed_id=c.id, created_at=earlier),
+        ])
+        await test_session.commit()
+
+        response = await client.post(
+            "/graphql",
+            json={"query": USER_WITH_FOLLOWERS_QUERY, "variables": {"userId": test_user.id}}
+        )
+
+        data = response.json()["data"]["user"]
+        expected = [str(b.id), str(a.id), str(c.id)]
+        assert [user["id"] for user in data["followers"]] == expected
+        assert [user["id"] for user in data["following"]] == expected
+
+
+@pytest.mark.asyncio
+async def test_follow_lists_are_capped_at_100(client: AsyncClient, test_session, test_user):
+    """追蹤者 / 追蹤中列表每人最多回傳 100 個（FOLLOW_LIST_LIMIT），計數不受限制"""
+    fans = [User(email=f"fan{i}@example.com", username=f"fan{i}", hashed_password="unused") for i in range(101)]
+    test_session.add_all(fans)
+    await test_session.flush()
+    test_session.add_all(
+        [Follow(follower_id=fan.id, followed_id=test_user.id) for fan in fans]
+        + [Follow(follower_id=test_user.id, followed_id=fan.id) for fan in fans]
+    )
+    await test_session.commit()
+
+    response = await client.post("/graphql", json={
+        "query": "query($id: Int!) { user(id: $id) { followersCount followingCount followers { id } following { id } } }",
+        "variables": {"id": test_user.id},
+    })
+
+    data = response.json()["data"]["user"]
+    assert (data["followersCount"], data["followingCount"]) == (101, 101)
+    assert (len(data["followers"]), len(data["following"])) == (100, 100)
+

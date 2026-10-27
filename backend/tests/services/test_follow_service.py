@@ -7,6 +7,7 @@ import pytest
 from tests.factories import UserFactory
 from app.services.follow import FollowService
 from app.models.follow import Follow
+from tests.utils import insert_after_existence_check
 
 
 class TestFollowServiceGetIds:
@@ -125,3 +126,50 @@ class TestFollowServiceGetIds:
         assert len(following_ids) == 1
         assert user2.id in following_ids
         assert user3.id not in following_ids
+
+
+class TestFollowServiceCounts:
+    """沒有 DataLoader 時，followersCount / followingCount 改用這兩個方法直接查詢"""
+
+    @pytest.mark.asyncio
+    async def test_followers_and_following_count(self, test_session):
+        # alice 被 bob、carol 追蹤，自己追蹤 bob；dave 沒有任何追蹤關係
+        alice = await UserFactory.create(test_session, username="alice")
+        bob = await UserFactory.create(test_session, username="bob")
+        carol = await UserFactory.create(test_session, username="carol")
+        dave = await UserFactory.create(test_session, username="dave")
+        test_session.add_all([
+            Follow(follower_id=bob.id, followed_id=alice.id),
+            Follow(follower_id=carol.id, followed_id=alice.id),
+            Follow(follower_id=alice.id, followed_id=bob.id),
+        ])
+        await test_session.commit()
+
+        counts = {
+            user.username: (
+                await FollowService.get_followers_count(test_session, user.id),
+                await FollowService.get_following_count(test_session, user.id),
+            )
+            for user in (alice, bob, carol, dave)
+        }
+
+        assert counts == {"alice": (2, 1), "bob": (1, 1), "carol": (0, 1), "dave": (0, 0)}
+
+
+class TestFollowUserRace:
+    @pytest.mark.asyncio
+    async def test_follow_race_is_blocked_by_unique_constraint(self, test_session, test_engine, monkeypatch):
+        """同時送出兩次追蹤：兩邊都查不到既有的追蹤，後寫入的那個要回報失敗，而不是拋出錯誤"""
+        alice = await UserFactory.create(test_session)
+        bob = await UserFactory.create(test_session)
+        await test_session.commit()
+        alice_id, bob_id = alice.id, bob.id  # rollback 會讓 ORM 物件過期，之後不能再讀屬性
+        insert_after_existence_check(
+            monkeypatch, test_session, test_engine, Follow(follower_id=alice_id, followed_id=bob_id)
+        )
+
+        result = await FollowService.follow_user(test_session, alice_id, bob_id)
+
+        assert result == (False, "Failed to follow user", None)
+        # rollback 之後 session 還能繼續使用，而且只有一筆追蹤
+        assert await FollowService.get_followers_count(test_session, bob_id) == 1

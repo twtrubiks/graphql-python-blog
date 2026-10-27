@@ -722,3 +722,25 @@ class TestPostQueryBySlug:
         assert data1["data"]["post"]["id"] == data2["data"]["post"]["id"]
         assert data1["data"]["post"]["slug"] == "mixed-test"
         assert data2["data"]["post"]["slug"] == "mixed-test"
+
+class TestPostExcerpt:
+    """沒有填 excerpt 時，由內容前 150 字產生"""
+
+    QUERY = "query GetPost($id: ID!) { post(id: $id) { excerpt } }"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("content, excerpt, expected", [
+        ("a" * 150, None, "a" * 150),  # 剛好 150 字，不截斷
+        ("a" * 150 + "b", None, "a" * 150 + "..."),
+        ("a" * 151, "自訂摘要", "自訂摘要"),
+        ("", None, ""),  # 內容是空字串（直接寫入資料庫；createPost 會拒絕）
+    ], ids=["150-chars", "151-chars", "explicit-excerpt", "empty-content"])
+    async def test_excerpt(self, client, test_session, content, excerpt, expected):
+        user = await UserFactory.create(test_session)
+        post = await PostFactory.create(test_session, author_id=user.id, content=content, excerpt=excerpt)
+        post.content = content  # PostFactory 遇到空字串會改用預設內容
+        await test_session.commit()
+
+        response = await client.post("/graphql", json={"query": self.QUERY, "variables": {"id": str(post.id)}})
+
+        assert response.json()["data"]["post"]["excerpt"] == expected

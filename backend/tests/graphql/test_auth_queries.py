@@ -24,7 +24,7 @@ class TestMeQuery:
 
         # 生成 token
         token = AuthService.create_access_token(
-            data={"sub": str(user.id), "email": user.email}
+            data={"sub": str(user.id)}
         )
 
         query = """
@@ -122,8 +122,8 @@ class TestMeQuery:
 
         # 生成過期的 token
         token = AuthService.create_access_token(
-            data={"sub": str(user.id), "email": user.email},
-            expires_delta=timedelta(seconds=-1)  # 已經過期
+            data={"sub": str(user.id)},
+            expires_delta=timedelta(minutes=-5)  # 已經過期（只差 1 秒的話，+ 寫成 - 時 token 可能仍有效）
         )
 
         query = """
@@ -165,7 +165,7 @@ class TestMeQuery:
 
         # 生成 token
         token = AuthService.create_access_token(
-            data={"sub": str(user.id), "email": user.email}
+            data={"sub": str(user.id)}
         )
 
         query = """
@@ -657,7 +657,7 @@ class TestAuthenticatedQueries:
 
         # 生成 token
         token = AuthService.create_access_token(
-            data={"sub": str(user.id), "email": user.email}
+            data={"sub": str(user.id)}
         )
 
         query = """
@@ -708,4 +708,4 @@ class TestAuthenticatedQueries:
         # 應該有錯誤
         assert "errors" in data
         assert len(data["errors"]) > 0
-        assert "authentication required" in data["errors"][0]["message"].lower()
+        assert data["errors"][0]["message"] == "Authentication required"

@@ -157,7 +157,7 @@ class TestCreatePostMutation:
 
         # 應該返回認證錯誤
         assert "errors" in data
-        assert "Authentication required" in str(data["errors"][0]["message"])
+        assert data["errors"][0]["message"] == "Authentication required"
 
     @pytest.mark.asyncio
     async def test_create_post_auto_slug_generation(self, authenticated_client, test_session):
@@ -243,8 +243,14 @@ class TestCreatePostMutation:
         assert response2.status_code == 200
         data2 = response2.json()
         # 第二篇文章應該有唯一的 slug（會自動加上數字）
-        assert data2["data"]["createPost"]["slug"] != "duplicate-title"
-        assert data2["data"]["createPost"]["slug"].startswith("duplicate-title-")
+        assert data2["data"]["createPost"]["slug"] == "duplicate-title-1"
+
+        # 第三篇要跳過已被使用的 -1
+        response3 = await authenticated_client.post(
+            "/graphql",
+            json={"query": mutation, "variables": variables}
+        )
+        assert response3.json()["data"]["createPost"]["slug"] == "duplicate-title-2"
 
     @pytest.mark.asyncio
     async def test_create_post_with_custom_slug(self, authenticated_client, test_session):
@@ -350,8 +356,14 @@ class TestCreatePostMutation:
         assert data["data"]["createPost"]["publishedAt"] is not None  # 已發布文章有發布時間
 
     @pytest.mark.asyncio
-    async def test_create_post_validation_errors(self, authenticated_client, test_session):
-        """測試：輸入驗證錯誤處理"""
+    @pytest.mark.parametrize("input, message", [
+        ({"title": "", "content": "Content without title"}, "Title cannot be empty"),
+        ({"title": "   ", "content": "Content without title"}, "Title cannot be empty"),
+        ({"title": "Title without content", "content": ""}, "Content cannot be empty"),
+        ({"title": "Title without content", "content": "   "}, "Content cannot be empty"),
+    ], ids=["empty-title", "blank-title", "empty-content", "blank-content"])
+    async def test_create_post_validation_errors(self, authenticated_client, input, message):
+        """測試：輸入驗證錯誤處理（只有空白也算空的）"""
 
         mutation = """
         mutation CreatePost($input: PostInput!) {
@@ -362,39 +374,14 @@ class TestCreatePostMutation:
         }
         """
 
-        # 測試空標題
-        variables = {
-            "input": {
-                "title": "",
-                "content": "Content without title",
-            }
-        }
-
         response = await authenticated_client.post(
             "/graphql",
-            json={"query": mutation, "variables": variables}
+            json={"query": mutation, "variables": {"input": input}}
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert "errors" in data  # 應該有錯誤
-
-        # 測試空內容
-        variables = {
-            "input": {
-                "title": "Title without content",
-                "content": "",
-            }
-        }
-
-        response = await authenticated_client.post(
-            "/graphql",
-            json={"query": mutation, "variables": variables}
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "errors" in data  # 應該有錯誤
+        assert data["errors"][0]["message"] == message
 
     @pytest.mark.asyncio
     async def test_create_post_with_all_fields(self, authenticated_client, test_session):
@@ -515,6 +502,16 @@ class TestUpdatePostMutation:
         assert data["data"]["updatePost"]["excerpt"] == "Updated excerpt"
         assert data["data"]["updatePost"]["status"] == "PUBLISHED"
         assert data["data"]["updatePost"]["updatedAt"] is not None
+
+        # 用新的請求重新查詢，確認變更已寫入資料庫（未 commit 的變更會在請求結束時被丟棄）
+        response = await authenticated_client.post(
+            "/graphql",
+            json={
+                "query": "query GetPost($id: ID!) { post(id: $id) { title status } }",
+                "variables": {"id": post_id}
+            }
+        )
+        assert response.json()["data"]["post"] == {"title": "Updated Title", "status": "PUBLISHED"}
 
     @pytest.mark.asyncio
     async def test_update_post_partial_fields(self, authenticated_client, test_session):
@@ -685,8 +682,7 @@ class TestUpdatePostMutation:
 
         # 應該返回權限錯誤
         assert "errors" in update_data
-        assert "permission" in str(update_data["errors"][0]["message"]).lower() or \
-               "authorized" in str(update_data["errors"][0]["message"]).lower()
+        assert update_data["errors"][0]["message"] == "You don't have permission to edit this post"
 
     @pytest.mark.asyncio
     async def test_update_post_not_found(self, authenticated_client):
@@ -718,7 +714,7 @@ class TestUpdatePostMutation:
 
         # 應該返回文章不存在錯誤
         assert "errors" in data
-        assert "not found" in str(data["errors"][0]["message"]).lower()
+        assert data["errors"][0]["message"] == "Post not found"
 
     @pytest.mark.asyncio
     async def test_update_post_without_auth(self, client):
@@ -750,7 +746,7 @@ class TestUpdatePostMutation:
 
         # 應該返回認證錯誤
         assert "errors" in data
-        assert "Authentication required" in str(data["errors"][0]["message"])
+        assert data["errors"][0]["message"] == "Authentication required"
 
 
 class TestDeletePostMutation:
@@ -809,7 +805,7 @@ class TestDeletePostMutation:
         # 驗證刪除成功
         assert "errors" not in data
         assert data["data"]["deletePost"]["success"] is True
-        assert "deleted" in data["data"]["deletePost"]["message"].lower()
+        assert data["data"]["deletePost"]["message"] == "Post deleted successfully"
 
         # 驗證文章已無法查詢
         query = """
@@ -924,11 +920,9 @@ class TestDeletePostMutation:
         assert delete_response.status_code == 200
         delete_data = delete_response.json()
 
-        # 應該返回權限錯誤
-        assert "errors" in delete_data or delete_data["data"]["deletePost"]["success"] is False
-        if "errors" in delete_data:
-            assert "permission" in str(delete_data["errors"][0]["message"]).lower() or \
-                   "authorized" in str(delete_data["errors"][0]["message"]).lower()
+        # 應該返回權限錯誤（deletePost 為 non-null 欄位，錯誤時整個 data 為 null）
+        assert delete_data["data"] is None
+        assert delete_data["errors"][0]["message"] == "You don't have permission to delete this post"
 
     @pytest.mark.asyncio
     async def test_delete_post_not_found(self, authenticated_client):
@@ -954,9 +948,8 @@ class TestDeletePostMutation:
         data = response.json()
 
         # 應該返回文章不存在錯誤
-        assert "errors" in data or data["data"]["deletePost"]["success"] is False
-        if "errors" in data:
-            assert "not found" in str(data["errors"][0]["message"]).lower()
+        assert data["data"] is None
+        assert data["errors"][0]["message"] == "Post not found"
 
     @pytest.mark.asyncio
     async def test_delete_post_without_auth(self, client):
@@ -983,7 +976,7 @@ class TestDeletePostMutation:
 
         # 應該返回認證錯誤
         assert "errors" in data
-        assert "Authentication required" in str(data["errors"][0]["message"])
+        assert data["errors"][0]["message"] == "Authentication required"
 
     @pytest.mark.asyncio
     async def test_soft_delete_functionality(self, authenticated_client, test_session):

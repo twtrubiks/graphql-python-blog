@@ -3,22 +3,7 @@ import string
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-
-class FakeScalarSession:
-    """模擬 AsyncSession，execute() 後 scalar_one_or_none() 固定回傳指定物件"""
-
-    class _Result:
-        def __init__(self, value):
-            self._value = value
-
-        def scalar_one_or_none(self):
-            return self._value
-
-    def __init__(self, value=None):
-        self._value = value
-
-    async def execute(self, stmt):
-        return self._Result(self._value)
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 
 class FakeSubscriptionContext:
@@ -34,6 +19,25 @@ class FakeSubscriptionInfo:
 
     def __init__(self, user_id=None, db_session=None):
         self.context = FakeSubscriptionContext(user_id, db_session)
+
+
+def insert_after_existence_check(monkeypatch, session: AsyncSession, engine: AsyncEngine, row):
+    """
+    模擬兩個請求同時送出：session 查完「是否已經存在」之後、自己寫入之前，
+    另一個請求搶先寫入同一筆資料並 commit，這時只剩資料庫的 unique 約束擋得住
+    """
+    original = session.execute
+
+    async def execute(statement, *args, **kwargs):
+        result = await original(statement, *args, **kwargs)
+        if statement.column_descriptions[0]["entity"] is type(row):
+            monkeypatch.setattr(session, "execute", original)  # 只插隊一次
+            async with AsyncSession(engine) as other:
+                other.add(row)
+                await other.commit()
+        return result
+
+    monkeypatch.setattr(session, "execute", execute)
 
 def random_string(length: int = 10) -> str:
     """Generate a random string of specified length."""

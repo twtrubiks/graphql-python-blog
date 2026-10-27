@@ -311,9 +311,10 @@ class TestFragmentReuse:
             headers=headers
         )
 
-        # 這個查詢應該返回錯誤
+        # 這個查詢應該在驗證階段就被拒絕
         data = response.json()
-        assert "errors" in data or (data["data"]["me"] and "title" not in data["data"]["me"])
+        assert data["data"] is None
+        assert "cannot be spread here" in data["errors"][0]["message"]
 
     async def test_fragment_reduces_duplication(
         self,

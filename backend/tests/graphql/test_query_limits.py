@@ -33,7 +33,9 @@ class TestQueryDepthLimit:
         assert response.status_code == 200
         data = response.json()
         assert "errors" in data
-        assert any("depth" in err["message"].lower() for err in data["errors"])
+        assert [err["message"] for err in data["errors"]] == [
+            "'anonymous' exceeds maximum operation depth of 10"
+        ]
 
     @pytest.mark.asyncio
     async def test_normal_query_is_allowed(self, client, test_session):

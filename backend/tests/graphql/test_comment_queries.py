@@ -56,8 +56,9 @@ class TestPostCommentsQuery:
         assert any(c["content"] == "第二個評論" for c in data["comments"])
         assert all(c["author"]["username"] == "testuser" for c in data["comments"])
     
-    async def test_comments_exclude_deleted(self, client: AsyncClient, test_session, test_user, test_post):
-        """測試查詢評論時排除已刪除的評論"""
+    @pytest.mark.parametrize("comments_field", ["comments", "comments(limit: 10)"], ids=["dataloader", "paginated"])
+    async def test_comments_exclude_deleted(self, client: AsyncClient, test_session, test_user, test_post, comments_field):
+        """測試查詢評論時排除已刪除的評論（分頁時不走 DataLoader，兩條路徑都要驗證）"""
         # 創建正常評論
         comment1 = Comment(
             content="正常評論",
@@ -74,16 +75,16 @@ class TestPostCommentsQuery:
         test_session.add_all([comment1, comment2])
         await test_session.commit()
         
-        query = """
-        query GetPost($id: ID!) {
-            post(id: $id) {
+        query = f"""
+        query GetPost($id: ID!) {{
+            post(id: $id) {{
                 id
-                comments {
+                comments: {comments_field} {{
                     id
                     content
-                }
-            }
-        }
+                }}
+            }}
+        }}
         """
         
         variables = {"id": str(test_post.id)}

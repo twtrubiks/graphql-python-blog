@@ -86,7 +86,11 @@ class TestFollowMutations:
 
         assert response.status_code == 200
         data = response.json()
-        assert "errors" in data or (data["data"]["followUser"]["success"] is False)
+        assert "errors" not in data
+        result = data["data"]["followUser"]
+        assert result["success"] is False
+        assert result["message"] == "Already following this user"
+        assert result["follow"] is None
 
     async def test_cannot_follow_self(self, authenticated_client: AsyncClient, test_user):
         """測試用戶不能追蹤自己"""
@@ -100,7 +104,11 @@ class TestFollowMutations:
 
         assert response.status_code == 200
         data = response.json()
-        assert "errors" in data or (data["data"]["followUser"]["success"] is False)
+        assert "errors" not in data
+        result = data["data"]["followUser"]
+        assert result["success"] is False
+        assert result["message"] == "Cannot follow yourself"
+        assert result["follow"] is None
 
     async def test_follow_non_existent_user(self, authenticated_client: AsyncClient):
         """測試追蹤不存在的用戶"""
@@ -114,7 +122,11 @@ class TestFollowMutations:
 
         assert response.status_code == 200
         data = response.json()
-        assert "errors" in data or (data["data"]["followUser"]["success"] is False)
+        assert "errors" not in data
+        result = data["data"]["followUser"]
+        assert result["success"] is False
+        assert result["message"] == "User not found"
+        assert result["follow"] is None
 
     async def test_follow_requires_authentication(self, client: AsyncClient, user_factory):
         """測試追蹤需要認證"""
@@ -130,8 +142,11 @@ class TestFollowMutations:
 
         assert response.status_code == 200
         data = response.json()
-        # 檢查是否有錯誤或成功標誌為 false
-        assert "errors" in data or (data["data"]["followUser"]["success"] is False)
+        assert "errors" not in data
+        result = data["data"]["followUser"]
+        assert result["success"] is False
+        assert result["message"] == "Authentication required"
+        assert result["follow"] is None
 
     async def test_unfollow_user_success(self, authenticated_client: AsyncClient, user_factory, test_user):
         """測試成功取消追蹤"""
@@ -162,6 +177,16 @@ class TestFollowMutations:
         assert data["success"] is True
         assert data["message"] == "Successfully unfollowed user"
 
+        # 用新的請求重新查詢，確認追蹤關係真的被刪除
+        response = await authenticated_client.post(
+            "/graphql",
+            json={
+                "query": "query GetUser($id: Int!) { user(id: $id) { isFollowedByMe followersCount } }",
+                "variables": {"id": target_user.id}
+            }
+        )
+        assert response.json()["data"]["user"] == {"isFollowedByMe": False, "followersCount": 0}
+
     async def test_unfollow_not_following(self, authenticated_client: AsyncClient, user_factory):
         """測試取消追蹤未追蹤的用戶"""
         target_user = await user_factory.create()
@@ -176,7 +201,10 @@ class TestFollowMutations:
 
         assert response.status_code == 200
         data = response.json()
-        assert "errors" in data or (data["data"]["unfollowUser"]["success"] is False)
+        assert "errors" not in data
+        result = data["data"]["unfollowUser"]
+        assert result["success"] is False
+        assert result["message"] == "Not following this user"
 
     async def test_unfollow_requires_authentication(self, client: AsyncClient, user_factory):
         """測試取消追蹤需要認證"""
@@ -192,5 +220,7 @@ class TestFollowMutations:
 
         assert response.status_code == 200
         data = response.json()
-        # 檢查是否有錯誤或成功標誌為 false
-        assert "errors" in data or (data["data"]["unfollowUser"]["success"] is False)
+        assert "errors" not in data
+        result = data["data"]["unfollowUser"]
+        assert result["success"] is False
+        assert result["message"] == "Authentication required"

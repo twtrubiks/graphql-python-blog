@@ -3,6 +3,7 @@ from slugify import slugify
 
 from app.models.user import User
 from app.models.post import Post
+from app.models.tag import Tag
 
 
 @pytest.mark.asyncio
@@ -79,12 +80,41 @@ class TestSearchUnionTypes:
         results = data["data"]["search"]
         assert len(results) == 2  # 應該找到 2 篇包含 "Python" 的文章
 
-        # 驗證返回的都是 Post 類型
+        # 驗證返回的都是 Post 類型，摘要用文章自己的 excerpt，而不是由內容產生
         for result in results:
             assert result["__typename"] == "PostType"
-            assert "Python" in result["title"]
-            assert "postId" in result or "userId" in result
-            assert "excerpt" in result
+            assert "postId" in result
+        assert {(result["title"], result["excerpt"]) for result in results} == {
+            ("Python GraphQL Tutorial", "A comprehensive guide to GraphQL"),
+            ("Advanced Python Techniques", "Master Python programming"),
+        }
+
+    async def test_search_post_author_and_tags(self, client, test_session, test_user, user_factory):
+        """搜尋結果的 PostType 沒有預載作者與標籤，改由 UserLoader / PostTagsLoader 載入"""
+        other = await user_factory.create()
+        test_session.add_all([
+            Post(title="Python by me", slug="python-by-me", content="content", author_id=test_user.id,
+                 status="published", tags=[Tag(name="python", slug="python")]),
+            Post(title="Python by other", slug="python-by-other", content="content", author_id=other.id,
+                 status="published"),
+        ])
+        await test_session.commit()
+
+        query = """
+            query Search($term: String!) {
+                search(term: $term) {
+                    ... on PostType { title author { username } tags { name } }
+                }
+            }
+        """
+        response = await client.post("/graphql", json={"query": query, "variables": {"term": "Python"}})
+
+        data = response.json()
+        assert "errors" not in data, data["errors"]
+        assert sorted(data["data"]["search"], key=lambda post: post["title"]) == [
+            {"title": "Python by me", "author": {"username": test_user.username}, "tags": [{"name": "python"}]},
+            {"title": "Python by other", "author": {"username": other.username}, "tags": []},
+        ]
 
     async def test_search_returns_user_results(
         self,

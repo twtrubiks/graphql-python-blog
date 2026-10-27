@@ -8,6 +8,15 @@ from app.models.user import User
 from app.core.security import get_password_hash
 from app.graphql.subscriptions.comment import CommentUpdatedEvent, CommentDeletedEvent
 
+DELETE_COMMENT_MUTATION = """
+mutation DeleteComment($commentId: ID!) {
+    deleteComment(commentId: $commentId) {
+        success
+        message
+    }
+}
+"""
+
 
 @pytest.mark.asyncio
 class TestAddCommentMutation:
@@ -29,6 +38,8 @@ class TestAddCommentMutation:
                     title
                 }
                 createdAt
+                isDeleted
+                deletedAt
             }
         }
         """
@@ -52,6 +63,9 @@ class TestAddCommentMutation:
         assert data["post"]["id"] == test_post.id
         assert data["post"]["title"] == test_post.title
         assert data["createdAt"] is not None
+        # 前端用 isDeleted 決定要不要顯示這則留言
+        assert data["isDeleted"] is False
+        assert data["deletedAt"] is None
     
     async def test_add_comment_without_auth(self, client: AsyncClient, test_post):
         """測試未登入無法新增評論"""
@@ -77,7 +91,8 @@ class TestAddCommentMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "登入" in errors[0]["message"] or "authentication" in errors[0]["message"].lower() or "unauthorized" in errors[0]["message"].lower()
+        # 精確比對：錯誤訊息可能夾帶 SQL 參數（含送出的內容「未登入…」），用關鍵字比對會碰巧通過
+        assert errors[0]["message"] == "需要登入才能評論"
     
     async def test_add_comment_to_soft_deleted_post_fails(self, authenticated_client: AsyncClient, test_session, test_post):
         """測試對已軟刪除的文章留言會失敗（即使 status 仍是 PUBLISHED）"""
@@ -107,7 +122,7 @@ class TestAddCommentMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "不存在" in errors[0]["message"] or "not found" in errors[0]["message"].lower()
+        assert errors[0]["message"] == "文章不存在"
 
     async def test_add_comment_to_nonexistent_post(self, authenticated_client: AsyncClient):
         """測試評論不存在的文章"""
@@ -133,7 +148,7 @@ class TestAddCommentMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "不存在" in errors[0]["message"] or "not found" in errors[0]["message"].lower() or "找不到" in errors[0]["message"]
+        assert errors[0]["message"] == "文章不存在"
     
     async def test_add_comment_empty_content(self, authenticated_client: AsyncClient, test_post):
         """測試空內容評論"""
@@ -159,7 +174,7 @@ class TestAddCommentMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "empty" in errors[0]["message"].lower() or "內容不能為空" in errors[0]["message"].lower()
+        assert errors[0]["message"] == "評論內容不能為空"
     
     async def test_add_comment_to_draft_post(self, authenticated_client: AsyncClient, test_session, test_user):
         """測試評論草稿文章"""
@@ -194,19 +209,36 @@ class TestAddCommentMutation:
             json={"query": mutation, "variables": variables}
         )
         
-        # 草稿文章可能允許作者評論，或完全禁止評論
-        # 根據業務邏輯決定
+        # 作者可以評論自己的草稿（他人不行，見 test_cannot_comment_on_others_draft）
         assert response.status_code == 200
         result = response.json()
-        
-        # 如果不允許評論草稿
-        if "errors" in result:
-            errors = result["errors"]
-            assert "draft" in errors[0]["message"].lower() or "不能評論" in errors[0]["message"].lower()
-        # 如果允許作者評論草稿
-        else:
-            data = result["data"]["addComment"]
-            assert data["id"] is not None
+        assert "errors" not in result
+        assert result["data"]["addComment"]["content"] == "評論草稿"
+
+    async def test_cannot_comment_on_others_draft(self, authenticated_client: AsyncClient, test_session, user_factory):
+        """不能評論別人尚未發布的文章"""
+        author = await user_factory.create()
+        draft_post = Post(
+            title="Others Draft",
+            slug="others-draft",
+            content="Draft content",
+            status=PostStatus.DRAFT,
+            author_id=author.id
+        )
+        test_session.add(draft_post)
+        await test_session.commit()
+
+        response = await authenticated_client.post(
+            "/graphql",
+            json={
+                "query": 'mutation AddComment($postId: ID!) { addComment(postId: $postId, content: "hi") { id } }',
+                "variables": {"postId": str(draft_post.id)}
+            }
+        )
+
+        data = response.json()
+        assert data["data"] is None
+        assert data["errors"][0]["message"] == "不能評論未發布的文章"
 
 
 @pytest.mark.asyncio
@@ -244,6 +276,7 @@ class TestDeleteCommentMutation:
         assert response.status_code == 200
         data = response.json()["data"]["deleteComment"]
         assert data["success"] is True
+        assert data["message"] == "評論已成功刪除"
         
         # 驗證評論已被刪除（軟刪除）
         await test_session.refresh(comment)
@@ -290,6 +323,7 @@ class TestDeleteCommentMutation:
         assert response.status_code == 200
         data = response.json()["data"]["deleteComment"]
         assert data["success"] is True
+        assert data["message"] == "評論已成功刪除"
         
         # 驗證評論已被刪除
         await test_session.refresh(comment)
@@ -343,19 +377,16 @@ class TestDeleteCommentMutation:
         )
         
         assert response.status_code == 200
-        errors = response.json().get("errors")
-        if errors:
-            assert "permission" in errors[0]["message"].lower() or "權限" in errors[0]["message"].lower()
-        else:
-            data = response.json()["data"]["deleteComment"]
-            assert data["success"] is False
-            assert "permission" in data["message"].lower() or "權限" in data["message"].lower()
+        data = response.json()
+        assert data["data"] is None
+        assert data["errors"][0]["message"] == "沒有權限刪除此評論"
     
     async def test_delete_comment_publishes_deleted_event(self, authenticated_client: AsyncClient, test_session, test_user, test_post):
         """刪除評論後應推送 commentDeleted 事件（含剩餘留言數）給該文章的訂閱者"""
-        kept = Comment(content="保留的評論", user_id=test_user.id, post_id=test_post.id)
+        # 保留 2 則、刪除 1 則：數量不同，計數條件寫反（只算已刪除的）才會被抓到
+        kept = [Comment(content=f"保留的評論 {i}", user_id=test_user.id, post_id=test_post.id) for i in range(2)]
         target = Comment(content="要刪的評論", user_id=test_user.id, post_id=test_post.id)
-        test_session.add_all([kept, target])
+        test_session.add_all([*kept, target])
         await test_session.commit()
         await test_session.refresh(target)
 
@@ -376,8 +407,8 @@ class TestDeleteCommentMutation:
             event = await asyncio.wait_for(queue.get(), timeout=1.0)
             assert event.comment_id == str(target.id)
             assert event.post_id == str(test_post.id)
-            # 刪除後剩 1 則未刪除的評論
-            assert event.total_comments == 1
+            # 刪除後剩 2 則未刪除的評論
+            assert event.total_comments == 2
         finally:
             CommentDeletedEvent.unsubscribe(str(test_post.id), queue)
 
@@ -414,7 +445,7 @@ class TestDeleteCommentMutation:
                 "/graphql",
                 json={"query": mutation, "variables": {"commentId": str(comment.id)}}
             )
-            assert "errors" in response.json()
+            assert response.json()["errors"][0]["message"] == "沒有權限刪除此評論"
             assert queue.empty()
         finally:
             CommentDeletedEvent.unsubscribe(str(other_post.id), queue)
@@ -440,7 +471,57 @@ class TestDeleteCommentMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "不存在" in errors[0]["message"] or "not found" in errors[0]["message"].lower() or "找不到" in errors[0]["message"]
+        assert errors[0]["message"] == "評論不存在"
+
+    async def test_delete_already_deleted_comment(
+        self, authenticated_client: AsyncClient, test_session, test_user, test_post
+    ):
+        """已經刪除的留言不能再刪一次，刪除時間也不會被改寫"""
+        deleted_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        comment = Comment(
+            content="已刪除的評論",
+            user_id=test_user.id,
+            post_id=test_post.id,
+            deleted_at=deleted_at
+        )
+        test_session.add(comment)
+        await test_session.commit()
+        await test_session.refresh(comment)
+
+        response = await authenticated_client.post(
+            "/graphql",
+            json={"query": DELETE_COMMENT_MUTATION, "variables": {"commentId": str(comment.id)}}
+        )
+
+        errors = response.json().get("errors")
+        assert errors is not None
+        assert errors[0]["message"] == "評論已被刪除"
+        await test_session.refresh(comment)
+        assert comment.deleted_at == deleted_at
+
+    async def test_delete_comment_without_auth(
+        self, client: AsyncClient, test_session, test_user, test_post
+    ):
+        """deleteComment 沒有掛 IsAuthenticated，未登入要由 resolver 擋下"""
+        comment = Comment(
+            content="評論",
+            user_id=test_user.id,
+            post_id=test_post.id
+        )
+        test_session.add(comment)
+        await test_session.commit()
+        await test_session.refresh(comment)
+
+        response = await client.post(
+            "/graphql",
+            json={"query": DELETE_COMMENT_MUTATION, "variables": {"commentId": str(comment.id)}}
+        )
+
+        errors = response.json().get("errors")
+        assert errors is not None
+        assert errors[0]["message"] == "需要登入才能刪除評論"
+        await test_session.refresh(comment)
+        assert comment.deleted_at is None
 
 
 @pytest.mark.asyncio
@@ -470,6 +551,8 @@ class TestUpdateCommentMutation:
                     id
                     content
                     updatedAt
+                    author { username }
+                    post { id title }
                 }
             }
         }
@@ -491,9 +574,23 @@ class TestUpdateCommentMutation:
 
         data = result["data"]["updateComment"]
         assert data["success"] is True
+        assert data["message"] == "評論已成功編輯"
         assert data["comment"]["content"] == "已編輯的內容"
+        assert data["comment"]["author"] == {"username": test_user.username}
+        assert data["comment"]["post"] == {"id": test_post.id, "title": test_post.title}
         # updated_at 應該被更新
         assert data["comment"]["updatedAt"] is not None
+
+        # 用新的請求重新查詢，確認變更已寫入資料庫（未 commit 的變更會在請求結束時被丟棄）
+        response = await authenticated_client.post(
+            "/graphql",
+            json={
+                "query": "query GetPost($id: ID!) { post(id: $id) { comments { id content } } }",
+                "variables": {"id": str(test_post.id)}
+            }
+        )
+        comments = response.json()["data"]["post"]["comments"]
+        assert comments == [{"id": str(comment.id), "content": "已編輯的內容"}]
 
     async def test_update_comment_empty_content(
         self, authenticated_client: AsyncClient, test_session, test_user, test_post
@@ -530,7 +627,7 @@ class TestUpdateCommentMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "空" in errors[0]["message"] or "empty" in errors[0]["message"].lower()
+        assert errors[0]["message"] == "評論內容不能為空"
 
     async def test_cannot_update_others_comment(
         self, authenticated_client: AsyncClient, test_session, test_user, test_post
@@ -577,7 +674,7 @@ class TestUpdateCommentMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "權限" in errors[0]["message"] or "permission" in errors[0]["message"].lower()
+        assert errors[0]["message"] == "沒有權限編輯此評論"
 
     async def test_post_author_cannot_update_others_comment(
         self, authenticated_client: AsyncClient, test_session, test_user, test_post
@@ -627,7 +724,7 @@ class TestUpdateCommentMutation:
         errors = response.json().get("errors")
         # 即使是文章作者，也不能編輯別人的評論
         assert errors is not None
-        assert "權限" in errors[0]["message"] or "permission" in errors[0]["message"].lower()
+        assert errors[0]["message"] == "沒有權限編輯此評論"
 
     async def test_update_comment_publishes_updated_event(self, authenticated_client: AsyncClient, test_session, test_user, test_post):
         """編輯評論後應推送 commentUpdated 事件（含新內容與作者）給該文章的訂閱者"""
@@ -682,7 +779,7 @@ class TestUpdateCommentMutation:
                     "variables": {"commentId": str(comment.id), "input": {"content": "   "}}
                 }
             )
-            assert "errors" in response.json()
+            assert response.json()["errors"][0]["message"] == "評論內容不能為空"
             assert queue.empty()
         finally:
             CommentUpdatedEvent.unsubscribe(str(test_post.id), queue)
@@ -711,7 +808,7 @@ class TestUpdateCommentMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "不存在" in errors[0]["message"] or "not found" in errors[0]["message"].lower() or "找不到" in errors[0]["message"]
+        assert errors[0]["message"] == "評論不存在"
 
     async def test_update_deleted_comment(
         self, authenticated_client: AsyncClient, test_session, test_user, test_post
@@ -749,7 +846,7 @@ class TestUpdateCommentMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "刪除" in errors[0]["message"] or "deleted" in errors[0]["message"].lower()
+        assert errors[0]["message"] == "評論已被刪除"
 
     async def test_update_comment_without_auth(
         self, client: AsyncClient, test_session, test_user, test_post
@@ -786,4 +883,5 @@ class TestUpdateCommentMutation:
         assert response.status_code == 200
         errors = response.json().get("errors")
         assert errors is not None
-        assert "登入" in errors[0]["message"] or "authentication" in errors[0]["message"].lower() or "unauthorized" in errors[0]["message"].lower()
+        # 精確比對：錯誤訊息可能夾帶 SQL 參數（含送出的內容「未登入…」），用關鍵字比對會碰巧通過
+        assert errors[0]["message"] == "需要登入才能編輯評論"

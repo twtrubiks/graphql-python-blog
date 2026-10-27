@@ -281,9 +281,11 @@ class TestFollowedUserPostSubscription:
         assert received_post.id == test_post.id
         assert received_post.title == test_post.title
 
-        # 清理
+        # 清理：client 斷線（aclose）時 resolver 必須取消訂閱，且不留下空的 key
         await publish_task
+        assert len(FollowedUserPostEvent._subscribers[user_id]) == 1
         await subscription_gen.aclose()
+        assert user_id not in FollowedUserPostEvent._subscribers
 
     async def test_subscription_requires_authentication(self):
         """未認證（context.user_id 為 None）時應拒絕訂閱"""
@@ -293,5 +295,5 @@ class TestFollowedUserPostSubscription:
             info=FakeSubscriptionInfo(user_id=None)
         )
 
-        with pytest.raises(Exception, match="Authentication required"):
+        with pytest.raises(Exception, match="^Authentication required$"):
             await anext(subscription_gen)

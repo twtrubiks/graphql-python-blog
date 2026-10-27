@@ -213,9 +213,11 @@ class TestPostDeletedSubscription:
         received_post_id = await anext(subscription_gen)
         assert str(received_post_id) == str(deleted_post_id)
 
-        # 清理
+        # 清理：client 斷線（aclose）時 resolver 必須取消訂閱，且不留下空的 key
         await publish_task
+        assert len(PostDeletedEvent._subscribers[user_id]) == 1
         await subscription_gen.aclose()
+        assert user_id not in PostDeletedEvent._subscribers
 
     async def test_subscription_resolver_returns_string_id(self):
         """測試 subscription resolver 返回可轉換為字串的 ID"""
@@ -251,5 +253,5 @@ class TestPostDeletedSubscription:
             info=FakeSubscriptionInfo(user_id=None)
         )
 
-        with pytest.raises(Exception, match="Authentication required"):
+        with pytest.raises(Exception, match="^Authentication required$"):
             await anext(subscription_gen)

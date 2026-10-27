@@ -70,3 +70,18 @@ async def test_query_with_several_root_fields(client: AsyncClient, test_user, us
     assert response.json() == {"data": {"a": {"username": "testuser"}, "b": {"username": other.username}}}
 
 
+def test_user_id_is_decoded_once(monkeypatch):
+    """同一個請求的許多欄位都會讀 user_id，JWT 只解碼一次"""
+    decoded = []
+
+    def decode(token):
+        decoded.append(token)
+        return {"sub": "7"}
+
+    monkeypatch.setattr(app.main, "decode_access_token", decode)
+    context = GraphQLContext(db_session=None, session_factory=None)
+    context.request = SimpleNamespace(headers={"Authorization": "Bearer abc"})
+
+    assert (context.user_id, context.user_id) == (7, 7)
+    assert decoded == ["abc"]
+

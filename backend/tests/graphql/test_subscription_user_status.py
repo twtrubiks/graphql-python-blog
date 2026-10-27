@@ -1,7 +1,6 @@
 import pytest
 import asyncio
 from datetime import datetime
-from types import SimpleNamespace
 from app.graphql.subscriptions.user_status import (
     UserStatusEvent,
     UserStatusSubscription,
@@ -9,7 +8,7 @@ from app.graphql.subscriptions.user_status import (
     OnlineUserInfo,
 )
 from app.graphql.queries.user import get_online_users
-from tests.utils import FakeScalarSession, FakeSubscriptionInfo
+from tests.utils import FakeSubscriptionInfo
 
 
 @pytest.mark.asyncio
@@ -147,17 +146,20 @@ class TestUserStatusSubscription:
         UserStatusEvent.unsubscribe(queue2)
         UserStatusEvent.unsubscribe(queue3)
     
-    async def test_user_status_subscription_resolver(self):
+    async def test_user_status_subscription_resolver(self, test_session, user_factory):
         """測試 GraphQL subscription resolver"""
         subscription = UserStatusSubscription()
 
-        # 訂閱者身分來自已認證的 context，username 由資料庫查出
-        subscriber = SimpleNamespace(id=7001, username="subscriber_user")
+        # 訂閱者身分來自已認證的 context，username 由資料庫查出；
+        # 多建一個使用者，查詢條件寫錯（例如查到別人）才會被發現
+        await user_factory.create(username="someone_else")
+        subscriber = await user_factory.create(username="subscriber_user")
+        subscriber_id = str(subscriber.id)
+        # 另一個在線用戶，用來確認訂閱者斷線時會廣播 OFFLINE
+        observer = UserStatusEvent.subscribe()
+        subscribers_before = list(UserStatusEvent._subscribers)
         subscription_gen = subscription.user_status_changed(
-            info=FakeSubscriptionInfo(
-                user_id=subscriber.id,
-                db_session=FakeScalarSession(subscriber)
-            )
+            info=FakeSubscriptionInfo(user_id=subscriber.id, db_session=test_session)
         )
 
         # 在另一個協程中發布狀態變更（由另一個用戶）
@@ -174,7 +176,7 @@ class TestUserStatusSubscription:
 
         # 第一個事件是訂閱者自己的 ONLINE 狀態
         status_change = await anext(subscription_gen)
-        assert status_change.user_id == "7001"
+        assert status_change.user_id == subscriber_id
         assert status_change.username == "subscriber_user"
         assert status_change.status == UserStatus.ONLINE
 
@@ -184,9 +186,22 @@ class TestUserStatusSubscription:
         assert status_change.username == "alice"
         assert status_change.status == UserStatus.ONLINE
 
-        # 清理
+        # 清理：client 斷線（aclose）時要取消訂閱，並廣播離線
         await publish_task
+        assert len(UserStatusEvent._subscribers) == len(subscribers_before) + 1
         await subscription_gen.aclose()
+        assert UserStatusEvent._subscribers == subscribers_before
+        assert UserStatusEvent.get_user_status(subscriber_id) == UserStatus.OFFLINE
+
+        events = []
+        while not observer.empty():
+            events.append(observer.get_nowait())
+        assert [(e.user_id, e.status) for e in events] == [
+            (subscriber_id, UserStatus.ONLINE),
+            ("user1", UserStatus.ONLINE),
+            (subscriber_id, UserStatus.OFFLINE),
+        ]
+        UserStatusEvent.unsubscribe(observer)
 
     async def test_subscription_requires_authentication(self):
         """未認證（context.user_id 為 None）時應拒絕訂閱"""
@@ -196,8 +211,22 @@ class TestUserStatusSubscription:
             info=FakeSubscriptionInfo(user_id=None)
         )
 
-        with pytest.raises(Exception, match="Authentication required"):
+        with pytest.raises(Exception, match="^Authentication required$"):
             await anext(subscription_gen)
+
+    async def test_subscription_rejects_unknown_user(self, test_session):
+        """token 有效但使用者已不存在時，拒絕訂閱，也不能廣播上線"""
+        subscription = UserStatusSubscription()
+        subscribers_before = list(UserStatusEvent._subscribers)
+
+        subscription_gen = subscription.user_status_changed(
+            info=FakeSubscriptionInfo(user_id=999999, db_session=test_session)
+        )
+
+        with pytest.raises(Exception, match="^Authentication required$"):
+            await anext(subscription_gen)
+        assert UserStatusEvent._subscribers == subscribers_before
+        assert UserStatusEvent.get_user_status("999999") == UserStatus.OFFLINE
     
     async def test_default_offline_status(self):
         """測試預設離線狀態"""
@@ -262,6 +291,23 @@ class TestUserStatusSubscription:
 
         # 查詢狀態仍應回報 OFFLINE（預設值）
         assert UserStatusEvent.get_user_status(user_id) == UserStatus.OFFLINE
+
+    async def test_disconnect_without_connection_is_ignored(self):
+        """沒有連線紀錄的斷線（例如重複呼叫）不廣播、不留下紀錄，之後上線照常廣播 ONLINE"""
+        user_id = "never_connected"
+        queue = UserStatusEvent.subscribe()
+        try:
+            await UserStatusEvent.user_disconnected(user_id)
+
+            assert queue.empty()
+            assert user_id not in UserStatusEvent._user_connections
+
+            await UserStatusEvent.user_connected(user_id, "late_user")
+            change = queue.get_nowait()
+            assert (change.user_id, change.username, change.status) == (user_id, "late_user", UserStatus.ONLINE)
+        finally:
+            UserStatusEvent.unsubscribe(queue)
+            await UserStatusEvent.user_disconnected(user_id)
 
     async def test_get_online_users(self):
         """測試獲取在線用戶列表"""

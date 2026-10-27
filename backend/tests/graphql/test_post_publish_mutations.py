@@ -109,7 +109,7 @@ class TestPublishPostMutation:
 
         # 應該返回錯誤
         assert "errors" in data
-        assert "already published" in str(data["errors"][0]["message"]).lower()
+        assert data["errors"][0]["message"] == "Post is already published"
 
     @pytest.mark.asyncio
     async def test_publish_post_not_author(self, client: AsyncClient, test_session: AsyncSession, test_user: User):
@@ -161,7 +161,7 @@ class TestPublishPostMutation:
 
         # 應該返回權限錯誤
         assert "errors" in data
-        assert "permission" in str(data["errors"][0]["message"]).lower()
+        assert data["errors"][0]["message"] == "You don't have permission to publish this post"
 
     @pytest.mark.asyncio
     async def test_publish_post_not_authenticated(self, client: AsyncClient, test_session: AsyncSession, test_user: User):
@@ -197,7 +197,7 @@ class TestPublishPostMutation:
 
         # 應該返回認證錯誤
         assert "errors" in data
-        assert "authentication" in str(data["errors"][0]["message"]).lower() or "authenticated" in str(data["errors"][0]["message"]).lower()
+        assert data["errors"][0]["message"] == "Authentication required"
 
     @pytest.mark.asyncio
     async def test_publish_deleted_post(self, client: AsyncClient, test_session: AsyncSession, test_user: User):
@@ -240,11 +240,36 @@ class TestPublishPostMutation:
 
         # 應該返回找不到文章的錯誤
         assert "errors" in data
-        assert "not found" in str(data["errors"][0]["message"]).lower()
+        assert data["errors"][0]["message"] == "Post not found"
 
 
 class TestUnpublishPostMutation:
     """測試取消發布文章 mutation"""
+
+    @pytest.mark.asyncio
+    async def test_unpublish_deleted_post(self, authenticated_client: AsyncClient, test_session: AsyncSession, test_user: User):
+        """已刪除的文章視同不存在"""
+        post = Post(
+            title="Deleted Post",
+            slug="deleted-post",
+            content="Test content",
+            author_id=test_user.id,
+            status=PostStatus.PUBLISHED,
+            published_at=datetime.now(timezone.utc),
+            deleted_at=datetime.now(timezone.utc)
+        )
+        test_session.add(post)
+        await test_session.commit()
+
+        response = await authenticated_client.post(
+            "/graphql",
+            json={
+                "query": "mutation UnpublishPost($id: ID!) { unpublishPost(id: $id) { id } }",
+                "variables": {"id": str(post.id)}
+            }
+        )
+
+        assert response.json()["errors"][0]["message"] == "Post not found"
 
     @pytest.mark.asyncio
     async def test_unpublish_post_success(self, client: AsyncClient, test_session: AsyncSession, test_user: User):
@@ -343,7 +368,7 @@ class TestUnpublishPostMutation:
 
         # 應該返回錯誤
         assert "errors" in data
-        assert "not published" in str(data["errors"][0]["message"]).lower()
+        assert data["errors"][0]["message"] == "Post is not published"
 
     @pytest.mark.asyncio
     async def test_unpublish_post_not_author(self, client: AsyncClient, test_session: AsyncSession, test_user: User):
@@ -396,7 +421,7 @@ class TestUnpublishPostMutation:
 
         # 應該返回權限錯誤
         assert "errors" in data
-        assert "permission" in str(data["errors"][0]["message"]).lower()
+        assert data["errors"][0]["message"] == "You don't have permission to unpublish this post"
 
     @pytest.mark.asyncio
     async def test_unpublish_post_not_authenticated(self, client: AsyncClient, test_session: AsyncSession, test_user: User):
@@ -433,4 +458,25 @@ class TestUnpublishPostMutation:
 
         # 應該返回認證錯誤
         assert "errors" in data
-        assert "authentication" in str(data["errors"][0]["message"]).lower() or "authenticated" in str(data["errors"][0]["message"]).lower()
+        assert data["errors"][0]["message"] == "Authentication required"
+
+
+@pytest.mark.asyncio
+async def test_publish_and_unpublish_update_updated_at(authenticated_client: AsyncClient, test_session: AsyncSession, test_user: User):
+    """發布與取消發布都會更新 updatedAt（由 model 的 onupdate 在 status 改變時自動更新）"""
+    long_ago = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    post = Post(title="Draft", slug="draft", content="content", author_id=test_user.id,
+                status=PostStatus.DRAFT, updated_at=long_ago)
+    test_session.add(post)
+    await test_session.commit()
+
+    timestamps = []
+    for mutation in ("publishPost", "unpublishPost"):
+        response = await authenticated_client.post("/graphql", json={
+            "query": f"mutation($id: ID!) {{ {mutation}(id: $id) {{ updatedAt }} }}",
+            "variables": {"id": str(post.id)},
+        })
+        timestamps.append(datetime.fromisoformat(response.json()["data"][mutation]["updatedAt"]))
+
+    assert long_ago < timestamps[0] <= timestamps[1]
+
