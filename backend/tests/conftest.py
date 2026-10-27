@@ -12,7 +12,7 @@ import asyncpg
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.core.database import Base, get_db, get_async_session
+from app.core.database import Base, create_session_factory, get_async_session, get_session_factory
 from app.main import app
 from app.models.user import User
 from app.models.post import Post, PostStatus
@@ -56,11 +56,14 @@ async def setup_test_database():
         )
 
         if exists:
-            # 終止所有連接到測試資料庫的會話
+            # 終止自己（同一個資料庫帳號）連到測試資料庫的會話
+            # 只限 current_user：autovacuum 等系統程序屬於 superuser，非 superuser 無權終止，
+            # 會讓整個測試 session 失敗；DROP DATABASE 本身會請 autovacuum 退出
             await conn.execute(f"""
                 SELECT pg_terminate_backend(pid)
                 FROM pg_stat_activity
                 WHERE datname = '{TEST_DB_NAME}'
+                AND usename = current_user
                 AND pid <> pg_backend_pid()
             """)
 
@@ -118,27 +121,26 @@ async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
         yield session
         await session.rollback()
 
-@pytest_asyncio.fixture(scope="function")
-async def client(test_engine) -> AsyncGenerator[AsyncClient, None]:
-    """Create test client with overridden database dependency."""
-    async_session_maker = async_sessionmaker(
-        test_engine,
-        class_=AsyncSession,
-        expire_on_commit=False
-    )
+def override_db_dependencies(test_engine) -> None:
+    """將資料庫依賴換成測試資料庫。
 
-    async def override_get_db():
-        async with async_session_maker() as session:
-            yield session
-            await session.commit()
+    行為必須與正式環境的 get_async_session 一致：請求結束只關閉 session、不自動 commit。
+    若在這裡 commit，resolver 漏寫 commit() 時測試仍會通過，上線後資料卻不會寫入。
+    """
+    async_session_maker = create_session_factory(test_engine)  # 與正式環境相同的 session 設定
 
     async def override_get_async_session():
         async with async_session_maker() as session:
             yield session
-            await session.commit()
 
-    app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_async_session] = override_get_async_session
+    # 背景工作（例如通知追蹤者）也要連到測試資料庫，而不是 .env 的開發資料庫
+    app.dependency_overrides[get_session_factory] = lambda: async_session_maker
+
+@pytest_asyncio.fixture(scope="function")
+async def client(test_engine) -> AsyncGenerator[AsyncClient, None]:
+    """Create test client with overridden database dependency."""
+    override_db_dependencies(test_engine)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -149,24 +151,7 @@ async def client(test_engine) -> AsyncGenerator[AsyncClient, None]:
 @pytest_asyncio.fixture
 async def authenticated_client(test_engine, test_user) -> AsyncGenerator[AsyncClient, None]:
     """Create authenticated test client."""
-    async_session_maker = async_sessionmaker(
-        test_engine,
-        class_=AsyncSession,
-        expire_on_commit=False
-    )
-
-    async def override_get_db():
-        async with async_session_maker() as session:
-            yield session
-            await session.commit()
-
-    async def override_get_async_session():
-        async with async_session_maker() as session:
-            yield session
-            await session.commit()
-
-    app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_async_session] = override_get_async_session
+    override_db_dependencies(test_engine)
 
     access_token = create_access_token(data={"sub": str(test_user.id)})
     transport = ASGITransport(app=app)

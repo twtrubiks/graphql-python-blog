@@ -1,0 +1,8 @@
+[run]
+source = app
+# SQLAlchemy async 以 greenlet 切換執行；少了 greenlet，第一個 await 之後的程式碼都會被記成「未執行」
+concurrency = greenlet, thread
+
+[report]
+fail_under = 80
+show_missing = true
