@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_user_id
 from app.services.comment import CommentService
 from app.graphql.types.comment import Comment as CommentType, CommentMutationResponse, UpdateCommentInput
-from app.graphql.utils import convert_model_to_graphql
 from app.graphql.subscriptions.comment import (
     CommentEvent,
     CommentUpdatedEvent,
@@ -41,10 +40,7 @@ class CommentMutation:
             )
             
             # 轉換為 GraphQL type
-            comment_type = convert_model_to_graphql(comment, CommentType)
-            # Add relationships
-            comment_type.author = comment.author
-            comment_type.post = comment.post
+            comment_type = CommentType.from_model(comment, post=comment.post)
             
             # 發送即時通知給訂閱者
             await CommentEvent.publish(str(post_id), comment_type)
@@ -54,7 +50,7 @@ class CommentMutation:
         except ValueError as e:
             raise Exception(str(e))
         except Exception as e:
-            raise Exception(f"創建評論失敗: {str(e)}")
+            raise Exception("創建評論失敗，請稍後再試") from e
     
     @strawberry.mutation
     async def delete_comment(
@@ -100,7 +96,7 @@ class CommentMutation:
         except PermissionError as e:
             raise Exception(str(e))
         except Exception as e:
-            raise Exception(f"刪除評論失敗: {str(e)}")
+            raise Exception("刪除評論失敗，請稍後再試") from e
 
     @strawberry.mutation
     async def update_comment(
@@ -128,9 +124,7 @@ class CommentMutation:
             )
 
             # 轉換為 GraphQL type
-            comment_type = convert_model_to_graphql(comment, CommentType)
-            comment_type.author = comment.author
-            comment_type.post = comment.post
+            comment_type = CommentType.from_model(comment, post=comment.post)
 
             # 發送即時通知給訂閱者
             await CommentUpdatedEvent.publish(str(comment.post_id), comment_type)
@@ -146,4 +140,4 @@ class CommentMutation:
         except PermissionError as e:
             raise Exception(str(e))
         except Exception as e:
-            raise Exception(f"編輯評論失敗: {str(e)}")
+            raise Exception("編輯評論失敗，請稍後再試") from e

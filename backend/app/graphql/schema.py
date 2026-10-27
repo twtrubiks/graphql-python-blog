@@ -19,8 +19,11 @@ GraphQL 的優勢：
 """
 
 import strawberry
-from strawberry.extensions import QueryDepthLimiter
+from graphql import GraphQLError
+from sqlalchemy.exc import SQLAlchemyError
+from strawberry.extensions import MaskErrors, QueryDepthLimiter
 from typing import Optional, List
+from app.core.config import settings
 from app.graphql.mutations.auth import register, login, AuthPayload
 from app.graphql.mutations.post import (
     create_post,
@@ -67,7 +70,7 @@ class Query(PostQuery, SearchQuery, TagQuery):
     @strawberry.field
     def version(self) -> str:
         """返回 API 版本號"""
-        return "1.0.0"
+        return settings.VERSION
 
     # 認證相關查詢
     me: Optional[UserType] = strawberry.field(
@@ -156,6 +159,14 @@ class Subscription(CommentSubscription, UserStatusSubscription, PostSubscription
     pass
 
 
+def is_database_error(error: GraphQLError) -> bool:
+    """
+    資料庫錯誤的訊息含 SQL、資料表與欄位名稱、參數值，不能回傳給客戶端。
+    完整錯誤仍會由 strawberry 寫進 server log（記錄發生在遮蔽之前）。
+    """
+    return isinstance(error.original_error, SQLAlchemyError)
+
+
 # 創建 GraphQL Schema - 這是整個 API 的入口點
 schema = strawberry.Schema(
     query=Query,
@@ -166,6 +177,8 @@ schema = strawberry.Schema(
         # 前端最深的查詢約 6 層，10 留有足夠餘裕（introspection 查詢不受此限制）
         # 以 factory callable 傳入，讓 strawberry 每次請求建立獨立 extension 實例
         lambda: QueryDepthLimiter(max_depth=10),
+        # 沒被 resolver 攔下的資料庫錯誤一律換成通用訊息；同樣以 factory 傳入，避免請求之間共用狀態
+        lambda: MaskErrors(should_mask_error=is_database_error, error_message="伺服器發生錯誤，請稍後再試"),
     ]
 )
 

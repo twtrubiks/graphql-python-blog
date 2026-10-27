@@ -35,6 +35,19 @@ class Comment:
         """檢查評論是否已被軟刪除"""
         return self.deleted_at is not None
 
+    @classmethod
+    def from_model(cls, comment, post=None) -> "Comment":
+        """從 SQLAlchemy model 建立；author 必須已經載入，post 由呼叫端決定是否附上"""
+        return cls(
+            id=strawberry.ID(str(comment.id)),
+            content=comment.content,
+            created_at=comment.created_at,
+            updated_at=comment.updated_at,
+            deleted_at=comment.deleted_at,
+            author=comment.author,
+            post=post,
+        )
+
 
 @strawberry.input
 class CommentInput:

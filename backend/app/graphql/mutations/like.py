@@ -41,7 +41,7 @@ class LikeMutation:
         except ValueError as e:
             raise Exception(str(e))
         except Exception as e:
-            raise Exception(f"按讚失敗: {str(e)}")
+            raise Exception("按讚失敗，請稍後再試") from e
     
     @strawberry.mutation
     async def unlike_post(
@@ -76,4 +76,4 @@ class LikeMutation:
         except ValueError as e:
             raise Exception(str(e))
         except Exception as e:
-            raise Exception(f"取消按讚失敗: {str(e)}")
+            raise Exception("取消按讚失敗，請稍後再試") from e
