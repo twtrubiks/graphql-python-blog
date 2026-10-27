@@ -64,6 +64,7 @@
 | 文件 | 說明 | 用途 |
 |------|------|------|
 | [TDD 完整指南](./docs/tdd-guide.md) | 測試驅動開發實踐方法 | 學習 TDD 方法論 |
+| [變異測試](./docs/mutation-testing.md) | 變異測試觀念與工具使用 | 檢驗測試的斷言強度 |
 | [Alembic 指南](./docs/alembic-guide.md) | 資料庫遷移管理 | 管理資料庫版本 |
 
 ### GraphQL 專題
