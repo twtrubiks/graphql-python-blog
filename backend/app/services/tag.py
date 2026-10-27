@@ -27,13 +27,17 @@ class TagService:
         if not tag_names:
             return []
 
-        tags = []
+        tags_by_slug: dict[str, Tag] = {}
         for name in tag_names:
             name = name.strip()
             if not name:
                 continue
 
             slug = slugify(name)
+            # slug 相同的名稱（例如 "Python" 與 "python"）只算一個。必須在查詢前就去重：
+            # session 設定 autoflush=False，剛 add 的新標籤還沒寫入，查詢找不到，會再建一個而違反 unique
+            if slug in tags_by_slug:
+                continue
 
             # 嘗試查找現有標籤
             result = await session.execute(
@@ -46,11 +50,9 @@ class TagService:
                 tag = Tag(name=name, slug=slug)
                 session.add(tag)
 
-            # 避免重複添加相同標籤
-            if tag not in tags:
-                tags.append(tag)
+            tags_by_slug[slug] = tag
 
-        return tags
+        return list(tags_by_slug.values())
 
     @staticmethod
     async def get_all_tags(session: AsyncSession) -> List[Tag]:
