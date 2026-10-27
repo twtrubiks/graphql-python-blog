@@ -1,13 +1,15 @@
+"""
+JWT 與密碼雜湊的唯一實作
+
+正式程式碼（AuthService、GraphQLContext）與測試都使用這裡的函式，
+避免兩份實作悄悄分歧。設定在呼叫時才讀取 settings，測試可以直接調整。
+"""
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import bcrypt
 import jwt
 from app.core.config import settings
 
-SECRET_KEY = getattr(settings, "SECRET_KEY", "your-secret-key-here")
-ALGORITHM = getattr(settings, "ALGORITHM", "HS256")
-# 調整為 7 天過期（7 天 * 24 小時 * 60 分鐘）
-ACCESS_TOKEN_EXPIRE_MINUTES = getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 7 * 24 * 60)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against a hashed password."""
@@ -29,15 +31,15 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 def decode_access_token(token: str) -> Optional[dict]:
-    """Decode a JWT access token."""
+    """Decode a JWT access token; invalid or expired tokens return None."""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
     except jwt.PyJWTError:
         return None

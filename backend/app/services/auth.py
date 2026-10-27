@@ -1,40 +1,14 @@
-from datetime import datetime, timedelta, timezone
-from typing import Optional
-import bcrypt
-import jwt
-from app.core.config import settings
+from app.core import security
 
 
 class AuthService:
-    @staticmethod
-    def verify_password(plain_password: str, hashed_password: str) -> bool:
-        return bcrypt.checkpw(
-            plain_password.encode("utf-8"),
-            hashed_password.encode("utf-8"),
-        )
+    """
+    認證服務的呼叫介面
 
-    @staticmethod
-    def get_password_hash(password: str) -> str:
-        return bcrypt.hashpw(
-            password.encode("utf-8"),
-            bcrypt.gensalt(),
-        ).decode("utf-8")
-
-    @staticmethod
-    def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-        to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.now(timezone.utc) + expires_delta
-        else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-        return encoded_jwt
-
-    @staticmethod
-    def verify_token(token: str) -> Optional[dict]:
-        try:
-            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-            return payload
-        except jwt.PyJWTError:
-            return None
+    實作只有一份，放在 app.core.security；這裡只是轉接，
+    讓 register / login 簽發的 token 與測試、WebSocket 驗證用的是同一套程式碼。
+    """
+    verify_password = staticmethod(security.verify_password)
+    get_password_hash = staticmethod(security.get_password_hash)
+    create_access_token = staticmethod(security.create_access_token)
+    verify_token = staticmethod(security.decode_access_token)
