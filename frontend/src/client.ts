@@ -90,8 +90,11 @@ export default new HoudiniClient({
     // 錯誤處理
     throwOnError: {
         operations: ['all'],
+        // houdini 會直接 throw 這裡的回傳值（不是「要不要拋出」的布林值），
+        // 回傳帶有後端訊息的 Error，頁面 catch 到後才能用 err.message / extractHoudiniError 顯示原因
         error: (errors: any, ctx: any) => {
-            if (!browser) return true;
+            const requestError = new Error(errors[0]?.message || 'GraphQL request failed');
+            if (!browser) return requestError;
 
             // 檢查是否為認證錯誤
             const hasAuthError = errors.some((error: any) =>
@@ -107,10 +110,9 @@ export default new HoudiniClient({
                 auth.logout();
                 notifications.error('登入已過期，請重新登入');
                 goto('/login');
-                return false; // 不拋出錯誤
             }
 
-            return true; // 其他錯誤正常拋出
+            return requestError;
         }
     },
 

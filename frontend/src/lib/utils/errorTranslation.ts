@@ -14,7 +14,7 @@ const errorMap: Record<string, string> = {
 	// 註冊相關
 	'Password must contain at least one uppercase letter': '密碼必須包含至少一個大寫字母',
 	'Password must contain at least one lowercase letter': '密碼必須包含至少一個小寫字母',
-	'Password must contain at least one digit': '密碼必須包含至少一個數字',
+	'Password must contain at least one number': '密碼必須包含至少一個數字',
 	'Password must be at least 8 characters': '密碼至少需要 8 個字元',
 	'Email already registered': '此電子郵件已被註冊',
 	'Username already taken': '此使用者名稱已被使用',
