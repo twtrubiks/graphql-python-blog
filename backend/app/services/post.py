@@ -431,6 +431,9 @@ class PostService:
         tag_ids = await PostService._get_tag_ids_by_slugs(session, tag_slugs)
         if not tag_ids:
             return [], 0
+        # 不存在的 slug 查不到 ID，會從條件中消失；要求全部標籤時，這種情況不可能有文章符合
+        if require_all and len(tag_ids) < len(set(tag_slugs)):
+            return [], 0
 
         # Build query based on require_all flag
         if require_all:
