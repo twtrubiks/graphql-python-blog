@@ -152,6 +152,82 @@ class TestPublishPostNotification:
 
 
 @pytest.mark.asyncio
+class TestUpdatePostNotification:
+    """編輯頁以 updatePost(status: PUBLISHED) 發布草稿，要和 publishPost 一樣通知"""
+
+    async def test_publishing_draft_notifies(
+        self, authenticated_client: AsyncClient, test_session: AsyncSession, test_user, user_factory
+    ):
+        follower = await follow_author(test_session, test_user, user_factory)
+        post_id = await create_post(authenticated_client, "草稿", "DRAFT")
+
+        post_queue = PostEvent.subscribe()
+        follower_queue = FollowedUserPostEvent.subscribe(follower.id)
+        try:
+            await mutate(authenticated_client, UPDATE_POST_MUTATION, id=post_id, input={"status": "PUBLISHED"})
+
+            assert (await asyncio.wait_for(post_queue.get(), timeout=1.0)).id == int(post_id)
+            assert (await asyncio.wait_for(follower_queue.get(), timeout=2.0)).id == int(post_id)
+        finally:
+            PostEvent.unsubscribe(post_queue)
+            FollowedUserPostEvent.unsubscribe(follower.id, follower_queue)
+
+    @pytest.mark.parametrize("initial_status, update", [
+        (PostStatus.PUBLISHED, {"title": "新標題", "status": "PUBLISHED"}),
+        (PostStatus.DRAFT, {"title": "新標題", "status": "DRAFT"}),
+        (PostStatus.DRAFT, {"title": "新標題"}),
+    ], ids=["edit-published", "save-draft", "without-status"])
+    async def test_other_updates_do_not_notify(
+        self, authenticated_client: AsyncClient, test_session: AsyncSession, test_user, initial_status, update
+    ):
+        post = Post(title="原標題", slug="original", content="content", status=initial_status, author_id=test_user.id)
+        test_session.add(post)
+        await test_session.commit()
+
+        queue = PostEvent.subscribe()
+        try:
+            await mutate(authenticated_client, UPDATE_POST_MUTATION, id=str(post.id), input=update)
+
+            # 下一個收到的事件必須是之後發布的那篇
+            later_id = await create_post(authenticated_client, "之後發布", "PUBLISHED")
+            assert (await asyncio.wait_for(queue.get(), timeout=1.0)).id == int(later_id)
+        finally:
+            PostEvent.unsubscribe(queue)
+
+    @pytest.mark.parametrize("draft_author, update, message", [
+        ("other", {"status": "PUBLISHED"}, "You don't have permission to edit this post"),
+        ("self", {"title": "", "status": "PUBLISHED"}, "Title cannot be empty"),
+        (None, {"status": "PUBLISHED"}, "Post not found"),
+    ], ids=["not-author", "invalid-input", "not-found"])
+    async def test_failed_publish_does_not_notify(
+        self, authenticated_client: AsyncClient, test_session: AsyncSession, test_user, user_factory,
+        draft_author, update, message
+    ):
+        """發布失敗時不能推播；別人的草稿若被推播，未公開的內容就會送到所有訂閱者手上"""
+        post_id = "999999"
+        if draft_author:
+            author = test_user if draft_author == "self" else await user_factory.create()
+            post = Post(title="草稿", slug="draft", content="content", status=PostStatus.DRAFT, author_id=author.id)
+            test_session.add(post)
+            await test_session.commit()
+            post_id = str(post.id)
+
+        queue = PostEvent.subscribe()
+        try:
+            response = await authenticated_client.post(
+                "/graphql",
+                json={"query": UPDATE_POST_MUTATION, "variables": {"id": post_id, "input": update}}
+            )
+            assert response.json()["errors"][0]["message"] == message
+
+            # 通知在背景執行，不能只檢查 queue 是否為空；下一個收到的事件必須是之後發布的那篇
+            later_id = await create_post(authenticated_client, "之後發布", "PUBLISHED")
+            assert (await asyncio.wait_for(queue.get(), timeout=1.0)).id == int(later_id)
+        finally:
+            PostEvent.unsubscribe(queue)
+
+
+@pytest.mark.asyncio
 class TestDeletePostNotification:
     async def test_delete_post_notifies_followers_only(
         self, authenticated_client: AsyncClient, test_session: AsyncSession, test_user, user_factory

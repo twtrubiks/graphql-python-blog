@@ -134,6 +134,12 @@ async def update_post(
     current_user = await require_auth(info)
     session = info.context["db_session"]
 
+    # 編輯頁發布草稿走的是 updatePost，要和 publishPost 一樣觸發通知
+    newly_published = False
+    if input.status == PostStatus.PUBLISHED:
+        previous_status = await session.scalar(select(Post.status).where(Post.id == int(id)))
+        newly_published = previous_status != PostStatus.PUBLISHED.value
+
     post = await PostService.update_post(
         session=session,
         post_id=int(id),
@@ -146,7 +152,12 @@ async def update_post(
         tag_names=input.tags
     )
 
-    return PostType.from_orm(post)
+    post_type = PostType.from_orm(post)
+
+    if newly_published:
+        await _notify_post_published(info.context["session_factory"], post.author_id, post_type)
+
+    return post_type
 
 
 @strawberry.type

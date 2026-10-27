@@ -498,6 +498,9 @@ class PostService:
             post.status = status
             if status == PostStatus.PUBLISHED.value and not post.published_at:
                 post.published_at = datetime.now(timezone.utc)
+            elif status != PostStatus.PUBLISHED.value:
+                # 與 unpublishPost 一致：取消發布時清除發布時間，重新發布時才會設定新的時間
+                post.published_at = None
 
     @staticmethod
     async def _apply_slug_update(
