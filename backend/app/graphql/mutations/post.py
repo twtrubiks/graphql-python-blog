@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import strawberry
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from strawberry.types import Info
 
 from app.models.post import Post
@@ -15,19 +16,33 @@ from app.core.auth import require_auth
 from app.graphql.subscriptions.post import PostEvent
 from app.graphql.subscriptions.followed_user_post import FollowedUserPostEvent
 from app.graphql.subscriptions.post_deleted import PostDeletedEvent
-from app.core.database import AsyncSessionLocal
 
 
-async def _notify_followers_new_post(author_id: int, post_type: PostType) -> None:
+# event loop 只保留 task 的弱參考，沒有其他參考的 task 可能在執行途中被回收，通知就會消失
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _run_in_background(coro) -> asyncio.Task:
+    """在背景執行通知，並保留 task 參考直到完成"""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
+async def _notify_followers_new_post(
+    session_factory: async_sessionmaker[AsyncSession], author_id: int, post_type: PostType
+) -> None:
     """
     通知追蹤者有新文章發布（使用獨立 session）
 
     Args:
+        session_factory: 建立獨立 session 用（背景執行時 request session 已關閉）
         author_id: 文章作者 ID
         post_type: PostType GraphQL 型別
     """
     try:
-        async with AsyncSessionLocal() as session:
+        async with session_factory() as session:
             follower_ids = await FollowService.get_follower_ids(session, author_id)
             if follower_ids:
                 await FollowedUserPostEvent.publish_to_followers(follower_ids, post_type)
@@ -49,19 +64,22 @@ async def _notify_followers_post_deleted(follower_ids: list[int], post_id: int) 
         logging.error(f"Failed to notify followers about deleted post {post_id}: {e}")
 
 
-async def _notify_post_published(author_id: int, post_type: PostType) -> None:
+async def _notify_post_published(
+    session_factory: async_sessionmaker[AsyncSession], author_id: int, post_type: PostType
+) -> None:
     """
     發布文章後觸發通知
 
     Args:
+        session_factory: 傳給背景通知工作，用來查詢追蹤者
         author_id: 文章作者 ID（用於查詢追蹤者）
         post_type: PostType GraphQL 型別（用於推送給訂閱者）
     """
     # 觸發全域 subscription 事件
-    asyncio.create_task(PostEvent.publish_post(post_type))
+    _run_in_background(PostEvent.publish_post(post_type))
 
     # 觸發追蹤用戶發文通知
-    asyncio.create_task(_notify_followers_new_post(author_id, post_type))
+    _run_in_background(_notify_followers_new_post(session_factory, author_id, post_type))
 
 
 async def create_post(
@@ -102,7 +120,7 @@ async def create_post(
 
     # 如果直接發布，觸發通知
     if status_value == PostStatus.PUBLISHED.value:
-        await _notify_post_published(post.author_id, post_type)
+        await _notify_post_published(info.context["session_factory"], post.author_id, post_type)
 
     return post_type
 
@@ -179,7 +197,7 @@ async def delete_post(
 
     # 後台發送通知（純記憶體操作，不需要 session）
     if follower_ids:
-        asyncio.create_task(_notify_followers_post_deleted(follower_ids, post_id))
+        _run_in_background(_notify_followers_post_deleted(follower_ids, post_id))
 
     return DeletePostResult(
         success=True,
@@ -243,7 +261,7 @@ async def publish_post(
 
     # 觸發通知（失敗不影響主流程）
     try:
-        await _notify_post_published(post.author_id, post_type)
+        await _notify_post_published(info.context["session_factory"], post.author_id, post_type)
     except Exception as e:
         # 通知失敗不應該影響發布操作
         print(f"Warning: Failed to send publish notification: {e}")

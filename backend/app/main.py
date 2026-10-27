@@ -22,10 +22,10 @@ from fastapi import FastAPI, Depends, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from strawberry.fastapi import GraphQLRouter, BaseContext
 from strawberry.subscriptions import GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import settings
-from app.core.database import init_db, close_db, get_async_session
+from app.core.database import init_db, close_db, get_async_session, get_session_factory
 from app.graphql.schema import schema
 from app.graphql.dataloaders import DataLoaderContext
 from app.core.security import decode_access_token
@@ -80,8 +80,9 @@ class GraphQLContext(BaseContext):
     3. 用戶認證狀態：從 JWT token 提取用戶資訊
     4. 請求級別的快取：避免重複查詢
     """
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, db_session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]):
         self.db_session = db_session
+        self.session_factory = session_factory  # 背景工作用，不能沿用請求結束就關閉的 db_session
         self._dataloaders = None  # 延遲初始化，提升效能
         self._user_id: Any = _UNSET  # 使用哨兵值區分「未初始化」和「None」
 
@@ -152,10 +153,11 @@ class GraphQLContext(BaseContext):
 
 async def get_context(
     db_session: AsyncSession = Depends(get_async_session),
+    session_factory: async_sessionmaker[AsyncSession] = Depends(get_session_factory),
 ) -> GraphQLContext:
     """Create GraphQL context with database session"""
     # Return the context - dataloaders will be initialized lazily
-    return GraphQLContext(db_session)
+    return GraphQLContext(db_session, session_factory)
 
 # 使用統一的 context getter
 graphql_app = GraphQLRouter(
