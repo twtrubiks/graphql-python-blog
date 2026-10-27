@@ -81,6 +81,7 @@ class GraphQLContext(BaseContext):
     4. 請求級別的快取：避免重複查詢
     """
     def __init__(self, db_session: AsyncSession, session_factory: async_sessionmaker[AsyncSession]):
+        super().__init__()  # 設定 request / response 等屬性的初始值，GraphQLRouter 之後會填入
         self.db_session = db_session
         self.session_factory = session_factory  # 背景工作用，不能沿用請求結束就關閉的 db_session
         self._dataloaders = None  # 延遲初始化，提升效能
@@ -92,7 +93,11 @@ class GraphQLContext(BaseContext):
 
     def get(self, key: str, default: Any = None) -> Any:
         """Support dictionary .get() method for backward compatibility"""
-        return getattr(self, key, default)
+        # 不能用 getattr(self, key, default)：property 執行途中拋出的 AttributeError 也會被當成
+        # 「沒有這個屬性」，例如建立 DataLoader 出錯時回傳 None，resolver 就悄悄改走逐筆查詢
+        if key not in self.__dict__ and not hasattr(type(self), key):
+            return default
+        return getattr(self, key)
 
     @property
     def dataloaders(self) -> DataLoaderContext:
