@@ -59,3 +59,14 @@ async def test_broken_dataloaders_surface_as_error(
     assert data["data"] is None
 
 
+@pytest.mark.asyncio
+async def test_query_with_several_root_fields(client: AsyncClient, test_user, user_factory):
+    """同一個查詢的根欄位會同時執行、共用請求的 session，不能因為同時建立連線而失敗"""
+    other = await user_factory.create()
+    query = "query($a: Int!, $b: Int!) { a: user(id: $a) { username } b: user(id: $b) { username } }"
+
+    response = await client.post("/graphql", json={"query": query, "variables": {"a": test_user.id, "b": other.id}})
+
+    assert response.json() == {"data": {"a": {"username": "testuser"}, "b": {"username": other.username}}}
+
+

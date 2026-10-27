@@ -20,6 +20,7 @@ from contextlib import asynccontextmanager
 from typing import Optional, Any
 from fastapi import FastAPI, Depends, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.requests import HTTPConnection
 from strawberry.fastapi import GraphQLRouter, BaseContext
 from strawberry.subscriptions import GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -157,10 +158,17 @@ class GraphQLContext(BaseContext):
         return result
 
 async def get_context(
+    connection: HTTPConnection,
     db_session: AsyncSession = Depends(get_async_session),
     session_factory: async_sessionmaker[AsyncSession] = Depends(get_session_factory),
 ) -> GraphQLContext:
     """Create GraphQL context with database session"""
+    if connection.scope["type"] == "http":
+        # 同一個查詢的根欄位會同時執行、共用這個 session（例如用 alias 一次查兩個用戶）。
+        # 還沒有連線時它們會同時建立連線，被 SQLAlchemy 拒絕（concurrent operations are not permitted）；
+        # 先取得連線，之後同時送出的查詢由 asyncpg adapter 依序執行。
+        # WebSocket 連線會維持很久，不預先占用連線池
+        await db_session.connection()
     # Return the context - dataloaders will be initialized lazily
     return GraphQLContext(db_session, session_factory)
 
