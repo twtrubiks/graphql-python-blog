@@ -32,7 +32,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.user import User
-from app.models.post import Post
 from app.models.comment import Comment
 from app.models.like import Like
 from app.models.follow import Follow
@@ -72,46 +71,6 @@ class UserLoader(DataLoader):
 
         # 關鍵：按照請求的順序返回結果，這是 DataLoader 的要求
         return [user_map.get(user_id) for user_id in user_ids]
-
-
-class PostLoader(DataLoader):
-    """批次載入文章資料的 DataLoader"""
-
-    def __init__(self, session: AsyncSession):
-        super().__init__(load_fn=self.batch_load_posts)
-        self.session = session
-
-    async def batch_load_posts(self, post_ids: List[int]) -> List[Optional[Post]]:
-        """批次載入多個文章"""
-        result = await self.session.execute(
-            select(Post)
-            .options(selectinload(Post.tags))  # 預載入標籤
-            .where(Post.id.in_(post_ids))
-        )
-        posts = result.scalars().all()
-
-        post_map: Dict[int, Post] = {post.id: post for post in posts}
-        return [post_map.get(post_id) for post_id in post_ids]
-
-
-class CommentLoader(DataLoader):
-    """批次載入評論資料的 DataLoader"""
-
-    def __init__(self, session: AsyncSession):
-        super().__init__(load_fn=self.batch_load_comments)
-        self.session = session
-
-    async def batch_load_comments(self, comment_ids: List[int]) -> List[Optional[Comment]]:
-        """批次載入多個評論"""
-        result = await self.session.execute(
-            select(Comment)
-            .options(selectinload(Comment.author))  # 預載入作者
-            .where(Comment.id.in_(comment_ids))
-        )
-        comments = result.scalars().all()
-
-        comment_map: Dict[int, Comment] = {comment.id: comment for comment in comments}
-        return [comment_map.get(comment_id) for comment_id in comment_ids]
 
 
 class PostCommentsLoader(DataLoader):
@@ -379,13 +338,8 @@ class DataLoaderContext:
     """DataLoader 上下文管理器"""
 
     def __init__(self, session: AsyncSession, user_id: Optional[int] = None):
-        self.session = session
-        self.user_id = user_id
-
         # 初始化所有 DataLoader
         self.user_loader = UserLoader(session)
-        self.post_loader = PostLoader(session)
-        self.comment_loader = CommentLoader(session)
         self.post_comments_loader = PostCommentsLoader(session)
         self.comment_count_loader = CommentCountLoader(session)
         self.post_tags_loader = PostTagsLoader(session)
@@ -399,12 +353,6 @@ class DataLoaderContext:
 
     def get_user_loader(self) -> UserLoader:
         return self.user_loader
-
-    def get_post_loader(self) -> PostLoader:
-        return self.post_loader
-
-    def get_comment_loader(self) -> CommentLoader:
-        return self.comment_loader
 
     def get_post_comments_loader(self) -> PostCommentsLoader:
         return self.post_comments_loader

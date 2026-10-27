@@ -112,7 +112,7 @@ class CommentService:
         comment.updated_at = datetime.now(timezone.utc)
 
         await db.commit()
-        await db.refresh(comment, ["author", "post"])
+        # author 與 post 在讀取時已經 selectinload，session 設定 expire_on_commit=False，commit 後不必重新載入
 
         return comment
 
@@ -141,47 +141,3 @@ class CommentService:
         await db.commit()
 
         return comment
-
-    @staticmethod
-    async def get_comment_by_id(
-        db: AsyncSession,
-        comment_id: int
-    ) -> Optional[Comment]:
-        """根據ID獲取評論"""
-        query = select(Comment).where(
-            and_(
-                Comment.id == comment_id,
-                Comment.deleted_at.is_(None)
-            )
-        ).options(
-            selectinload(Comment.author),
-            selectinload(Comment.post)
-        )
-
-        result = await db.execute(query)
-        return result.scalar_one_or_none()
-
-    @staticmethod
-    async def get_user_comments(
-        db: AsyncSession,
-        user_id: int,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None
-    ) -> List[Comment]:
-        """獲取用戶的所有評論"""
-        query = select(Comment).where(
-            and_(
-                Comment.user_id == user_id,
-                Comment.deleted_at.is_(None)
-            )
-        ).options(
-            selectinload(Comment.post)
-        ).order_by(Comment.created_at.desc())
-
-        if limit:
-            query = query.limit(limit)
-        if offset:
-            query = query.offset(offset)
-
-        result = await db.execute(query)
-        return result.scalars().all()

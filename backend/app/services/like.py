@@ -113,20 +113,3 @@ class LikeService:
         )
         return result.scalar_one_or_none() is not None
     
-    @staticmethod
-    async def get_user_liked_posts(
-        db: AsyncSession,
-        user_id: int,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None
-    ) -> list[int]:
-        """獲取用戶按讚的文章ID列表"""
-        query = select(Like.post_id).where(Like.user_id == user_id)
-        
-        if limit:
-            query = query.limit(limit)
-        if offset:
-            query = query.offset(offset)
-        
-        result = await db.execute(query)
-        return [row[0] for row in result]

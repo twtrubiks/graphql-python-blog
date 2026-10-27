@@ -99,7 +99,7 @@ def get_online_users(info: Info) -> List[OnlineUserInfo]:
     return [
         OnlineUserInfo(
             user_id=strawberry.ID(uid),
-            username=UserStatusEvent._user_info.get(uid, "Unknown")
+            username=UserStatusEvent._user_info[uid],  # 上線一定經過 user_connected，已記下 username
         )
         for uid in online_user_ids
     ]

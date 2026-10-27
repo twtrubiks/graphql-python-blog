@@ -11,11 +11,3 @@ class LikeMutationResponse:
     success: bool
     message: str
     post: Optional[Annotated["PostType", strawberry.lazy("app.graphql.types.post")]] = None
-    
-    @classmethod
-    def create(cls, success: bool, message: str, post=None):
-        from app.graphql.types.post import PostType
-        if post:
-            post_type = PostType.from_orm(post)
-            return cls(success=success, message=message, post=post_type)
-        return cls(success=success, message=message)

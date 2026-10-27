@@ -74,24 +74,34 @@ query {
 
 ## 權限類別說明
 
-### 基本權限類別
+### 本專案的權限類別
 
-| 權限類別 | 用途 | 使用場景 |
+`backend/app/graphql/permissions.py` 定義了兩個權限類別：
+
+| 權限類別 | 用途 | 使用位置 |
 |---------|------|---------|
-| `IsAuthenticated` | 要求登入 | 個人資料、創建內容 |
-| `IsOwner` | 資源擁有者 | 編輯、刪除自己的內容 |
-| `IsSuperuser` | 超級用戶 | 管理功能、敏感資料 |
-| `IsOwnerOrSuperuser` | 擁有者或管理員 | 私密欄位如 email |
-| `IsOwnerOrReadOnly` | 擁有者可寫，其他人只讀 | 公開內容的編輯 |
-| `CanManageUsers` | 超級用戶專用 | 用戶列表、禁用用戶 |
+| `IsAuthenticated` | 要求登入 | `me`、`protectedData`、`myPosts`、`followingPosts` 查詢；文章的建立 / 更新 / 刪除 / 發布 / 取消發布與 `updateMe` mutation |
+| `IsOwnerOrSuperuser` | 本人或超級用戶 | `UserType.email` 欄位（無權限時回傳 `null`） |
+
+### 「是否為擁有者」在 resolver 內檢查
+
+編輯、刪除、發布文章時，「必須是作者本人」的檢查寫在 resolver（或 service）裡，而不是權限類別：
+
+```python
+# backend/app/graphql/mutations/post.py
+if post.author_id != current_user.id:
+    raise ValueError("You don't have permission to delete this post")
+```
+
+原因是權限類別只拿得到 `source`、`info` 與參數，要判斷擁有者就得自己查資料庫，還得從欄位名稱推測資源類型（例如名稱含 `post` 就查 `Post` 表）。resolver 本來就要載入這篇文章，直接比對 `author_id` 更簡單、也不會多查一次。`IsOwnerOrSuperuser` 能做成權限類別，是因為 `UserType` 欄位的 `source` 就是用戶本身，不需要額外查詢。
 
 ### 權限組合邏輯
 
-- **AND 邏輯**：多個權限類別必須同時滿足
-  - 例：`[IsAuthenticated, IsOwner]` = 必須登入且是擁有者
+- **AND 邏輯**：`permission_classes` 中的權限類別必須全部通過
+  - 例：`[IsAuthenticated, IsPostAuthor]` = 必須登入且是文章作者（`IsPostAuthor` 為假設的自訂類別）
 
-- **OR 邏輯**：創建組合權限類別
-  - 例：`IsOwnerOrAdmin` = 擁有者或管理員皆可
+- **OR 邏輯**：Strawberry 沒有內建 OR 組合，要寫成一個權限類別
+  - 例：`IsOwnerOrSuperuser` = 本人或超級用戶皆可
 
 ## 實作架構
 
@@ -126,13 +136,9 @@ class IsOwnerOrSuperuser(BasePermission):
         if user.is_superuser:
             return True
 
-        # 檢查是否為資源擁有者
-        if hasattr(source, 'id'):
-            source_id = int(source.id)
-            if source_id == user.id:
-                return True
-
-        return False
+        # 檢查是否為資源擁有者：對於 UserType 的欄位，source 就是該 UserType
+        source_id = getattr(source, "id", None)
+        return source_id is not None and int(source_id) == user.id
 ```
 
 ### Field-Level 權限應用
@@ -182,9 +188,9 @@ class UserType:
 ### 1. 權限分層設計
 
 建立清晰的權限層次：
-- **基礎層**：IsAuthenticated（要求登入）
-- **角色層**：IsSuperuser、IsModerator
-- **資源層**：IsOwner、IsCollaborator
+- **基礎層**：是否登入（本專案的 `IsAuthenticated`）
+- **角色層**：管理員、版主等角色（本專案只有 `is_superuser` 旗標，用在 `IsOwnerOrSuperuser`）
+- **資源層**：是否為資源擁有者（本專案在 resolver 內比對 `author_id`）
 
 ### 2. 錯誤訊息設計
 
@@ -212,7 +218,7 @@ class UserType:
 **概念相似，實作層級不同**：
 - **REST**：通常在 View/Endpoint 層級控制
 - **GraphQL**：可以細到 Field 層級控制
-- **共同點**：都支援 IsAuthenticated、IsOwner 等概念
+- **共同點**：都有「是否登入」、「是否為擁有者」等概念
 
 ### Q2: 權限檢查會影響效能嗎？
 
@@ -228,7 +234,7 @@ class UserType:
 1. **拋出錯誤**（`fail_silently=False`）：明確告知用戶無權限
    ```python
    email: str = strawberry.field(
-       extensions=[PermissionExtension(permissions=[IsOwner()])]
+       extensions=[PermissionExtension(permissions=[IsOwnerOrSuperuser()])]
    )  # 無權限時拋出錯誤
    ```
 

@@ -178,8 +178,6 @@ alembic downgrade -1
 | DataLoader | 用途 |
 |------------|------|
 | `UserLoader` | 批次載入用戶資料 |
-| `PostLoader` | 批次載入文章 |
-| `CommentLoader` | 批次載入評論 |
 | `PostCommentsLoader` | 批次載入文章的所有評論 |
 | `LikeCountLoader` | 批次載入文章按讚數 |
 | `UserLikedPostsLoader` | 批次載入用戶按讚的文章 |

@@ -98,8 +98,6 @@ author1_again = await user_loader.load(1)
 ### 1. DataLoader 類別
 
 - **UserLoader**: 批次載入用戶資料
-- **PostLoader**: 批次載入文章資料
-- **CommentLoader**: 批次載入評論資料
 - **PostCommentsLoader**: 批次載入文章的所有評論
 - **CommentCountLoader**: 批次載入評論數（SQL COUNT + GROUP BY，排除已軟刪除的評論）
 - **PostTagsLoader**: 批次載入文章標籤

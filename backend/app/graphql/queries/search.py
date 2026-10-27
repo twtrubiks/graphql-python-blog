@@ -60,7 +60,7 @@ class SearchQuery:
         user_stmt = select(User).where(
             or_(
                 func.lower(User.username).contains(search_term),
-                func.lower(User.bio).contains(search_term) if User.bio else False
+                func.lower(User.bio).contains(search_term)  # bio 是 NULL 時條件為 NULL，不會符合
             )
         )
 

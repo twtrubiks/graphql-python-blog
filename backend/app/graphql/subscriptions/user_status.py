@@ -63,7 +63,6 @@ class UserStatusEvent:
     @classmethod
     async def user_disconnected(cls, user_id: str):
         """用戶斷線（subscription 結束時調用）"""
-        username = cls._user_info.get(user_id, "Unknown")
         prev_count = cls._user_connections.get(user_id, 0)
 
         if prev_count > 0:
@@ -71,7 +70,8 @@ class UserStatusEvent:
 
             # 只有從 1 -> 0 時才發送 OFFLINE 狀態
             if prev_count == 1:
-                await cls.publish_status_change(user_id, username, UserStatus.OFFLINE)
+                # 有連線就一定有 user_connected 記下的 username
+                await cls.publish_status_change(user_id, cls._user_info[user_id], UserStatus.OFFLINE)
                 # 清除完全離線用戶的記錄，避免字典無上限累積（記憶體洩漏）
                 # get_user_status 對不存在的 user_id 預設回傳 OFFLINE，行為不變
                 cls._user_connections.pop(user_id, None)

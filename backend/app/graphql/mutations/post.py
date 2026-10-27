@@ -178,21 +178,7 @@ async def delete_post(
     # Get database session
     session = info.context["db_session"]
 
-    # Get the post (exclude soft-deleted)
-    result = await session.execute(
-        select(Post).where(
-            Post.id == int(id),
-            Post.deleted_at.is_(None)
-        )
-    )
-    post = result.scalar_one_or_none()
-
-    if not post:
-        raise ValueError("Post not found")
-
-    # Check if current user is the author
-    if post.author_id != current_user.id:
-        raise ValueError("You don't have permission to delete this post")
+    post = await PostService.get_post_for_author(session, int(id), current_user.id, "delete")
 
     # 保存刪除前的資訊（commit 後可能無法存取）
     author_id = post.author_id
@@ -228,21 +214,7 @@ async def publish_post(
     # Get database session
     session = info.context["db_session"]
 
-    # Get the post (exclude soft-deleted)
-    result = await session.execute(
-        select(Post).where(
-            Post.id == int(id),
-            Post.deleted_at.is_(None)
-        )
-    )
-    post = result.scalar_one_or_none()
-
-    if not post:
-        raise ValueError("Post not found")
-
-    # Check if current user is the author
-    if post.author_id != current_user.id:
-        raise ValueError("You don't have permission to publish this post")
+    post = await PostService.get_post_for_author(session, int(id), current_user.id, "publish")
 
     # Check if already published
     if post.status == PostStatus.PUBLISHED.value:
@@ -250,8 +222,7 @@ async def publish_post(
 
     # Update status and published_at
     post.status = PostStatus.PUBLISHED.value
-    post.published_at = datetime.now(timezone.utc)
-    post.updated_at = datetime.now(timezone.utc)
+    post.published_at = datetime.now(timezone.utc)  # updated_at 由 model 的 onupdate 在改 status 時更新
 
     # Save changes
     await session.commit()
@@ -292,21 +263,7 @@ async def unpublish_post(
     # Get database session
     session = info.context["db_session"]
 
-    # Get the post (exclude soft-deleted)
-    result = await session.execute(
-        select(Post).where(
-            Post.id == int(id),
-            Post.deleted_at.is_(None)
-        )
-    )
-    post = result.scalar_one_or_none()
-
-    if not post:
-        raise ValueError("Post not found")
-
-    # Check if current user is the author
-    if post.author_id != current_user.id:
-        raise ValueError("You don't have permission to unpublish this post")
+    post = await PostService.get_post_for_author(session, int(id), current_user.id, "unpublish")
 
     # Check if not published
     if post.status != PostStatus.PUBLISHED.value:
@@ -314,8 +271,7 @@ async def unpublish_post(
 
     # Update status and clear published_at
     post.status = PostStatus.DRAFT.value
-    post.published_at = None
-    post.updated_at = datetime.now(timezone.utc)
+    post.published_at = None  # updated_at 由 model 的 onupdate 在改 status 時更新
 
     # Save changes
     await session.commit()

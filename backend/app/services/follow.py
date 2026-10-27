@@ -59,9 +59,8 @@ class FollowService:
             )
             session.add(follow)
             await session.commit()
-            await session.refresh(follow)
-            
-            # 載入關聯物件
+
+            # 載入關聯物件（重新查詢一次，同時取得兩邊的用戶）
             result = await session.execute(
                 select(Follow)
                 .where(Follow.id == follow.id)

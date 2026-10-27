@@ -4,10 +4,9 @@ from typing import Optional, List, Annotated
 from datetime import datetime
 from enum import Enum
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 from app.graphql.types.tag import TagType
-from app.models.post import Post as PostModel
+from app.models.tag import Tag, post_tags
 
 
 @strawberry.enum
@@ -39,13 +38,11 @@ class PostType:
         # Get the actual excerpt from the database model if it exists
         if self._excerpt:
             return self._excerpt
-        # Otherwise, generate from content
-        if self.content:
-            max_length = 150
-            if len(self.content) > max_length:
-                return self.content[:max_length] + "..."
-            return self.content
-        return ""
+        # Otherwise, generate from content（content 不可為 NULL，空字串時摘要也是空字串）
+        max_length = 150
+        if len(self.content) > max_length:
+            return self.content[:max_length] + "..."
+        return self.content
     
     @strawberry.field
     async def author(self, info: strawberry.Info) -> Annotated["UserType", strawberry.lazy("app.graphql.types.user")]:
@@ -98,15 +95,11 @@ class PostType:
         # Fallback to direct database query
         session = info.context["db_session"]
         result = await session.execute(
-            select(PostModel)
-            .options(selectinload(PostModel.tags))
-            .where(PostModel.id == self.id)
+            select(Tag)
+            .join(post_tags, Tag.id == post_tags.c.tag_id)
+            .where(post_tags.c.post_id == self.id)
         )
-        post = result.scalar_one_or_none()
-
-        if post and post.tags:
-            return [TagType.from_model(tag) for tag in post.tags]
-        return []
+        return [TagType.from_model(tag) for tag in result.scalars()]
     
     @strawberry.field
     async def comments(
@@ -134,19 +127,8 @@ class PostType:
                 offset=offset
             )
         
-        # Convert to GraphQL types
-        return [
-            Comment(
-                id=str(comment.id),
-                content=comment.content,
-                created_at=comment.created_at,
-                updated_at=comment.updated_at,
-                deleted_at=comment.deleted_at,
-                author=comment.author,
-                post=None  # Avoid circular reference
-            )
-            for comment in comments
-        ]
+        # Convert to GraphQL types（不附上 post，避免循環參照）
+        return [Comment.from_model(comment) for comment in comments]
     
     @strawberry.field
     async def total_comments(self, info: strawberry.Info) -> int:
@@ -206,7 +188,7 @@ class PostType:
             _excerpt=post.excerpt,  # Store the actual excerpt
             _author=getattr(post, 'author', None),  # Store preloaded author if exists
             _tags=getattr(post, 'tags', None),  # Store preloaded tags if exists
-            status=PostStatus(post.status.value if hasattr(post.status, 'value') else post.status),
+            status=PostStatus(post.status),  # model 的 PostStatus 是 str enum，可以直接用值轉換
             author_id=post.author_id,
             created_at=post.created_at,
             updated_at=post.updated_at,

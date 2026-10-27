@@ -1,4 +1,6 @@
 import re
+from typing import Optional
+
 import strawberry
 from sqlalchemy import select
 from app.models.user import User
@@ -18,17 +20,17 @@ def validate_email(email: str) -> bool:
     return re.match(pattern, email) is not None
 
 
-def validate_password(password: str) -> tuple[bool, str]:
-    """驗證密碼強度"""
+def validate_password(password: str) -> Optional[str]:
+    """驗證密碼強度，回傳錯誤訊息；符合規則時回傳 None"""
     if len(password) < 8:
-        return False, "Password must be at least 8 characters long"
+        return "Password must be at least 8 characters long"
     if not re.search(r'[A-Z]', password):
-        return False, "Password must contain at least one uppercase letter"
+        return "Password must contain at least one uppercase letter"
     if not re.search(r'[a-z]', password):
-        return False, "Password must contain at least one lowercase letter"
+        return "Password must contain at least one lowercase letter"
     if not re.search(r'\d', password):
-        return False, "Password must contain at least one number"
-    return True, ""
+        return "Password must contain at least one number"
+    return None
 
 
 async def register(
@@ -46,9 +48,9 @@ async def register(
         raise ValueError("Invalid email format")
     
     # 驗證密碼強度
-    is_valid, error_msg = validate_password(password)
-    if not is_valid:
-        raise ValueError(error_msg)
+    password_error = validate_password(password)
+    if password_error:
+        raise ValueError(password_error)
     
     # 檢查 email 是否已存在
     result = await db_session.execute(
@@ -74,12 +76,11 @@ async def register(
     )
     
     db_session.add(new_user)
-    await db_session.commit()
-    await db_session.refresh(new_user)
+    await db_session.commit()  # id 與 created_at 等伺服器端預設值由 INSERT ... RETURNING 帶回，不必再 refresh
     
     # 生成 JWT token
     token = AuthService.create_access_token(
-        data={"sub": str(new_user.id), "email": new_user.email}
+        data={"sub": str(new_user.id)}
     )
     
     return AuthPayload(
@@ -117,7 +118,7 @@ async def login(
     
     # 生成 JWT token
     token = AuthService.create_access_token(
-        data={"sub": str(user.id), "email": user.email}
+        data={"sub": str(user.id)}
     )
     
     return AuthPayload(

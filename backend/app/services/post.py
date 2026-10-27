@@ -87,25 +87,6 @@ class PostService:
         return result.scalar_one()
     
     @staticmethod
-    async def get_post_by_id(
-        session: AsyncSession, 
-        post_id: int,
-        include_tags: bool = False
-    ) -> Optional[Post]:
-        """Get a post by ID (excludes soft-deleted posts)"""
-        stmt = select(Post).where(
-            Post.id == post_id,
-            Post.deleted_at.is_(None)  # Exclude soft-deleted posts
-        )
-        
-        # Optionally include tags
-        if include_tags:
-            stmt = stmt.options(selectinload(Post.tags))
-        
-        result = await session.execute(stmt)
-        return result.scalar_one_or_none()
-    
-    @staticmethod
     async def get_post_by_slug(
         session: AsyncSession,
         slug: str,
@@ -143,8 +124,8 @@ class PostService:
     @staticmethod
     async def get_posts(
         session: AsyncSession,
-        page: int = 1,
-        limit: int = 10,
+        page: int,
+        limit: int,
         status_filter: Optional[PostStatus] = PostStatus.PUBLISHED,
         include_author: bool = True,
         search: Optional[str] = None
@@ -238,14 +219,6 @@ class PostService:
         return None
     
     @staticmethod
-    async def _get_tag_by_slug(session: AsyncSession, slug: str) -> Optional[Tag]:
-        """Helper method to get tag by slug"""
-        result = await session.execute(
-            select(Tag).where(Tag.slug == slug)
-        )
-        return result.scalar_one_or_none()
-    
-    @staticmethod
     def _build_posts_by_tag_query(tag_id: int):
         """Helper method to build query for posts by tag"""
         return (
@@ -287,12 +260,12 @@ class PostService:
     async def get_posts_by_tag(
         session: AsyncSession,
         tag_slug: str,
-        page: int = 1,
-        limit: int = 10
+        page: int,
+        limit: int
     ) -> Tuple[List[Post], int]:
         """Get posts filtered by tag slug"""
         # Get the tag
-        tag = await PostService._get_tag_by_slug(session, tag_slug)
+        tag = await TagService.get_tag_by_slug(session, tag_slug)
         if not tag:
             return [], 0
         
@@ -417,9 +390,9 @@ class PostService:
     async def get_posts_by_tags(
         session: AsyncSession,
         tag_slugs: List[str],
-        require_all: bool = False,
-        page: int = 1,
-        limit: int = 10
+        require_all: bool,
+        page: int,
+        limit: int
     ) -> Tuple[List[Post], int]:
         """Get posts filtered by multiple tags
 
@@ -456,20 +429,20 @@ class PostService:
     # ========== Update Post Methods ==========
 
     @staticmethod
-    async def _get_post_for_update(
-        session: AsyncSession, post_id: int, author_id: int
+    async def get_post_for_author(
+        session: AsyncSession, post_id: int, author_id: int, action: str, *options
     ) -> Post:
-        """獲取 post 並驗證權限"""
+        """取得未刪除的文章並確認是作者本人；action 是錯誤訊息裡的動作（edit、delete…），options 是額外的載入選項"""
         result = await session.execute(
             select(Post)
-            .options(selectinload(Post.tags))
+            .options(*options)
             .where(Post.id == post_id, Post.deleted_at.is_(None))
         )
         post = result.scalar_one_or_none()
         if not post:
             raise ValueError("Post not found")
         if post.author_id != author_id:
-            raise ValueError("You don't have permission to edit this post")
+            raise ValueError(f"You don't have permission to {action} this post")
         return post
 
     @staticmethod
@@ -539,7 +512,8 @@ class PostService:
         tag_names: Optional[List[str]] = None
     ) -> Post:
         """更新文章"""
-        post = await PostService._get_post_for_update(session, post_id, author_id)
+        # 替換標籤前要先載入原本的標籤，async 環境不能延遲載入
+        post = await PostService.get_post_for_author(session, post_id, author_id, "edit", selectinload(Post.tags))
         PostService._apply_field_updates(post, title, content, excerpt, status)
         await PostService._apply_slug_update(session, post, slug)
 
@@ -556,8 +530,8 @@ class PostService:
     async def get_posts_by_followed_users(
         session: AsyncSession,
         user_id: int,
-        page: int = 1,
-        limit: int = 10
+        page: int,
+        limit: int
     ) -> Tuple[List[Post], int]:
         """
         獲取用戶追蹤的所有人的已發布文章（分頁）
@@ -616,9 +590,9 @@ class PostService:
     async def get_posts_by_author(
         session: AsyncSession,
         author_id: int,
-        status: Optional[str] = None,
-        page: int = 1,
-        limit: int = 10
+        status: Optional[str],
+        page: int,
+        limit: int
     ) -> Tuple[List[Post], int]:
         """
         獲取指定作者的文章（包含草稿和已發布）

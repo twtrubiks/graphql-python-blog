@@ -23,7 +23,7 @@ class PostQuery:
     ) -> PostConnection:
         """Helper method to create PostConnection with pagination info"""
         # Calculate pagination info
-        total_pages = (total_count + limit - 1) // limit if total_count > 0 else 0
+        total_pages = (total_count + limit - 1) // limit  # 無條件進位；沒有資料時為 0
         has_next_page = page < total_pages
         has_previous_page = page > 1
         

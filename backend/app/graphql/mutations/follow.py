@@ -33,6 +33,7 @@ class FollowMutation:
             followed_id=int(user_id)
         )
         
+        follow_type = None
         if follow:
             # 轉換為 GraphQL 類型
             follow_type = FollowType(
@@ -41,9 +42,7 @@ class FollowMutation:
                 followed=UserType.from_orm(follow.followed),
                 created_at=follow.created_at
             )
-            return FollowResponse(success=True, message=message, follow=follow_type)
-        
-        return FollowResponse(success=False, message=message, follow=None)
+        return FollowResponse(success=success, message=message, follow=follow_type)
     
     @strawberry.mutation
     async def unfollow_user(
