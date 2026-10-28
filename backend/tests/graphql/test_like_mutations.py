@@ -1,6 +1,7 @@
 import pytest
 from datetime import datetime, timezone
 from httpx import AsyncClient
+from sqlalchemy import func, select
 from app.models.like import Like
 from app.models.post import Post
 
@@ -229,6 +230,39 @@ class TestUnlikePostMutation:
         errors = response.json().get("errors")
         assert errors is not None
         assert errors[0]["message"] == "文章不存在"
+
+    async def test_unlike_soft_deleted_post_fails(self, authenticated_client: AsyncClient, test_session, test_user, test_post):
+        """測試取消按讚已軟刪除的文章會失敗，按讚紀錄保留不動"""
+        test_session.add(Like(user_id=test_user.id, post_id=test_post.id))
+        post = await test_session.get(Post, test_post.id)
+        post.deleted_at = datetime.now(timezone.utc)
+        await test_session.commit()
+
+        mutation = """
+        mutation UnlikePost($postId: ID!) {
+            unlikePost(postId: $postId) {
+                success
+                message
+            }
+        }
+        """
+
+        variables = {"postId": str(test_post.id)}
+
+        response = await authenticated_client.post(
+            "/graphql",
+            json={"query": mutation, "variables": variables}
+        )
+
+        assert response.status_code == 200
+        errors = response.json().get("errors")
+        assert errors is not None
+        assert errors[0]["message"] == "文章不存在"
+
+        likes_count = await test_session.scalar(
+            select(func.count(Like.id)).where(Like.post_id == test_post.id)
+        )
+        assert likes_count == 1
 
     async def test_unlike_post_without_auth(self, client: AsyncClient, test_session, test_user, test_post):
         """unlikePost 沒有掛 IsAuthenticated，未登入要由 resolver 擋下"""
